@@ -42,7 +42,7 @@ Where:
 - `VelErr`: Error tolerance for velocity field (1e-3)
 - `Ldomain`: Domain size in characteristic lengths (8)
 */
-#define FILTERED // Smear density and viscosity jumps
+#define FILTERED 1// Smear density and viscosity jumps
 #include "two-phase.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"
@@ -153,12 +153,12 @@ event init(t = 0) {
 #else  // Note that distance.h is incompatible with OpenMPI. So, the below code should not be used with MPI
   if (!restore(file = dumpFile)) {
     char filename[60];
-    sprintf(filename, "Bo%5.4f.dat", Bond);
+    sprintf(filename, "DataFiles/Bo%5.4f.dat", Bond);
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL) {
       fprintf(ferr, "There is no file named %s\n", filename);
       // Try in folder one level up
-      sprintf(filename, "../Bo%5.4f.dat", Bond);
+      sprintf(filename, "../DataFiles/Bo%5.4f.dat", Bond);
       fp = fopen(filename, "rb");
       if (fp == NULL) {
         fprintf(ferr, "There is no file named %s\n", filename);
