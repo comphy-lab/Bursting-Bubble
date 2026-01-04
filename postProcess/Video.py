@@ -507,7 +507,7 @@ def plot_snapshot(
         ax,
         cntrl1,
         align="left",
-        label=r"$\log_{10}\left(\boldsymbol{\mathcal{D}:\mathcal{D}}\right)$",
+        label=r"$\log_{10}\left(\mu_r(\boldsymbol{\mathcal{D}:\mathcal{D}})\right)$",
         style=style,
     )
     add_colorbar(

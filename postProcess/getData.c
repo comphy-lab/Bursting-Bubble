@@ -263,7 +263,8 @@ static void compute_D2c_field(scalar target)
 #else
     double D2 = sq(D11) + sq(D33) + 2.*sq(D13);
 #endif
-    target[] = D2;
+    double mu_r = f[] + (1. - f[])*2e-2;  // viscosity ratio: 1 in liquid, 0.02 in gas
+    target[] = mu_r * D2;
     if (target[] > 0.)
       target[] = log(target[])/log(10);
     else
