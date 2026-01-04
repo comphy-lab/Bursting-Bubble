@@ -304,25 +304,22 @@ cd "$CASE_DIR"
 # ============================================================
 # Source File Setup
 # ============================================================
-SRC_FILE_ORIG="burstingBubble.c"
+SRC_FILE_ORIG="../burstingBubble.c"
 SRC_FILE_LOCAL="burstingBubble.c"
 EXECUTABLE="burstingBubble"
 
-# Check if source file exists (should be in simulationCases/)
+# Check if source file exists
 if [ ! -f "$SRC_FILE_ORIG" ]; then
-    echo "ERROR: Source file $SRC_FILE_ORIG not found in simulationCases/" >&2
+    echo "ERROR: Source file $SRC_FILE_ORIG not found" >&2
     exit 1
 fi
 
-echo "Using source file: $SRC_FILE_ORIG"
+# Copy source file to case directory for compilation
+cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
 
 # Create symlink to DataFiles (required for initial condition loading)
 if [ ! -e "DataFiles" ]; then
-    ln -s DataFiles DataFiles 2>/dev/null || true
-    # DataFiles should already be in simulationCases/
-    if [ ! -d "DataFiles" ]; then
-        echo "WARNING: DataFiles directory not found. Initial geometry may fail to load." >&2
-    fi
+    ln -s ../DataFiles DataFiles
 fi
 
 # ============================================================
