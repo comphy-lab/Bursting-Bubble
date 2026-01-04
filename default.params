@@ -1,0 +1,39 @@
+# Bursting Bubble Simulation - Default Parameters (Newtonian)
+# Format: key=value (one per line, # for comments)
+# This file provides a typical configuration for bursting bubble simulations
+
+# ============================================================
+# Case Identification
+# ============================================================
+# Case number for folder naming (4-digit: 1000-9999)
+# Output will be created in simulationCases/<CaseNo>/
+CaseNo=1000
+
+# ============================================================
+# Physical Parameters (Dimensionless Numbers)
+# ============================================================
+# Ohnesorge number: Oh = mu/sqrt(rho*sigma*R) (viscous / inertial-capillary)
+# Controls viscous vs surface tension effects
+# Typical values: 1e-3 (water-like) to 1e-1 (viscous)
+Oh=1e-2
+
+# Bond number: Bo = rho*g*R^2/sigma (gravity / surface tension)
+# Controls gravitational effects on bubble shape
+# Note: Currently only Bo=0.0010 geometry available (Bo0.0010.dat)
+Bond=1e-3
+
+# ============================================================
+# Numerical Parameters (Mesh Adaptation)
+# ============================================================
+# Maximum refinement level (2^MAXlevel cells at finest resolution)
+# Level 10 -> 1024 cells, Level 11 -> 2048 cells, Level 12 -> 4096 cells
+# Higher levels give better accuracy but slower computation
+MAXlevel=10
+
+# ============================================================
+# Time Control
+# ============================================================
+# Maximum simulation time (dimensionless, based on capillary time scale)
+# t_cap = sqrt(rho * R^3 / sigma)
+# Typical jet formation occurs at t ~ 0.5-2.0
+tmax=1.0
