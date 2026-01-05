@@ -1,0 +1,47 @@
+# Parameter Sweep Configuration for Bursting Bubble (Newtonian)
+# This file defines a parameter sweep for batch simulations
+
+# ============================================================
+# Base Configuration
+# ============================================================
+# Start from this parameter file and override sweep variables
+BASE_CONFIG=default.params
+
+# ============================================================
+# Case Number Range
+# ============================================================
+# Starting case number (4-digit: 1000-9999)
+# Each parameter combination gets auto-incremented CaseNo
+CASE_START=1000
+
+# Ending case number (inclusive)
+# Number of combinations should equal CASE_END - CASE_START + 1
+# For this sweep: 16 Oh × 1 MAXlevel × 1 zWall = 16 combinations, so CASE_END = 1015
+CASE_END=1015
+
+# ============================================================
+# Sweep Variables
+# ============================================================
+# Format: SWEEP_<variable>=value1,value2,value3,...
+# The sweep will generate all combinations (cartesian product)
+
+# Sweep Ohnesorge number (16 logarithmically spaced points from 0.01 to 0.1)
+SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0.0464,0.0541,0.0631,0.0736,0.0858,0.1000
+
+# Sweep mesh refinement level
+SWEEP_MAXlevel=10
+
+# Sweep wall distance (uncomment to use)
+# zWall: distance from bubble south pole to bottom wall
+# Domain size: Ldomain = min(zWall + 6.0, 16.0)
+SWEEP_zWall=0.025
+
+# NOTE: Bond is fixed at 1e-3 (only Bo0.0010.dat geometry available)
+# To sweep Bond values, you would need to generate additional Bo*.dat files
+
+# ============================================================
+# Output Configuration
+# ============================================================
+# Output folders are created in simulationCases/<CaseNo>/
+# CaseNo auto-increments from CASE_START for each parameter combination
+# Cases run sequentially (one at a time)
