@@ -16,8 +16,8 @@ CASE_START=1000
 
 # Ending case number (inclusive)
 # Number of combinations should equal CASE_END - CASE_START + 1
-# For this sweep: 3 Oh × 2 MAXlevel = 6 combinations, so CASE_END = 1005
-CASE_END=1005
+# For this sweep: 16 Oh × 1 MAXlevel × 1 zWall = 16 combinations, so CASE_END = 1015
+CASE_END=1015
 
 # ============================================================
 # Sweep Variables
