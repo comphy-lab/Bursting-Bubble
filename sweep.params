@@ -25,16 +25,16 @@ CASE_END=1005
 # Format: SWEEP_<variable>=value1,value2,value3,...
 # The sweep will generate all combinations (cartesian product)
 
-# Sweep Ohnesorge number
-SWEEP_Oh=0.01,0.02,0.05
+# Sweep Ohnesorge number (16 logarithmically spaced points from 0.01 to 0.1)
+SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0.0464,0.0541,0.0631,0.0736,0.0858,0.1000
 
 # Sweep mesh refinement level
-SWEEP_MAXlevel=10,11
+SWEEP_MAXlevel=10
 
 # Sweep wall distance (uncomment to use)
 # zWall: distance from bubble south pole to bottom wall
 # Domain size: Ldomain = min(zWall + 6.0, 16.0)
-# SWEEP_zWall=2,4,6
+SWEEP_zWall=0.025
 
 # NOTE: Bond is fixed at 1e-3 (only Bo0.0010.dat geometry available)
 # To sweep Bond values, you would need to generate additional Bo*.dat files

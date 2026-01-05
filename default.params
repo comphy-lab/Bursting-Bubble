@@ -45,4 +45,4 @@ tmax=1.0
 # Controls domain size: Ldomain = min(zWall + 6.0, 16.0)
 # With zWall=4: domain x in [-6, 4], wall at x=-6
 # With zWall=2: domain x in [-4, 4] (matches original setup)
-zWall=4
+zWall=0.025
