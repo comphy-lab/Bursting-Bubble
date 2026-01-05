@@ -46,9 +46,12 @@ Options:
     --nGFS N            Number of snapshots to process (default: 500)
     --tsnap F           Time interval between snapshots (default: 0.01)
     --GridsPerR N       Radial grid resolution for video (default: 256)
-    --ZMIN F            Minimum Z coordinate (default: -4.0)
-    --ZMAX F            Maximum Z coordinate (default: 4.0)
+    --ZMIN F            Minimum Z coordinate (auto-computed from zWall if not set)
+    --ZMAX F            Maximum Z coordinate (auto-computed from zWall if not set)
     --RMAX F            Maximum R coordinate (default: 2.0)
+
+    Note: ZMIN/ZMAX are automatically computed from zWall in case.params:
+          ZMIN = -2.0 - zWall, ZMAX = ZMIN + min(zWall + 6.0, 16.0)
 
     Colorbar bounds:
     --d2-vmin F         Min value for strain-rate colorbar (default: -3.0)
@@ -99,6 +102,7 @@ GRIDS_PER_R=256
 ZMIN="-4.0"
 ZMAX="4.0"
 RMAX="2.0"
+zWall="4"  # Default zWall for domain calculation
 D2_VMIN="-3.0"
 D2_VMAX="2.0"
 VEL_VMIN="0.0"
@@ -273,6 +277,33 @@ run_video() {
     local case_no="$1"
     local case_dir="${CASES_DIR}/${case_no}"
     local video_dir="${case_dir}/Video"
+    local case_params="${case_dir}/case.params"
+
+    # Read zWall from case.params if available, otherwise use default
+    local case_zWall="$zWall"  # Use global default
+    if [ -f "$case_params" ]; then
+        parse_param_file "$case_params"
+        case_zWall=$(get_param "zWall" "$zWall")
+    fi
+
+    # Calculate domain bounds from zWall if not explicitly set
+    # Formula: Ldomain = min(zWall + 6.0, 16.0)
+    # ZMIN = -2.0 - zWall, ZMAX = ZMIN + Ldomain
+    local calc_ldomain=$(echo "$case_zWall + 6.0" | bc -l)
+    if (( $(echo "$calc_ldomain > 16.0" | bc -l) )); then
+        calc_ldomain="16.0"
+    fi
+    local calc_zmin=$(echo "-2.0 - $case_zWall" | bc -l)
+    local calc_zmax=$(echo "$calc_zmin + $calc_ldomain" | bc -l)
+
+    # Use calculated values if defaults are still in place
+    local use_zmin="$ZMIN"
+    local use_zmax="$ZMAX"
+    if [ "$ZMIN" = "-4.0" ] && [ "$ZMAX" = "4.0" ]; then
+        # Defaults - override with calculated values
+        use_zmin="$calc_zmin"
+        use_zmax="$calc_zmax"
+    fi
 
     # Build command
     local cmd_args=(
@@ -282,8 +313,8 @@ run_video() {
         "--nGFS" "${NGFS}"
         "--tsnap" "${TSNAP}"
         "--GridsPerR" "${GRIDS_PER_R}"
-        "--ZMIN" "${ZMIN}"
-        "--ZMAX" "${ZMAX}"
+        "--ZMIN" "${use_zmin}"
+        "--ZMAX" "${use_zmax}"
         "--RMAX" "${RMAX}"
         "--d2-vmin" "${D2_VMIN}"
         "--d2-vmax" "${D2_VMAX}"

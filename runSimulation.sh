@@ -240,6 +240,7 @@ Oh=$(get_param "Oh" "1e-2")
 Bond=$(get_param "Bond" "1e-3")
 MAXlevel=$(get_param "MAXlevel" "10")
 tmax=$(get_param "tmax" "1.0")
+zWall=$(get_param "zWall" "4")
 
 if [ -z "$CASE_NO" ]; then
     echo "ERROR: CaseNo not found in parameter file" >&2
@@ -266,7 +267,7 @@ echo "Parameter File: $PARAM_FILE"
 echo ""
 echo "Physical Parameters:"
 echo "  Oh=$Oh, Bond=$Bond"
-echo "  MAXlevel=$MAXlevel, tmax=$tmax"
+echo "  MAXlevel=$MAXlevel, tmax=$tmax, zWall=$zWall"
 echo ""
 if [ $STAGE -eq 0 ]; then
     echo "Stage: Both (Stage 1 + Stage 2)"
@@ -374,9 +375,9 @@ if [ $STAGE -eq 1 ] || [ $STAGE -eq 0 ]; then
     else
         echo "  Running single-threaded"
     fi
-    echo "  Command: ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01"
+    echo "  Command: ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01 $zWall"
 
-    ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01
+    ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01 $zWall
 
     if [ ! -f "restart" ]; then
         echo "ERROR: Stage 1 failed - restart file was not created" >&2
@@ -471,20 +472,20 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
     # Execution
     echo ""
     echo "Starting full simulation..."
-    echo "  Command args: $MAXlevel $Oh $Bond $tmax"
+    echo "  Command args: $MAXlevel $Oh $Bond $tmax $zWall"
     echo "========================================="
 
     if [ $MPI_ENABLED -eq 1 ]; then
-        [ $VERBOSE -eq 1 ] && echo "Command: mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax"
-        mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax
+        [ $VERBOSE -eq 1 ] && echo "Command: mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
+        mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
     elif [ $FOPENMP_ENABLED -eq 1 ]; then
         export OMP_NUM_THREADS=$FOPENMP_THREADS
         [ $VERBOSE -eq 1 ] && echo "OMP_NUM_THREADS=$FOPENMP_THREADS"
-        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax"
-        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax
+        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
+        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
     else
-        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax"
-        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax
+        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
+        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
     fi
 
     EXIT_CODE=$?

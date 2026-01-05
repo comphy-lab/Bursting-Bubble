@@ -14,7 +14,7 @@ free surface, creating a cavity collapse and subsequent jet formation.
 ## Usage
 
 ```
-./program maxLevel Oh Bond tmax
+./program maxLevel Oh Bond tmax zWall
 ```
 
 Where:
@@ -22,6 +22,7 @@ Where:
 - `Oh`: Ohnesorge number (ratio of viscous to inertial-capillary forces)
 - `Bond`: Bond number (ratio of gravitational to surface tension forces)
 - `tmax`: Maximum simulation time
+- `zWall`: Distance from bubble south pole to bottom wall
 
 @file burstingBubble.c
 @author Vatsal Sanjay
@@ -58,18 +59,24 @@ Where:
 #define KErr (1e-6)   // Error tolerance in VoF curvature calculated using height function method
 #define VelErr (1e-3) // Error tolerances in velocity
 
-// Domain size
-#define Ldomain 8
-
 // Boundary conditions - outflow on the right boundary
 u.n[right] = neumann(0.);
 p[right] = dirichlet(0.);
+
+// Boundary conditions - solid wall at left boundary (bottom)
+f[left] = dirichlet(1.0);      // Liquid at wall
+u.n[left] = dirichlet(0.0);    // No-slip normal
+u.t[left] = dirichlet(0.0);    // No-slip tangential
 
 int MAXlevel;
 // Physical parameters:
 // Oh -> Ohnesorge number (liquid)
 // Oha -> Ohnesorge number (air) = 2e-2 * Oh
 double Oh, Oha, Bond, tmax;
+// Domain parameters:
+// zWall -> distance from bubble south pole to bottom wall
+// Ldomain -> computed domain size: min(zWall + 6.0, 16.0)
+double zWall, Ldomain;
 char nameOut[80], dumpFile[80];
 
 /**
@@ -85,13 +92,10 @@ Initializes the simulation parameters and sets up the domain.
 int main(int argc, char const *argv[]) {
   dtmax = 1e-5;
 
-  L0 = Ldomain;
-  origin(-L0/2., 0.);
-
   // Ensure that all the variables were transferred properly from the terminal or job script.
-  if (argc < 5){
-    fprintf(ferr, "Usage: %s MAXlevel Oh Bond tmax\n", argv[0]);
-    fprintf(ferr, "Lack of command line arguments. Need %d more arguments\n", 5-argc);
+  if (argc < 6){
+    fprintf(ferr, "Usage: %s MAXlevel Oh Bond tmax zWall\n", argv[0]);
+    fprintf(ferr, "Lack of command line arguments. Need %d more arguments\n", 6-argc);
     return 1;
   }
 
@@ -100,6 +104,15 @@ int main(int argc, char const *argv[]) {
   Oh = atof(argv[2]);
   Bond = atof(argv[3]);
   tmax = atof(argv[4]);
+  zWall = atof(argv[5]);
+
+  // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
+  // zWall = distance from bubble south pole to bottom wall
+  // +2.0 buffer below bubble, +4.0 space above for jet
+  Ldomain = fmin(zWall + 6.0, 16.0);
+
+  L0 = Ldomain;
+  origin(-2.0 - zWall, 0.);
 
   init_grid(1 << 5);
 
@@ -227,8 +240,8 @@ Writes a final summary of the simulation parameters when the simulation ends.
 */
 event end(t = end) {
   if (pid() == 0)
-    fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f\n",
-            MAXlevel, Oh, Oha, Bond);
+    fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+            MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
 }
 
 /**
@@ -255,12 +268,12 @@ event logWriting(i++) {
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
-      fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f\n",
-              MAXlevel, Oh, Oha, Bond);
+      fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+              MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
       fprintf(ferr, "i dt t ke\n");
       fp = fopen("log", "w");
-      fprintf(fp, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f\n",
-              MAXlevel, Oh, Oha, Bond);
+      fprintf(fp, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+              MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
       fprintf(fp, "i dt t ke\n");
       fprintf(fp, "%d %g %g %g\n", i, dt, t, ke);
       fclose(fp);
