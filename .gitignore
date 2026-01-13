@@ -64,6 +64,9 @@ dkms.conf
 **/_darcs
 **/.project_config
 
+# Basilisk installation (installed via curl script)
+basilisk/
+
 # Case folders (4-digit case numbers: 1000-9999)
 simulationCases/[0-9][0-9][0-9][0-9]/
 
