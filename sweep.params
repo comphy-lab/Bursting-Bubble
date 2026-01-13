@@ -29,7 +29,7 @@ CASE_END=1015
 SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0.0464,0.0541,0.0631,0.0736,0.0858,0.1000
 
 # Sweep mesh refinement level
-SWEEP_MAXlevel=10
+SWEEP_MAXlevel=12
 
 # Sweep wall distance (uncomment to use)
 # zWall: distance from bubble south pole to bottom wall

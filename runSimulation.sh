@@ -18,7 +18,8 @@ if [ -f "${SCRIPT_DIR}/.project_config" ]; then
     source "${SCRIPT_DIR}/.project_config"
 else
     echo "WARNING: .project_config not found. BASILISK path may not be set." >&2
-    echo "         Run reset_install_requirements.sh first." >&2
+    echo "         Install Basilisk first (creates .project_config):" >&2
+    echo "         curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13" >&2
 fi
 
 # Source parameter parsing library
@@ -375,9 +376,9 @@ if [ $STAGE -eq 1 ] || [ $STAGE -eq 0 ]; then
     else
         echo "  Running single-threaded"
     fi
-    echo "  Command: ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01 $zWall"
+    echo "  Command: ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.10 $zWall"
 
-    ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.01 $zWall
+    ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.10 $zWall
 
     if [ ! -f "restart" ]; then
         echo "ERROR: Stage 1 failed - restart file was not created" >&2

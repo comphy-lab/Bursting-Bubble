@@ -28,7 +28,7 @@ Bond=1e-3
 # Maximum refinement level (2^MAXlevel cells at finest resolution)
 # Level 10 -> 1024 cells, Level 11 -> 2048 cells, Level 12 -> 4096 cells
 # Higher levels give better accuracy but slower computation
-MAXlevel=10
+MAXlevel=12
 
 # ============================================================
 # Time Control

@@ -21,9 +21,11 @@
 #
 # BEFORE RUNNING:
 # 1. Run Stage 1 locally to generate restart files for all cases
-# 2. Edit sweep.params to set parameter ranges and case numbers
-# 3. Adjust SBATCH parameters above (especially --ntasks, --time)
-# 4. Submit with: sbatch runSweepSnellius.sbatch
+# 2. Install Basilisk locally (creates basilisk/ and .project_config):
+#    curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13
+# 3. Edit sweep.params to set parameter ranges and case numbers
+# 4. Adjust SBATCH parameters above (especially --ntasks, --time)
+# 5. Submit with: sbatch runSweepSnellius.sbatch
 #
 # SBATCH Parameters to Customize:
 #   --ntasks: Number of MPI tasks per case (currently 48)
@@ -78,13 +80,23 @@ echo ""
 # Setup Basilisk Environment
 # ============================================================
 echo "Setting up Basilisk environment..."
+echo "Ensuring Basilisk is installed locally (ref v2026-01-13)..."
+cd "$SCRIPT_DIR"
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl not found (required to install Basilisk)" >&2
+  exit 1
+fi
+
+curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13
+
 if [ -f "${SCRIPT_DIR}/.project_config" ]; then
   # shellcheck disable=SC1090
   source "${SCRIPT_DIR}/.project_config"
   echo "Basilisk environment loaded from .project_config"
   echo "BASILISK: ${BASILISK:-unset}"
 else
-  echo "ERROR: .project_config not found" >&2
+  echo "ERROR: .project_config not found after Basilisk install" >&2
   exit 1
 fi
 echo ""
