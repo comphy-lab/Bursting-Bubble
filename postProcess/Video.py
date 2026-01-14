@@ -29,7 +29,6 @@ Last updated: Jan 2025
 import argparse
 import multiprocessing as mp
 import os
-import shutil
 import subprocess as sp
 from dataclasses import dataclass
 from functools import partial
@@ -45,17 +44,10 @@ from matplotlib.ticker import StrMethodFormatter
 """
 Matplotlib Configuration
 ------------------------
-Configure matplotlib with LaTeX rendering if available, with serif font fallback.
+Configure matplotlib with mathtext (parallel-safe, no external LaTeX subprocess).
 """
 matplotlib.rcParams["font.family"] = "serif"
-if shutil.which("latex"):
-    try:
-        matplotlib.rcParams["text.usetex"] = True
-        matplotlib.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
-    except Exception:
-        matplotlib.rcParams["text.usetex"] = False
-else:
-    matplotlib.rcParams["text.usetex"] = False
+matplotlib.rcParams["mathtext.fontset"] = "cm"  # Computer Modern style
 
 """
 Helper Executable Paths
