@@ -1,6 +1,29 @@
 #!/bin/bash
 # parse_params.sh - Shell library for parameter file parsing
-# Source this file: source src-local/parse_params.sh
+#
+# Description:
+#   Provides reusable functions for parsing key=value parameter files,
+#   validating required parameters, and generating parameter sweep cases.
+#   This library is sourced by simulation scripts to handle configuration.
+#
+# Functions:
+#   parse_param_file <file>     - Parse file, export as PARAM_* env vars
+#   get_param <key> [default]   - Get parameter value with optional default
+#   generate_sweep_cases <file> - Generate Cartesian product of sweep parameters
+#   validate_required_params    - Check required parameters are set
+#   print_params                - Debug: print all loaded parameters
+#
+# Usage:
+#   source src-local/parse_params.sh
+#   parse_param_file "config.params"
+#   Oh=$(get_param "Oh" "0.01")
+#
+# Dependencies:
+#   - bash 4.0+ (for associative arrays and ${!var} syntax)
+#   - Standard POSIX utilities (sed, xargs, mktemp)
+#
+# Author: Vatsal Sanjay
+# Organization: CoMPhy Lab, Durham University
 
 # Parse a parameter file and export all parameters as environment variables
 # Usage: parse_param_file <file>

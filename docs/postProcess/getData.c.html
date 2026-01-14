@@ -202,10 +202,10 @@
   </style>
 
   <!-- Critical Meta Tags -->
-  <meta name="description" content="scalar f[]; 25 vector u[]; 26 27 ~~~ Lightweight utility for extracting Basilisk snapshot data on a structured Cartesian sampling grid. The workflow is inten...">
+  <meta name="description" content="A utility for extracting field data from Basilisk simulation snapshots onto a structured Cartesian grid for post-processing and visualization.">
   <meta name="author" content="CoMPhy Lab">
   <meta name="robots" content="index, follow">
-  <meta name="keywords" content="getdata, output.h, struct, utils.h, validates">
+  <meta name="keywords" content="getdata, output.h, struct, utils.h">
   <meta name="msapplication-TileColor" content="#da532c">
   <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-title" content="CoMPhy Lab">
@@ -430,363 +430,314 @@ window.baseDomain = "https://test.comphy-lab.org";
                     </a>
                 </div>
 
-                <p>/* Title: getting Data from simulation snapshot #
-                Author: Vatsal Sanjay # vatsal.sanjay@comphy-lab.org #
-                CoMPhy Lab # Durham University # Last updated: Jan
-                2025</p>
-                <p>#include “utils.h” #include “output.h”</p>
-                <ul>
-                <li>Geometry configuration: Set AXI=1 for axisymmetric,
-                AXI=0 for 2D Cartesian.</li>
-                <li><ul>
-                <li>Axisymmetric: x=radial, y=axial (includes azimuthal
-                D22 term)</li>
-                </ul></li>
-                <li><ul>
-                <li>2D Cartesian: x=x-coordinate, y=y-coordinate (no D22
-                term)</li>
-                </ul></li>
-                <li></li>
-                <li>To change geometry:</li>
-                <li>Method 1: Edit line 22 below - change “AXI 1” to
-                “AXI 0” for 2D</li>
-                <li>Method 2: Compile with flag: qcc -DAXI=0 … (for 2D
-                executable)</li>
-                </ul>
-                <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#ifndef AXI</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#define AXI</span><span class="co">// Default to axisymmetric</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>scalar f<span class="op">[];</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>vector u<span class="op">[];</span></span></code></pre></div></div>
-                <ul>
-                <li>Lightweight utility for extracting Basilisk snapshot
-                data on a structured</li>
-                <li>Cartesian sampling grid. The workflow is
-                intentionally linear:</li>
-                <li><ol type="1">
+                <h1 id="getting-data-from-simulation-snapshot">Getting
+                Data from Simulation Snapshot</h1>
+                <p>A utility for extracting field data from Basilisk
+                simulation snapshots onto a structured Cartesian grid
+                for post-processing and visualization.</p>
+                <h2 id="description">Description</h2>
+                <p>This program samples strain-rate and velocity fields
+                from simulation snapshots and outputs them on a regular
+                grid suitable for visualization tools. It supports both
+                axisymmetric and 2D Cartesian geometries.</p>
+                <h2 id="usage">Usage</h2>
+                <div class="code-block-container"><pre><code>./getData &lt;filename&gt; &lt;xmin&gt; &lt;ymin&gt; &lt;xmax&gt; &lt;ymax&gt; &lt;ny&gt;</code></pre></div>
+                <p>Where: - <code>filename</code>: Path to the Basilisk
+                snapshot file - <code>xmin</code>, <code>ymin</code>:
+                Lower bounds of the sampling domain - <code>xmax</code>,
+                <code>ymax</code>: Upper bounds of the sampling domain -
+                <code>ny</code>: Number of grid points in y-direction
+                (nx computed automatically)</p>
+                <h2 id="geometry-configuration">Geometry
+                Configuration</h2>
+                <p>Set <code>AXI=1</code> for axisymmetric (default) or
+                <code>AXI=0</code> for 2D Cartesian: -
+                <strong>Axisymmetric</strong>: x=radial, y=axial
+                (includes azimuthal D22 term) - <strong>2D
+                Cartesian</strong>: x=x-coordinate, y=y-coordinate (no
+                D22 term)</p>
+                <p>To change geometry: - Method 1: Edit
+                <code>#define AXI 1</code> below to
+                <code>#define AXI 0</code> - Method 2: Compile with
+                flag: <code>qcc -DAXI=0 ...</code></p>
+                <h2 id="workflow">Workflow</h2>
+                <ol type="1">
                 <li>Parse CLI bounds/grid spacing into
-                <code>extraction_config</code>.</li>
-                </ol></li>
-                <li><ol start="2" type="1">
-                <li>Restore the snapshot
-                (<code>restore(file=...)</code>).</li>
-                </ol></li>
-                <li><ol start="3" type="1">
+                <code>extraction_config</code></li>
+                <li>Restore the snapshot via
+                <code>restore(file=...)</code></li>
                 <li>Register each derived scalar in
-                <code>field_list</code>.</li>
-                </ol></li>
-                <li><ol start="4" type="1">
-                <li>Compute fields and interpolate them onto a regular
-                grid.</li>
-                </ol></li>
-                <li><ol start="5" type="1">
-                <li>Stream x, y, &lt;fields…&gt; rows to stderr (used as
-                output pipe).</li>
-                </ol></li>
-                <li></li>
-                <li>To add a new derived quantity (e.g., Aij):</li>
-                <li><ol type="1">
-                <li>Declare scalar: <code>scalar Aij[];</code> (line
-                ~38)</li>
-                </ol></li>
-                <li><ol start="2" type="1">
-                <li>Register in <code>register_fields()</code>:
-                <code>field_list = list_add(field_list, Aij);</code></li>
-                </ol></li>
-                <li><ol start="3" type="1">
-                <li>Compute in <code>compute_fields()</code>:
-                <code>compute_Aij_field(Aij);</code></li>
-                </ol></li>
-                <li><ol start="4" type="1">
-                <li>Write compute function:
-                <code>static void compute_Aij_field(scalar target) { ... }</code></li>
-                </ol></li>
-                </ul>
+                <code>field_list</code></li>
+                <li>Compute fields and interpolate onto regular
+                grid</li>
+                <li>Stream <code>x y field0 field1 ...</code> rows to
+                stderr</li>
+                </ol>
+                <h2 id="adding-new-fields">Adding New Fields</h2>
+                <p>To add a new derived quantity (e.g.,
+                <code>Aij</code>): 1. Declare scalar:
+                <code>scalar Aij[];</code> 2. Register in
+                <code>register_fields()</code>:
+                <code>field_list = list_add(field_list, Aij);</code> 3.
+                Compute in <code>compute_fields()</code>:
+                <code>compute_Aij_field(Aij);</code> 4. Write compute
+                function:
+                <code>static void compute_Aij_field(scalar target) { ... }</code></p>
+                <p>Author: Vatsal Sanjay (vatsal.sanjay@comphy-lab.org)
+                Affiliation: CoMPhy Lab, Durham University</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">char</span> filename<span class="op">[</span><span class="dv">4096</span><span class="op">];</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> xmin<span class="op">,</span> ymin<span class="op">,</span> xmax<span class="op">,</span> ymax<span class="op">;</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> Deltax<span class="op">,</span> Deltay<span class="op">;</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> nx<span class="op">,</span> ny<span class="op">;</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> extraction_config<span class="op">;</span></span>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><a href="https://basilisk.fr/src/utils.h" title="Link to Basilisk source for utils.h"><span class="im">"utils.h"</span></a></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><a href="https://basilisk.fr/src/output.h" title="Link to Basilisk source for output.h"><span class="im">"output.h"</span></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#ifndef AXI</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#define AXI</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>scalar D2c<span class="op">[],</span> vel<span class="op">[];</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>scalar <span class="op">*</span> field_list <span class="op">=</span> NULL<span class="op">;</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> parse_arguments<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>argv<span class="op">[],</span></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                           extraction_config <span class="op">*</span>cfg<span class="op">);</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> configure_grid<span class="op">(</span>extraction_config <span class="op">*</span>cfg<span class="op">);</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> register_fields<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_fields<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">double</span> <span class="op">**</span> allocate_field_buffer<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>                                       <span class="dt">int</span> field_count<span class="op">);</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> sample_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>                          <span class="dt">int</span> field_count<span class="op">);</span></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> write_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>                         <span class="dt">int</span> field_count<span class="op">,</span> <span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">);</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> cleanup_output<span class="op">(</span><span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">);</span></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_D2c_field<span class="op">(</span>scalar target<span class="op">);</span></span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_velocity_field<span class="op">(</span>scalar target<span class="op">);</span></span></code></pre></div></div>
-                <ul>
-                <li><span class="citation"
-                data-cites="brief">@brief</span> Entry point for
-                simulation snapshot extraction and processing.</li>
-                <li></li>
-                <li>This function validates command-line arguments and
-                orchestrates the simulation</li>
-                <li>data restoration, derivative and velocity
-                computations, and interpolation onto</li>
-                <li>a grid. It expects the program name followed by
-                exactly six parameters:</li>
-                <li>a filename, the lower bounds (xmin and ymin), the
-                upper bounds (xmax and ymax), and</li>
-                <li>the number of divisions along the y-axis (ny). If
-                the argument count is incorrect,</li>
-                <li>an error message and usage instructions are printed
-                to stderr and the program exits</li>
-                <li>with a status of 1.</li>
-                <li></li>
-                <li><span class="citation"
-                data-cites="param">@param</span> a The total number of
-                command-line arguments.</li>
-                <li><span class="citation"
-                data-cites="param">@param</span> arguments Array of
-                command-line argument strings, where arguments[0] is
-                the</li>
-                <li>program name and the remaining elements provide the
-                required simulation parameters.</li>
-                <li></li>
-                <li><span class="citation"
-                data-cites="return">@return</span> int Exit status of
-                the program (1 on error, 0 on success).</li>
-                </ul>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>scalar f<span class="op">[];</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>vector u<span class="op">[];</span></span></code></pre></div></div>
+                <h2 id="data-structures">Data Structures</h2>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> a<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>arguments<span class="op">[])</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  extraction_config cfg<span class="op">;</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(!</span>parse_arguments<span class="op">(</span>a<span class="op">,</span> arguments<span class="op">,</span> <span class="op">&amp;</span>cfg<span class="op">))</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(!</span>configure_grid<span class="op">(&amp;</span>cfg<span class="op">))</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  register_fields<span class="op">();</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  restore <span class="op">(</span>file <span class="op">=</span> cfg<span class="op">.</span>filename<span class="op">);</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  compute_fields<span class="op">();</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> registered_fields <span class="op">=</span> list_len<span class="op">(</span>field_list<span class="op">);</span></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> <span class="op">**</span> field <span class="op">=</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    allocate_field_buffer<span class="op">(&amp;</span>cfg<span class="op">,</span> registered_fields<span class="op">);</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  sample_fields<span class="op">(&amp;</span>cfg<span class="op">,</span> field<span class="op">,</span> registered_fields<span class="op">);</span></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">FILE</span> <span class="op">*</span> fp <span class="op">=</span> ferr<span class="op">;</span></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>  write_fields<span class="op">(&amp;</span>cfg<span class="op">,</span> field<span class="op">,</span> registered_fields<span class="op">,</span> fp<span class="op">);</span></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  cleanup_output<span class="op">(</span>fp<span class="op">,</span> field<span class="op">);</span></span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> parse_arguments<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>argv<span class="op">[],</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>                           extraction_config <span class="op">*</span>cfg<span class="op">)</span></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">char</span> filename<span class="op">[</span><span class="dv">4096</span><span class="op">];</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> xmin<span class="op">,</span> ymin<span class="op">,</span> xmax<span class="op">,</span> ymax<span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> Deltax<span class="op">,</span> Deltay<span class="op">;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> nx<span class="op">,</span> ny<span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> extraction_config<span class="op">;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>scalar D2c<span class="op">[],</span> vel<span class="op">[];</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>scalar <span class="op">*</span> field_list <span class="op">=</span> NULL<span class="op">;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> parse_arguments<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>argv<span class="op">[],</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>                           extraction_config <span class="op">*</span>cfg<span class="op">);</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> configure_grid<span class="op">(</span>extraction_config <span class="op">*</span>cfg<span class="op">);</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> register_fields<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_fields<span class="op">(</span><span class="dt">void</span><span class="op">);</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">double</span> <span class="op">**</span> allocate_field_buffer<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>                                       <span class="dt">int</span> field_count<span class="op">);</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> sample_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>                          <span class="dt">int</span> field_count<span class="op">);</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> write_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>                         <span class="dt">int</span> field_count<span class="op">,</span> <span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">);</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> cleanup_output<span class="op">(</span><span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">);</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_D2c_field<span class="op">(</span>scalar target<span class="op">);</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_velocity_field<span class="op">(</span>scalar target<span class="op">);</span></span></code></pre></div></div>
+                <h2 id="main-function">Main Function</h2>
+                <p>Entry point for simulation snapshot extraction and
+                processing. Validates command-line arguments and
+                orchestrates snapshot restoration, field computation,
+                and grid interpolation.</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> a<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>arguments<span class="op">[])</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  extraction_config cfg<span class="op">;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(!</span>parse_arguments<span class="op">(</span>a<span class="op">,</span> arguments<span class="op">,</span> <span class="op">&amp;</span>cfg<span class="op">))</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(!</span>configure_grid<span class="op">(&amp;</span>cfg<span class="op">))</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  register_fields<span class="op">();</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  restore <span class="op">(</span>file <span class="op">=</span> cfg<span class="op">.</span>filename<span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  compute_fields<span class="op">();</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> registered_fields <span class="op">=</span> list_len<span class="op">(</span>field_list<span class="op">);</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> <span class="op">**</span> field <span class="op">=</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    allocate_field_buffer<span class="op">(&amp;</span>cfg<span class="op">,</span> registered_fields<span class="op">);</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  sample_fields<span class="op">(&amp;</span>cfg<span class="op">,</span> field<span class="op">,</span> registered_fields<span class="op">);</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">FILE</span> <span class="op">*</span> fp <span class="op">=</span> ferr<span class="op">;</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>  write_fields<span class="op">(&amp;</span>cfg<span class="op">,</span> field<span class="op">,</span> registered_fields<span class="op">,</span> fp<span class="op">);</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  cleanup_output<span class="op">(</span>fp<span class="op">,</span> field<span class="op">);</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="argument-parsing">Argument Parsing</h2>
                 <p>Read CLI arguments and guard against invalid
                 bounds/grid sizes.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>argc <span class="op">!=</span> <span class="dv">7</span><span class="op">)</span> <span class="op">{</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Expected 6 arguments</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Usage: %s &lt;filename&gt; &lt;xmin&gt; &lt;ymin&gt; &quot;</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;&lt;xmax&gt; &lt;ymax&gt; &lt;ny&gt;</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  snprintf<span class="op">(</span>cfg<span class="op">-&gt;</span>filename<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>cfg<span class="op">-&gt;</span>filename<span class="op">),</span> <span class="st">&quot;%s&quot;</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>xmin <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">2</span><span class="op">]);</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ymin <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">3</span><span class="op">]);</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>xmax <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">4</span><span class="op">]);</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ymax <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">5</span><span class="op">]);</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ny <span class="op">=</span> atoi<span class="op">(</span>argv<span class="op">[</span><span class="dv">6</span><span class="op">]);</span></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>ny <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: ny must be positive.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>xmax <span class="op">&lt;=</span> cfg<span class="op">-&gt;</span>xmin <span class="op">||</span> cfg<span class="op">-&gt;</span>ymax <span class="op">&lt;=</span> cfg<span class="op">-&gt;</span>ymin<span class="op">)</span> <span class="op">{</span></span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Bounds must satisfy xmax&gt;xmin &quot;</span></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;and ymax&gt;ymin.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> configure_grid<span class="op">(</span>extraction_config <span class="op">*</span>cfg<span class="op">)</span></span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> parse_arguments<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="dt">const</span> <span class="op">*</span>argv<span class="op">[],</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>                           extraction_config <span class="op">*</span>cfg<span class="op">)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>argc <span class="op">!=</span> <span class="dv">7</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Expected 6 arguments</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Usage: %s &lt;filename&gt; &lt;xmin&gt; &lt;ymin&gt; &quot;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;&lt;xmax&gt; &lt;ymax&gt; &lt;ny&gt;</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  snprintf<span class="op">(</span>cfg<span class="op">-&gt;</span>filename<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>cfg<span class="op">-&gt;</span>filename<span class="op">),</span> <span class="st">&quot;%s&quot;</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>xmin <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">2</span><span class="op">]);</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ymin <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">3</span><span class="op">]);</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>xmax <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">4</span><span class="op">]);</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ymax <span class="op">=</span> atof<span class="op">(</span>argv<span class="op">[</span><span class="dv">5</span><span class="op">]);</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>ny <span class="op">=</span> atoi<span class="op">(</span>argv<span class="op">[</span><span class="dv">6</span><span class="op">]);</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>ny <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: ny must be positive.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>xmax <span class="op">&lt;=</span> cfg<span class="op">-&gt;</span>xmin <span class="op">||</span> cfg<span class="op">-&gt;</span>ymax <span class="op">&lt;=</span> cfg<span class="op">-&gt;</span>ymin<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Bounds must satisfy xmax&gt;xmin &quot;</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;and ymax&gt;ymin.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="grid-configuration">Grid Configuration</h2>
                 <p>Translate bounds and ny into nx, Δx, Δy for regular
                 sampling.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>Deltay <span class="op">=</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>ymax <span class="op">-</span> cfg<span class="op">-&gt;</span>ymin<span class="op">)/((</span><span class="dt">double</span><span class="op">)</span> cfg<span class="op">-&gt;</span>ny<span class="op">);</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>nx <span class="op">=</span> <span class="op">(</span><span class="dt">int</span><span class="op">)</span> <span class="op">((</span>cfg<span class="op">-&gt;</span>xmax <span class="op">-</span> cfg<span class="op">-&gt;</span>xmin<span class="op">)/</span>cfg<span class="op">-&gt;</span>Deltay<span class="op">);</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>nx <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Computed nx &lt;= 0. &quot;</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;Check the provided bounds.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>Deltax <span class="op">=</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>xmax <span class="op">-</span> cfg<span class="op">-&gt;</span>xmin<span class="op">)/((</span><span class="dt">double</span><span class="op">)</span> cfg<span class="op">-&gt;</span>nx<span class="op">);</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> register_fields<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
-                <ul>
-                <li>Populate Basilisk list with each scalar field.</li>
-                <li>To add a new field, declare the scalar at the top
-                and add it here.</li>
-                </ul>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> configure_grid<span class="op">(</span>extraction_config <span class="op">*</span>cfg<span class="op">)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>Deltay <span class="op">=</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>ymax <span class="op">-</span> cfg<span class="op">-&gt;</span>ymin<span class="op">)/((</span><span class="dt">double</span><span class="op">)</span> cfg<span class="op">-&gt;</span>ny<span class="op">);</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>nx <span class="op">=</span> <span class="op">(</span><span class="dt">int</span><span class="op">)</span> <span class="op">((</span>cfg<span class="op">-&gt;</span>xmax <span class="op">-</span> cfg<span class="op">-&gt;</span>xmin<span class="op">)/</span>cfg<span class="op">-&gt;</span>Deltay<span class="op">);</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>nx <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">&quot;Error: Computed nx &lt;= 0. &quot;</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;Check the provided bounds.</span><span class="sc">\n</span><span class="st">&quot;</span><span class="op">);</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  cfg<span class="op">-&gt;</span>Deltax <span class="op">=</span> <span class="op">(</span>cfg<span class="op">-&gt;</span>xmax <span class="op">-</span> cfg<span class="op">-&gt;</span>xmin<span class="op">)/((</span><span class="dt">double</span><span class="op">)</span> cfg<span class="op">-&gt;</span>nx<span class="op">);</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="field-registration">Field Registration</h2>
+                <p>Populate Basilisk list with each scalar field. To add
+                a new field, declare the scalar at the top and add it
+                here.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>  field_list <span class="op">=</span> list_add<span class="op">(</span>field_list<span class="op">,</span> D2c<span class="op">);</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  field_list <span class="op">=</span> list_add<span class="op">(</span>field_list<span class="op">,</span> vel<span class="op">);</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_fields<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
-                <ul>
-                <li>Dispatch compute callbacks for each field.</li>
-                <li>To add a new field, add a compute call here.</li>
-                </ul>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> register_fields<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  field_list <span class="op">=</span> list_add<span class="op">(</span>field_list<span class="op">,</span> D2c<span class="op">);</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  field_list <span class="op">=</span> list_add<span class="op">(</span>field_list<span class="op">,</span> vel<span class="op">);</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="field-computation">Field Computation</h2>
+                <p>Dispatch compute callbacks for each registered
+                field.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>  compute_D2c_field<span class="op">(</span>D2c<span class="op">);</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  compute_velocity_field<span class="op">(</span>vel<span class="op">);</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">double</span> <span class="op">**</span> allocate_field_buffer<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>                                       <span class="dt">int</span> registered_fields<span class="op">)</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="op">(</span><span class="dt">double</span> <span class="op">**)</span> matrix_new <span class="op">(</span>cfg<span class="op">-&gt;</span>nx<span class="op">,</span> cfg<span class="op">-&gt;</span>ny <span class="op">+</span> <span class="dv">1</span><span class="op">,</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>                                 registered_fields<span class="op">*</span><span class="kw">sizeof</span><span class="op">(</span><span class="dt">double</span><span class="op">));</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> sample_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>                          <span class="dt">int</span> registered_fields<span class="op">)</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
-                <ul>
-                <li>Interpolate every registered scalar on the regular
-                grid that we later dump.</li>
-                <li>The matrix layout follows Basilisk’s
-                <code>matrix_new</code>: row-major on i (x),</li>
-                <li>with contiguous blocks of
-                <code>registered_fields</code> entries per (i, j).</li>
-                </ul>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_fields<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  compute_D2c_field<span class="op">(</span>D2c<span class="op">);</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  compute_velocity_field<span class="op">(</span>vel<span class="op">);</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">double</span> <span class="op">**</span> allocate_field_buffer<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>                                       <span class="dt">int</span> registered_fields<span class="op">)</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="op">(</span><span class="dt">double</span> <span class="op">**)</span> matrix_new <span class="op">(</span>cfg<span class="op">-&gt;</span>nx<span class="op">,</span> cfg<span class="op">-&gt;</span>ny <span class="op">+</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>                                 registered_fields<span class="op">*</span><span class="kw">sizeof</span><span class="op">(</span><span class="dt">double</span><span class="op">));</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="field-sampling">Field Sampling</h2>
+                <p>Interpolate every registered scalar on the regular
+                grid. The matrix layout follows Basilisk’s
+                <code>matrix_new</code>: row-major on i (x), with
+                contiguous blocks of <code>registered_fields</code>
+                entries per (i, j).</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>nx<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> x <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltax<span class="op">*(</span>i <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>xmin<span class="op">;</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> j <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> j <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>ny<span class="op">;</span> j<span class="op">++)</span> <span class="op">{</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">double</span> y <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltay<span class="op">*(</span>j <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>ymin<span class="op">;</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">int</span> k <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> <span class="op">(</span>scalar s in field_list<span class="op">)</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        field_buffer<span class="op">[</span>i<span class="op">][</span>registered_fields<span class="op">*</span>j <span class="op">+</span> k<span class="op">++]</span> <span class="op">=</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>          interpolate <span class="op">(</span>s<span class="op">,</span> x<span class="op">,</span> y<span class="op">);</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> write_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>                         <span class="dt">int</span> registered_fields<span class="op">,</span> <span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">)</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span></code></pre></div></div>
-                <p>Stream rows in the format: x y field0 field1 …</p>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> sample_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>                          <span class="dt">int</span> registered_fields<span class="op">)</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>nx<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> x <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltax<span class="op">*(</span>i <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>xmin<span class="op">;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> j <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> j <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>ny<span class="op">;</span> j<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">double</span> y <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltay<span class="op">*(</span>j <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>ymin<span class="op">;</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">int</span> k <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> <span class="op">(</span>scalar s in field_list<span class="op">)</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        field_buffer<span class="op">[</span>i<span class="op">][</span>registered_fields<span class="op">*</span>j <span class="op">+</span> k<span class="op">++]</span> <span class="op">=</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>          interpolate <span class="op">(</span>s<span class="op">,</span> x<span class="op">,</span> y<span class="op">);</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="output-writing">Output Writing</h2>
+                <p>Stream rows in the format:
+                <code>x y field0 field1 ...</code> to the output
+                stream.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>nx<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> x <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltax<span class="op">*(</span>i <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>xmin<span class="op">;</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> j <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> j <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>ny<span class="op">;</span> j<span class="op">++)</span> <span class="op">{</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">double</span> y <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltay<span class="op">*(</span>j <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>ymin<span class="op">;</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>      fprintf <span class="op">(</span>fp<span class="op">,</span> <span class="st">&quot;%g %g&quot;</span><span class="op">,</span> x<span class="op">,</span> y<span class="op">);</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">int</span> k <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> <span class="op">(</span>scalar s in field_list<span class="op">)</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        fprintf <span class="op">(</span>fp<span class="op">,</span> <span class="st">&quot; %g&quot;</span><span class="op">,</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>                 field_buffer<span class="op">[</span>i<span class="op">][</span>registered_fields<span class="op">*</span>j <span class="op">+</span> k<span class="op">++]);</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      fputc <span class="op">(</span><span class="ch">&#39;\n&#39;</span><span class="op">,</span> fp<span class="op">);</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> cleanup_output<span class="op">(</span><span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">)</span></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  fflush <span class="op">(</span>fp<span class="op">);</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  fclose <span class="op">(</span>fp<span class="op">);</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  matrix_free <span class="op">(</span>field_buffer<span class="op">);</span></span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
-                <ul>
-                <li><span class="citation"
-                data-cites="brief">@brief</span> Compute log10(D²) where
-                D² is the second invariant of the strain</li>
-                <li>rate tensor.</li>
-                <li></li>
-                <li>Geometry-dependent formulation:</li>
-                <li></li>
-                <li>Axisymmetric (AXI=1, x=radial, y=axial):</li>
-                <li>D11 = ∂u_y/∂y (axial velocity gradient)</li>
-                <li>D22 = u_y/y (azimuthal component from cylindrical
-                geometry)</li>
-                <li>D33 = ∂u_x/∂x (radial velocity gradient)</li>
-                <li>D13 = (∂u_y/∂x + ∂u_x/∂y)/2 (shear component)</li>
-                <li>D² = D11² + D22² + D33² + 2*D13²</li>
-                <li></li>
-                <li>2D Cartesian (AXI=0, x and y coordinates):</li>
-                <li>D11 = ∂u_y/∂y</li>
-                <li>D33 = ∂u_x/∂x</li>
-                <li>D13 = (∂u_y/∂x + ∂u_x/∂y)/2</li>
-                <li>D² = D11² + D33² + 2*D13² (no D22 term)</li>
-                <li></li>
-                <li>Returns log10(D²) for positive values, -10 otherwise
-                (floor for</li>
-                <li>visualization). Shown throughout the entire
-                domain.</li>
-                </ul>
-                <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_D2c_field<span class="op">(</span>scalar target<span class="op">)</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  foreach<span class="op">()</span> <span class="op">{</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D11 <span class="op">=</span> <span class="op">(</span>u<span class="op">.</span>y<span class="op">[</span><span class="dv">0</span><span class="op">,</span><span class="dv">1</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>y<span class="op">[</span><span class="dv">0</span><span class="op">,-</span><span class="dv">1</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">);</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#if AXI</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D22 <span class="op">=</span> <span class="op">(</span>y <span class="op">&gt;</span> <span class="fl">1e-10</span><span class="op">)</span> <span class="op">?</span> u<span class="op">.</span>y<span class="op">[]/</span>y <span class="op">:</span> <span class="fl">0.0</span><span class="op">;</span>  <span class="co">// Epsilon guard for axis</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D33 <span class="op">=</span> <span class="op">(</span>u<span class="op">.</span>x<span class="op">[</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>x<span class="op">[-</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">);</span></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D13 <span class="op">=</span></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>      <span class="fl">0.5</span><span class="op">*((</span>u<span class="op">.</span>y<span class="op">[</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>y<span class="op">[-</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">+</span> u<span class="op">.</span>x<span class="op">[</span><span class="dv">0</span><span class="op">,</span><span class="dv">1</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>x<span class="op">[</span><span class="dv">0</span><span class="op">,-</span><span class="dv">1</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">));</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#if AXI</span></span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D2 <span class="op">=</span> sq<span class="op">(</span>D11<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D22<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D33<span class="op">)</span> <span class="op">+</span> <span class="fl">2.</span><span class="op">*</span>sq<span class="op">(</span>D13<span class="op">);</span></span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="pp">#else</span></span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D2 <span class="op">=</span> sq<span class="op">(</span>D11<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D33<span class="op">)</span> <span class="op">+</span> <span class="fl">2.</span><span class="op">*</span>sq<span class="op">(</span>D13<span class="op">);</span></span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
-<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> mu_r <span class="op">=</span> f<span class="op">[]</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1.</span> <span class="op">-</span> f<span class="op">[])*</span><span class="fl">2e-2</span><span class="op">;</span>  <span class="co">// viscosity ratio: 1 in liquid, 0.02 in gas</span></span>
-<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    target<span class="op">[]</span> <span class="op">=</span> mu_r <span class="op">*</span> D2<span class="op">;</span></span>
-<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>target<span class="op">[]</span> <span class="op">&gt;</span> <span class="fl">0.</span><span class="op">)</span></span>
-<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>      target<span class="op">[]</span> <span class="op">=</span> log<span class="op">(</span>target<span class="op">[])/</span>log<span class="op">(</span><span class="dv">10</span><span class="op">);</span></span>
-<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    else</span>
-<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>      target<span class="op">[]</span> <span class="op">=</span> <span class="op">-</span><span class="dv">10</span><span class="op">;</span></span>
-<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> write_fields<span class="op">(</span><span class="dt">const</span> extraction_config <span class="op">*</span>cfg<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">,</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>                         <span class="dt">int</span> registered_fields<span class="op">,</span> <span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">)</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>nx<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> x <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltax<span class="op">*(</span>i <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>xmin<span class="op">;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> j <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> j <span class="op">&lt;</span> cfg<span class="op">-&gt;</span>ny<span class="op">;</span> j<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">double</span> y <span class="op">=</span> cfg<span class="op">-&gt;</span>Deltay<span class="op">*(</span>j <span class="op">+</span> <span class="fl">1.</span><span class="op">/</span><span class="dv">2</span><span class="op">)</span> <span class="op">+</span> cfg<span class="op">-&gt;</span>ymin<span class="op">;</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>      fprintf <span class="op">(</span>fp<span class="op">,</span> <span class="st">&quot;%g %g&quot;</span><span class="op">,</span> x<span class="op">,</span> y<span class="op">);</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">int</span> k <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>      <span class="cf">for</span> <span class="op">(</span>scalar s in field_list<span class="op">)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        fprintf <span class="op">(</span>fp<span class="op">,</span> <span class="st">&quot; %g&quot;</span><span class="op">,</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>                 field_buffer<span class="op">[</span>i<span class="op">][</span>registered_fields<span class="op">*</span>j <span class="op">+</span> k<span class="op">++]);</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      fputc <span class="op">(</span><span class="ch">&#39;\n&#39;</span><span class="op">,</span> fp<span class="op">);</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> cleanup_output<span class="op">(</span><span class="dt">FILE</span> <span class="op">*</span>fp<span class="op">,</span> <span class="dt">double</span> <span class="op">**</span>field_buffer<span class="op">)</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  fflush <span class="op">(</span>fp<span class="op">);</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>  fclose <span class="op">(</span>fp<span class="op">);</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>  matrix_free <span class="op">(</span>field_buffer<span class="op">);</span></span>
 <span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
-                <ul>
-                <li><span class="citation"
-                data-cites="brief">@brief</span> Compute velocity
-                magnitude.</li>
-                <li></li>
-                <li>Geometry-independent calculation:</li>
-                <li>Axisymmetric (AXI=1): u.x=radial, u.y=axial</li>
-                <li>2D Cartesian (AXI=0): u.x=x-component,
-                u.y=y-component</li>
-                <li></li>
-                <li>Returns |u| = sqrt(u_x² + u_y²).</li>
-                </ul>
+                <h2 id="strain-rate-field-d²">Strain-Rate Field
+                (D²)</h2>
+                <p>Compute log₁₀(D²) where D² is the second invariant of
+                the strain-rate tensor.</p>
+                <h3
+                id="geometry-dependent-formulation">Geometry-Dependent
+                Formulation</h3>
+                <p><strong>Axisymmetric (AXI=1, x=radial,
+                y=axial):</strong> <span class="math display">\[D_{11} =
+                \partial u_y/\partial y \quad \text{(axial velocity
+                gradient)}\]</span> <span class="math display">\[D_{22}
+                = u_y/y \quad \text{(azimuthal component)}\]</span>
+                <span class="math display">\[D_{33} = \partial
+                u_x/\partial x \quad \text{(radial velocity
+                gradient)}\]</span> <span class="math display">\[D_{13}
+                = (\partial u_y/\partial x + \partial u_x/\partial
+                y)/2\]</span> <span class="math display">\[D^2 =
+                D_{11}^2 + D_{22}^2 + D_{33}^2 + 2D_{13}^2\]</span></p>
+                <p><strong>2D Cartesian (AXI=0):</strong> Same as above
+                but without the D₂₂ term.</p>
+                <p>Returns log₁₀(μᵣ·D²) where μᵣ is the viscosity ratio
+                (1 in liquid, 0.02 in gas). Floor value of -10 for
+                non-positive values.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode c"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_velocity_field<span class="op">(</span>scalar target<span class="op">)</span></span>
+                class="sourceCode c"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_D2c_field<span class="op">(</span>scalar target<span class="op">)</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  foreach<span class="op">()</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    target<span class="op">[]</span> <span class="op">=</span> sqrt<span class="op">(</span>sq<span class="op">(</span>u<span class="op">.</span>x<span class="op">[])</span> <span class="op">+</span> sq<span class="op">(</span>u<span class="op">.</span>y<span class="op">[]));</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  foreach<span class="op">()</span> <span class="op">{</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D11 <span class="op">=</span> <span class="op">(</span>u<span class="op">.</span>y<span class="op">[</span><span class="dv">0</span><span class="op">,</span><span class="dv">1</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>y<span class="op">[</span><span class="dv">0</span><span class="op">,-</span><span class="dv">1</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">);</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#if AXI</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D22 <span class="op">=</span> <span class="op">(</span>y <span class="op">&gt;</span> <span class="fl">1e-10</span><span class="op">)</span> <span class="op">?</span> u<span class="op">.</span>y<span class="op">[]/</span>y <span class="op">:</span> <span class="fl">0.0</span><span class="op">;</span>  <span class="co">// Epsilon guard for axis</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D33 <span class="op">=</span> <span class="op">(</span>u<span class="op">.</span>x<span class="op">[</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>x<span class="op">[-</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">);</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D13 <span class="op">=</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>      <span class="fl">0.5</span><span class="op">*((</span>u<span class="op">.</span>y<span class="op">[</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>y<span class="op">[-</span><span class="dv">1</span><span class="op">,</span><span class="dv">0</span><span class="op">]</span> <span class="op">+</span> u<span class="op">.</span>x<span class="op">[</span><span class="dv">0</span><span class="op">,</span><span class="dv">1</span><span class="op">]</span> <span class="op">-</span> u<span class="op">.</span>x<span class="op">[</span><span class="dv">0</span><span class="op">,-</span><span class="dv">1</span><span class="op">])/(</span><span class="dv">2</span><span class="op">*</span>Delta<span class="op">));</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#if AXI</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D2 <span class="op">=</span> sq<span class="op">(</span>D11<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D22<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D33<span class="op">)</span> <span class="op">+</span> <span class="fl">2.</span><span class="op">*</span>sq<span class="op">(</span>D13<span class="op">);</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="pp">#else</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> D2 <span class="op">=</span> sq<span class="op">(</span>D11<span class="op">)</span> <span class="op">+</span> sq<span class="op">(</span>D33<span class="op">)</span> <span class="op">+</span> <span class="fl">2.</span><span class="op">*</span>sq<span class="op">(</span>D13<span class="op">);</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="pp">#endif</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">double</span> mu_r <span class="op">=</span> f<span class="op">[]</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1.</span> <span class="op">-</span> f<span class="op">[])*</span><span class="fl">2e-2</span><span class="op">;</span>  <span class="co">// viscosity ratio: 1 in liquid, 0.02 in gas</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    target<span class="op">[]</span> <span class="op">=</span> mu_r <span class="op">*</span> D2<span class="op">;</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>target<span class="op">[]</span> <span class="op">&gt;</span> <span class="fl">0.</span><span class="op">)</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>      target<span class="op">[]</span> <span class="op">=</span> log<span class="op">(</span>target<span class="op">[])/</span>log<span class="op">(</span><span class="dv">10</span><span class="op">);</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    else</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>      target<span class="op">[]</span> <span class="op">=</span> <span class="op">-</span><span class="dv">10</span><span class="op">;</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>  <span class="op">}</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
+                <h2 id="velocity-magnitude-field">Velocity Magnitude
+                Field</h2>
+                <p>Compute velocity magnitude: <span
+                class="math inline">\(|\mathbf{u}| = \sqrt{u_x^2 +
+                u_y^2}\)</span></p>
+                <p>Geometry-independent calculation: - Axisymmetric
+                (AXI=1): u.x=radial, u.y=axial - 2D Cartesian (AXI=0):
+                u.x=x-component, u.y=y-component</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode c"><code class="sourceCode c"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> compute_velocity_field<span class="op">(</span>scalar target<span class="op">)</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  foreach<span class="op">()</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    target<span class="op">[]</span> <span class="op">=</span> sqrt<span class="op">(</span>sq<span class="op">(</span>u<span class="op">.</span>x<span class="op">[])</span> <span class="op">+</span> sq<span class="op">(</span>u<span class="op">.</span>y<span class="op">[]));</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div></div>
             </div>
         </main>
 

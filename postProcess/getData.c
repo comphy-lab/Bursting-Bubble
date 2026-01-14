@@ -1,45 +1,70 @@
-/* Title: getting Data from simulation snapshot
-# Author: Vatsal Sanjay
-# vatsal.sanjay@comphy-lab.org
-# CoMPhy Lab
-# Durham University
-# Last updated: Jan 2025
+/**
+# Getting Data from Simulation Snapshot
+
+A utility for extracting field data from Basilisk simulation snapshots onto
+a structured Cartesian grid for post-processing and visualization.
+
+## Description
+
+This program samples strain-rate and velocity fields from simulation snapshots
+and outputs them on a regular grid suitable for visualization tools. It supports
+both axisymmetric and 2D Cartesian geometries.
+
+## Usage
+
+```
+./getData <filename> <xmin> <ymin> <xmax> <ymax> <ny>
+```
+
+Where:
+- `filename`: Path to the Basilisk snapshot file
+- `xmin`, `ymin`: Lower bounds of the sampling domain
+- `xmax`, `ymax`: Upper bounds of the sampling domain
+- `ny`: Number of grid points in y-direction (nx computed automatically)
+
+## Geometry Configuration
+
+Set `AXI=1` for axisymmetric (default) or `AXI=0` for 2D Cartesian:
+- **Axisymmetric**: x=radial, y=axial (includes azimuthal D22 term)
+- **2D Cartesian**: x=x-coordinate, y=y-coordinate (no D22 term)
+
+To change geometry:
+- Method 1: Edit `#define AXI 1` below to `#define AXI 0`
+- Method 2: Compile with flag: `qcc -DAXI=0 ...`
+
+## Workflow
+
+1. Parse CLI bounds/grid spacing into `extraction_config`
+2. Restore the snapshot via `restore(file=...)`
+3. Register each derived scalar in `field_list`
+4. Compute fields and interpolate onto regular grid
+5. Stream `x y field0 field1 ...` rows to stderr
+
+## Adding New Fields
+
+To add a new derived quantity (e.g., `Aij`):
+1. Declare scalar: `scalar Aij[];`
+2. Register in `register_fields()`: `field_list = list_add(field_list, Aij);`
+3. Compute in `compute_fields()`: `compute_Aij_field(Aij);`
+4. Write compute function: `static void compute_Aij_field(scalar target) { ... }`
+
+Author: Vatsal Sanjay (vatsal.sanjay@comphy-lab.org)
+Affiliation: CoMPhy Lab, Durham University
 */
 
 #include "utils.h"
 #include "output.h"
 
-/**
- * Geometry configuration: Set AXI=1 for axisymmetric, AXI=0 for 2D Cartesian.
- * - Axisymmetric: x=radial, y=axial (includes azimuthal D22 term)
- * - 2D Cartesian: x=x-coordinate, y=y-coordinate (no D22 term)
- *
- * To change geometry:
- *   Method 1: Edit line 22 below - change "AXI 1" to "AXI 0" for 2D
- *   Method 2: Compile with flag: qcc -DAXI=0 ... (for 2D executable)
- */
 #ifndef AXI
-#define AXI 1  // Default to axisymmetric
+#define AXI 1
 #endif
 
 scalar f[];
 vector u[];
 
 /**
- * Lightweight utility for extracting Basilisk snapshot data on a structured
- * Cartesian sampling grid. The workflow is intentionally linear:
- *   1. Parse CLI bounds/grid spacing into `extraction_config`.
- *   2. Restore the snapshot (`restore(file=...)`).
- *   3. Register each derived scalar in `field_list`.
- *   4. Compute fields and interpolate them onto a regular grid.
- *   5. Stream x, y, <fields...> rows to stderr (used as output pipe).
- *
- * To add a new derived quantity (e.g., Aij):
- *   1. Declare scalar: `scalar Aij[];` (line ~38)
- *   2. Register in `register_fields()`: `field_list = list_add(field_list, Aij);`
- *   3. Compute in `compute_fields()`: `compute_Aij_field(Aij);`
- *   4. Write compute function: `static void compute_Aij_field(scalar target) { ... }`
- */
+## Data Structures
+*/
 typedef struct {
   char filename[4096];
   double xmin, ymin, xmax, ymax;
@@ -66,23 +91,13 @@ static void compute_D2c_field(scalar target);
 static void compute_velocity_field(scalar target);
 
 /**
-   * @brief Entry point for simulation snapshot extraction and processing.
-   *
-   * This function validates command-line arguments and orchestrates the simulation
-   * data restoration, derivative and velocity computations, and interpolation onto
-   * a grid. It expects the program name followed by exactly six parameters:
-   * a filename, the lower bounds (xmin and ymin), the upper bounds (xmax and ymax), and
-   * the number of divisions along the y-axis (ny). If the argument count is incorrect,
-   * an error message and usage instructions are printed to stderr and the program exits
-   * with a status of 1.
-   *
-   * @param a The total number of command-line arguments.
-   * @param arguments Array of command-line argument strings, where arguments[0] is the
-   * program name and the remaining elements provide the required simulation parameters.
-   *
-   * @return int Exit status of the program (1 on error, 0 on success).
-   */
-  int main(int a, char const *arguments[])
+## Main Function
+
+Entry point for simulation snapshot extraction and processing.
+Validates command-line arguments and orchestrates snapshot restoration,
+field computation, and grid interpolation.
+*/
+int main(int a, char const *arguments[])
 {
   extraction_config cfg;
   if (!parse_arguments(a, arguments, &cfg))
@@ -105,10 +120,14 @@ static void compute_velocity_field(scalar target);
   cleanup_output(fp, field);
 }
 
+/**
+## Argument Parsing
+
+Read CLI arguments and guard against invalid bounds/grid sizes.
+*/
 static int parse_arguments(int argc, char const *argv[],
                            extraction_config *cfg)
 {
-  /** Read CLI arguments and guard against invalid bounds/grid sizes. */
   if (argc != 7) {
     fprintf(stderr, "Error: Expected 6 arguments\n");
     fprintf(stderr,
@@ -138,9 +157,13 @@ static int parse_arguments(int argc, char const *argv[],
   return 1;
 }
 
+/**
+## Grid Configuration
+
+Translate bounds and ny into nx, Δx, Δy for regular sampling.
+*/
 static int configure_grid(extraction_config *cfg)
 {
-  /** Translate bounds and ny into nx, Δx, Δy for regular sampling. */
   cfg->Deltay = (cfg->ymax - cfg->ymin)/((double) cfg->ny);
   cfg->nx = (int) ((cfg->xmax - cfg->xmin)/cfg->Deltay);
 
@@ -154,22 +177,25 @@ static int configure_grid(extraction_config *cfg)
   return 1;
 }
 
+/**
+## Field Registration
+
+Populate Basilisk list with each scalar field.
+To add a new field, declare the scalar at the top and add it here.
+*/
 static void register_fields(void)
 {
-  /**
-   * Populate Basilisk list with each scalar field.
-   * To add a new field, declare the scalar at the top and add it here.
-   */
   field_list = list_add(field_list, D2c);
   field_list = list_add(field_list, vel);
 }
 
+/**
+## Field Computation
+
+Dispatch compute callbacks for each registered field.
+*/
 static void compute_fields(void)
 {
-  /**
-   * Dispatch compute callbacks for each field.
-   * To add a new field, add a compute call here.
-   */
   compute_D2c_field(D2c);
   compute_velocity_field(vel);
 }
@@ -181,14 +207,16 @@ static double ** allocate_field_buffer(const extraction_config *cfg,
                                  registered_fields*sizeof(double));
 }
 
+/**
+## Field Sampling
+
+Interpolate every registered scalar on the regular grid.
+The matrix layout follows Basilisk's `matrix_new`: row-major on i (x),
+with contiguous blocks of `registered_fields` entries per (i, j).
+*/
 static void sample_fields(const extraction_config *cfg, double **field_buffer,
                           int registered_fields)
 {
-  /**
-   * Interpolate every registered scalar on the regular grid that we later dump.
-   * The matrix layout follows Basilisk's `matrix_new`: row-major on i (x),
-   * with contiguous blocks of `registered_fields` entries per (i, j).
-   */
   for (int i = 0; i < cfg->nx; i++) {
     double x = cfg->Deltax*(i + 1./2) + cfg->xmin;
     for (int j = 0; j < cfg->ny; j++) {
@@ -201,10 +229,14 @@ static void sample_fields(const extraction_config *cfg, double **field_buffer,
   }
 }
 
+/**
+## Output Writing
+
+Stream rows in the format: `x y field0 field1 ...` to the output stream.
+*/
 static void write_fields(const extraction_config *cfg, double **field_buffer,
                          int registered_fields, FILE *fp)
 {
-  /** Stream rows in the format: x y field0 field1 ... */
   for (int i = 0; i < cfg->nx; i++) {
     double x = cfg->Deltax*(i + 1./2) + cfg->xmin;
     for (int j = 0; j < cfg->ny; j++) {
@@ -227,27 +259,25 @@ static void cleanup_output(FILE *fp, double **field_buffer)
 }
 
 /**
- * @brief Compute log10(D²) where D² is the second invariant of the strain
- * rate tensor.
- *
- * Geometry-dependent formulation:
- *
- * Axisymmetric (AXI=1, x=radial, y=axial):
- *   D11 = ∂u_y/∂y      (axial velocity gradient)
- *   D22 = u_y/y        (azimuthal component from cylindrical geometry)
- *   D33 = ∂u_x/∂x      (radial velocity gradient)
- *   D13 = (∂u_y/∂x + ∂u_x/∂y)/2  (shear component)
- *   D² = D11² + D22² + D33² + 2*D13²
- *
- * 2D Cartesian (AXI=0, x and y coordinates):
- *   D11 = ∂u_y/∂y
- *   D33 = ∂u_x/∂x
- *   D13 = (∂u_y/∂x + ∂u_x/∂y)/2
- *   D² = D11² + D33² + 2*D13²  (no D22 term)
- *
- * Returns log10(D²) for positive values, -10 otherwise (floor for
- * visualization). Shown throughout the entire domain.
- */
+## Strain-Rate Field (D²)
+
+Compute log₁₀(D²) where D² is the second invariant of the strain-rate tensor.
+
+### Geometry-Dependent Formulation
+
+**Axisymmetric (AXI=1, x=radial, y=axial):**
+$$D_{11} = \partial u_y/\partial y \quad \text{(axial velocity gradient)}$$
+$$D_{22} = u_y/y \quad \text{(azimuthal component)}$$
+$$D_{33} = \partial u_x/\partial x \quad \text{(radial velocity gradient)}$$
+$$D_{13} = (\partial u_y/\partial x + \partial u_x/\partial y)/2$$
+$$D^2 = D_{11}^2 + D_{22}^2 + D_{33}^2 + 2D_{13}^2$$
+
+**2D Cartesian (AXI=0):**
+Same as above but without the D₂₂ term.
+
+Returns log₁₀(μᵣ·D²) where μᵣ is the viscosity ratio (1 in liquid, 0.02 in gas).
+Floor value of -10 for non-positive values.
+*/
 static void compute_D2c_field(scalar target)
 {
   foreach() {
@@ -273,14 +303,14 @@ static void compute_D2c_field(scalar target)
 }
 
 /**
- * @brief Compute velocity magnitude.
- *
- * Geometry-independent calculation:
- *   Axisymmetric (AXI=1): u.x=radial, u.y=axial
- *   2D Cartesian (AXI=0): u.x=x-component, u.y=y-component
- *
- * Returns |u| = sqrt(u_x² + u_y²).
- */
+## Velocity Magnitude Field
+
+Compute velocity magnitude: $|\mathbf{u}| = \sqrt{u_x^2 + u_y^2}$
+
+Geometry-independent calculation:
+- Axisymmetric (AXI=1): u.x=radial, u.y=axial
+- 2D Cartesian (AXI=0): u.x=x-component, u.y=y-component
+*/
 static void compute_velocity_field(scalar target)
 {
   foreach()
