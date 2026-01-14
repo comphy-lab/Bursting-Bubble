@@ -57,6 +57,8 @@ Options:
 Author: Vatsal Sanjay
 Organization: CoMPhy Lab, Durham University
 """
+import ast
+import inspect
 import os, subprocess, re, shutil, argparse, html, json
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -832,69 +834,66 @@ def process_python_file(file_path: Path) -> str:
     Returns:
         A Markdown-formatted string with docstrings as paragraphs and code as Python code blocks.
     """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        file_content = f.read()
-    
-    lines = file_content.split('\n')
-    processed_lines = []
-    in_code_block = False
-    code_block = []
-    in_docstring = False
-    docstring_lines = []
-    
-    for line in lines:
-        if line.strip().startswith('"""') or line.strip().startswith("'''"):
-            if in_docstring:
-                in_docstring = False
-                clean_docstring = []
-                for doc_line in docstring_lines:
-                    if doc_line.strip() in ('"""', "'''"):
-                        continue
-                    doc_line = doc_line.strip()
-                    if doc_line.startswith('"""') or doc_line.startswith("'''"):
-                        doc_line = doc_line[3:]
-                    if doc_line.endswith('"""') or doc_line.endswith("'''"):
-                        doc_line = doc_line[:-3]
-                    clean_docstring.append(doc_line.strip())
-                
-                if clean_docstring:
-                    processed_lines.append("")
-                    processed_lines.extend(clean_docstring)
-                    processed_lines.append("")
-                docstring_lines = []
-            else:
-                in_docstring = True
-                if in_code_block:
-                    processed_lines.append("```python")
-                    processed_lines.extend(code_block)
-                    processed_lines.append("```")
-                    code_block = []
-                    in_code_block = False
+    file_content = file_path.read_text(encoding="utf-8")
+
+    try:
+        tree = ast.parse(file_content)
+    except SyntaxError as exc:
+        debug_print(f"  [Debug] SyntaxError parsing {file_path}: {exc}")
+        return f"# {file_path.name}\n\n```python\n{file_content}\n```"
+
+    lines = file_content.split("\n")
+
+    doc_blocks: List[Tuple[int, int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Expr):
             continue
-        
-        if in_docstring:
-            docstring_lines.append(line)
-            continue
-        
-        if not in_code_block and line.strip():
-            in_code_block = True
-            code_block.append(line)
-        elif in_code_block:
-            code_block.append(line)
-        else:
-            processed_lines.append(line)
-    
-    if in_code_block:
+
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            start = node.lineno
+            end = getattr(node, "end_lineno", node.lineno)
+            doc_blocks.append((start, end, value.value))
+
+    doc_blocks.sort(key=lambda block: block[0])
+
+    def trim_blank_edges(segment: List[str]) -> List[str]:
+        start = 0
+        end = len(segment)
+        while start < end and not segment[start].strip():
+            start += 1
+        while end > start and not segment[end - 1].strip():
+            end -= 1
+        return segment[start:end]
+
+    processed_lines: List[str] = []
+    current_line = 1  # 1-based
+
+    def emit_code_segment(segment: List[str]) -> None:
+        segment = trim_blank_edges(segment)
+        if not any(line.strip() for line in segment):
+            return
         processed_lines.append("```python")
-        processed_lines.extend(code_block)
+        processed_lines.extend(segment)
         processed_lines.append("```")
-    
-    if in_docstring:
         processed_lines.append("")
-        processed_lines.extend(docstring_lines)
-        processed_lines.append("")
-    
-    return '\n'.join(processed_lines)
+
+    for start, end, text in doc_blocks:
+        if start < current_line:
+            continue
+
+        emit_code_segment(lines[current_line - 1 : start - 1])
+
+        doc_text = inspect.cleandoc(text).strip()
+        if doc_text:
+            processed_lines.append(doc_text)
+            processed_lines.append("")
+
+        current_line = end + 1
+
+    emit_code_segment(lines[current_line - 1 :])
+
+    return "\n".join(processed_lines).rstrip() + "\n"
 
 def process_c_file(file_path: Path, literate_c_script: Path) -> str:
     """

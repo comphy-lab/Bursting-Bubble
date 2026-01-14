@@ -202,10 +202,10 @@
   </style>
 
   <!-- Critical Meta Tags -->
-  <meta name="description" content="Post-processing pipeline for Basilisk bubble bursting simulations. Overview -------- The helper executables postProcess/getFacet and postProcess/getData are ...">
+  <meta name="description" content="This module renders axisymmetric visualizations from Basilisk simulation snapshots, producing PNG frames and optional MP4 videos. Overview -------- The helpe...">
   <meta name="author" content="CoMPhy Lab">
   <meta name="robots" content="index, follow">
-  <meta name="keywords" content="axial_extent, bounds, class, draw_domain_outline, from, get_facets, parse_arguments, plotstyle, rmin, run_helper">
+  <meta name="keywords" content="add_colorbar, class, draw_domain_outline, encode_video, ensure_directory, get_facets, mirrors, radial_extent, runtimeconfig, video">
   <meta name="msapplication-TileColor" content="#da532c">
   <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-title" content="CoMPhy Lab">
@@ -430,31 +430,32 @@ window.baseDomain = "https://test.comphy-lab.org";
                     </a>
                 </div>
                 
-                <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Author: Vatsal Sanjay</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># vatsal.sanjay@comphy-lab.org</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># CoMPhy Lab</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Durham University</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Last updated: Jan 2025</span></span></code></pre></div></div>
-                <p>Post-processing pipeline for Basilisk bubble bursting
-                simulations.</p>
+                <h1
+                id="video-post-processing-pipeline-for-bursting-bubble-simulations">Video
+                Post-Processing Pipeline for Bursting Bubble
+                Simulations</h1>
+                <p>This module renders axisymmetric visualizations from
+                Basilisk simulation snapshots, producing PNG frames and
+                optional MP4 videos.</p>
                 <h2 id="overview">Overview</h2>
                 <p>The helper executables
                 <code>postProcess/getFacet</code> and
                 <code>postProcess/getData</code> are compiled as part of
                 the Basilisk workflow. This Python wrapper shells out to
                 those binaries for every snapshot, reshapes the returned
-                grids, and renders axisymmetric visualisations with
+                grids, and renders axisymmetric visualizations with
                 strain-rate and velocity fields.</p>
                 <h2 id="usage">Usage</h2>
                 <p>Typical invocation from the repository root::</p>
-                <p>python3 postProcess/Video.py –caseToProcess
-                simulationCases/1000</p>
+                <div class="code-block-container"><pre><code>python3 postProcess/Video.py --caseToProcess simulationCases/1000</code></pre></div>
                 <p>Command-line switches expose all relevant knobs (grid
                 density, domain limits, time stride, CPU count). The
                 output directory is created on-demand and filled with
                 zero-padded PNG files compatible with downstream
                 stitching utilities.</p>
+                <p>Author: Vatsal Sanjay (vatsal.sanjay@comphy-lab.org)
+                Affiliation: CoMPhy Lab, Durham University Last updated:
+                Jan 2025</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
                 class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> argparse</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> multiprocessing <span class="im">as</span> mp</span>
@@ -470,195 +471,242 @@ window.baseDomain = "https://test.comphy-lab.org";
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.collections <span class="im">import</span> LineCollection</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.ticker <span class="im">import</span> StrMethodFormatter</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Configure matplotlib with LaTeX if available, fallback otherwise</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>matplotlib.rcParams[<span class="st">&quot;font.family&quot;</span>] <span class="op">=</span> <span class="st">&quot;serif&quot;</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> shutil.which(<span class="st">&quot;latex&quot;</span>):</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.latex.preamble&quot;</span>] <span class="op">=</span> <span class="vs">r&quot;\usepackage</span><span class="sc">{amsmath}</span><span class="vs">&quot;</span></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span>:</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Script directory for finding helper executables</span></span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>SCRIPT_DIR <span class="op">=</span> os.path.dirname(os.path.abspath(<span class="va">__file__</span>))</span>
-<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>HELPER_GETFACET <span class="op">=</span> os.path.join(SCRIPT_DIR, <span class="st">&quot;getFacet&quot;</span>)</span>
-<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>HELPER_GETDATA <span class="op">=</span> os.path.join(SCRIPT_DIR, <span class="st">&quot;getData&quot;</span>)</span>
-<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DomainBounds:</span></code></pre></div></div>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.ticker <span class="im">import</span> StrMethodFormatter</span></code></pre></div></div>
+                <h2 id="matplotlib-configuration">Matplotlib
+                Configuration</h2>
+                <p>Configure matplotlib with LaTeX rendering if
+                available, with serif font fallback.</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>matplotlib.rcParams[<span class="st">&quot;font.family&quot;</span>] <span class="op">=</span> <span class="st">&quot;serif&quot;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> shutil.which(<span class="st">&quot;latex&quot;</span>):</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.latex.preamble&quot;</span>] <span class="op">=</span> <span class="vs">r&quot;\usepackage</span><span class="sc">{amsmath}</span><span class="vs">&quot;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span>:</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    matplotlib.rcParams[<span class="st">&quot;text.usetex&quot;</span>] <span class="op">=</span> <span class="va">False</span></span></code></pre></div></div>
+                <h2 id="helper-executable-paths">Helper Executable
+                Paths</h2>
+                <p>Locate the compiled Basilisk helper executables
+                (getFacet, getData) relative to this script’s
+                directory.</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>SCRIPT_DIR <span class="op">=</span> os.path.dirname(os.path.abspath(<span class="va">__file__</span>))</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>HELPER_GETFACET <span class="op">=</span> os.path.join(SCRIPT_DIR, <span class="st">&quot;getFacet&quot;</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>HELPER_GETDATA <span class="op">=</span> os.path.join(SCRIPT_DIR, <span class="st">&quot;getData&quot;</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DomainBounds:</span></code></pre></div></div>
                 <p>Symmetry-aware domain description in cylindrical
                 coordinates.</p>
                 <p>The code expects r in [rmin, rmax] with rmin &lt;= 0
                 to leverage the axis of symmetry; z spans freely between
                 zmin and zmax.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    rmin: <span class="bu">float</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    rmax: <span class="bu">float</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    zmin: <span class="bu">float</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    zmax: <span class="bu">float</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RuntimeConfig:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>    rmin: <span class="bu">float</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    rmax: <span class="bu">float</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    zmin: <span class="bu">float</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    zmax: <span class="bu">float</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RuntimeConfig:</span></code></pre></div></div>
                 <p>Run-time knobs collected from CLI arguments.</p>
                 <p>Multiprocessing workers only need a single instance
                 of this struct, making later CLI additions painless.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    cpus: <span class="bu">int</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    n_snapshots: <span class="bu">int</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    grids_per_r: <span class="bu">int</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    tsnap: <span class="bu">float</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    zmin: <span class="bu">float</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    zmax: <span class="bu">float</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    rmax: <span class="bu">float</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    case_dir: <span class="bu">str</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    output_dir: <span class="bu">str</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    skip_video_encode: <span class="bu">bool</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    framerate: <span class="bu">int</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    output_fps: <span class="bu">int</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Colorbar bounds</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    d2_vmin: <span class="bu">float</span></span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    d2_vmax: <span class="bu">float</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    vel_vmin: <span class="bu">float</span></span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    vel_vmax: <span class="bu">float</span></span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> rmin(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span><span class="va">self</span>.rmax</span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> bounds(<span class="va">self</span>) <span class="op">-&gt;</span> DomainBounds:</span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> DomainBounds(<span class="va">self</span>.rmin, <span class="va">self</span>.rmax, <span class="va">self</span>.zmin, <span class="va">self</span>.zmax)</span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PlotStyle:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>    cpus: <span class="bu">int</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    n_snapshots: <span class="bu">int</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    grids_per_r: <span class="bu">int</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    tsnap: <span class="bu">float</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    zmin: <span class="bu">float</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    zmax: <span class="bu">float</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    rmax: <span class="bu">float</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    case_dir: <span class="bu">str</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    output_dir: <span class="bu">str</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    skip_video_encode: <span class="bu">bool</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    framerate: <span class="bu">int</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    output_fps: <span class="bu">int</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    d2_vmin: <span class="bu">float</span>  <span class="co"># colorbar bounds for strain-rate</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    d2_vmax: <span class="bu">float</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    vel_vmin: <span class="bu">float</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    vel_vmax: <span class="bu">float</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> rmin(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span><span class="va">self</span>.rmax</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> bounds(<span class="va">self</span>) <span class="op">-&gt;</span> DomainBounds:</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> DomainBounds(<span class="va">self</span>.rmin, <span class="va">self</span>.rmax, <span class="va">self</span>.zmin, <span class="va">self</span>.zmax)</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PlotStyle:</span></code></pre></div></div>
                 <p>Single source of truth for plot-level choices.</p>
                 <p>Matplotlib tweaks become traceable: alter colours,
                 fonts, or geometry here and every rendered frame will
                 stay consistent without touching plotting logic.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>    figure_size: Tuple[<span class="bu">float</span>, <span class="bu">float</span>] <span class="op">=</span> (<span class="fl">19.20</span>, <span class="fl">10.80</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    tick_label_size: <span class="bu">int</span> <span class="op">=</span> <span class="dv">20</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    zero_axis_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;grey&quot;</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    axis_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;black&quot;</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    line_width: <span class="bu">float</span> <span class="op">=</span> <span class="fl">2.0</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    interface_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;#00B2FF&quot;</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    colorbar_width: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.03</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    left_colorbar_offset: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.04</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    right_colorbar_offset: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.01</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SnapshotInfo:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>    figure_size: Tuple[<span class="bu">float</span>, <span class="bu">float</span>] <span class="op">=</span> (<span class="fl">19.20</span>, <span class="fl">10.80</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    tick_label_size: <span class="bu">int</span> <span class="op">=</span> <span class="dv">20</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    zero_axis_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;grey&quot;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    axis_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;black&quot;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    line_width: <span class="bu">float</span> <span class="op">=</span> <span class="fl">2.0</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    interface_color: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;#00B2FF&quot;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    colorbar_width: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.03</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    left_colorbar_offset: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.04</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    right_colorbar_offset: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.01</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SnapshotInfo:</span></code></pre></div></div>
                 <p>Metadata for an input snapshot and its output
                 image.</p>
                 <p>Storing paths and the physical time together
                 simplifies filename logic and ensures logging statements
                 stay informative.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>    index: <span class="bu">int</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    time: <span class="bu">float</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    source: <span class="bu">str</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    target: <span class="bu">str</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FieldData:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>    index: <span class="bu">int</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    time: <span class="bu">float</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    source: <span class="bu">str</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    target: <span class="bu">str</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FieldData:</span></code></pre></div></div>
                 <p>Structured holder around the grids returned by
                 getData.</p>
                 <p>Includes strain-rate (D2) and velocity magnitude
                 fields.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>    R: np.ndarray</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    Z: np.ndarray</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    strain_rate: np.ndarray</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    velocity: np.ndarray</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    nz: <span class="bu">int</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> radial_extent(<span class="va">self</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">float</span>, <span class="bu">float</span>]:</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.R.<span class="bu">min</span>(), <span class="va">self</span>.R.<span class="bu">max</span>()</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> axial_extent(<span class="va">self</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">float</span>, <span class="bu">float</span>]:</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.Z.<span class="bu">min</span>(), <span class="va">self</span>.Z.<span class="bu">max</span>()</span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>PLOT_STYLE <span class="op">=</span> PlotStyle()</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_status(message: <span class="bu">str</span>, <span class="op">*</span>, level: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;INFO&quot;</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
-                <p>timestamp = datetime.now().strftime(“%H:%M:%S”)
-                print(f”[{timestamp}] [{level}] {message}“,
-                flush=True)</p>
-                <p>def parse_arguments() -&gt; RuntimeConfig:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>    R: np.ndarray</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    Z: np.ndarray</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    strain_rate: np.ndarray</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    velocity: np.ndarray</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    nz: <span class="bu">int</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> radial_extent(<span class="va">self</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">float</span>, <span class="bu">float</span>]:</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.R.<span class="bu">min</span>(), <span class="va">self</span>.R.<span class="bu">max</span>()</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> axial_extent(<span class="va">self</span>) <span class="op">-&gt;</span> Tuple[<span class="bu">float</span>, <span class="bu">float</span>]:</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.Z.<span class="bu">min</span>(), <span class="va">self</span>.Z.<span class="bu">max</span>()</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>PLOT_STYLE <span class="op">=</span> PlotStyle()</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> log_status(message: <span class="bu">str</span>, <span class="op">*</span>, level: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;INFO&quot;</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Print timestamped status messages for long-running
+                CLI workflows.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>    Returns:</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>        RuntimeConfig: Configuration <span class="bu">object</span> containing <span class="bu">all</span> parameters.</span></code></pre></div></div>
-                parser = argparse.ArgumentParser( description=“Generate
-                snapshot videos for bubble bursting simulations.” )
-                parser.add_argument(“–CPUs”, type=int, default=4,
-                help=“Number of CPUs to use”) parser.add_argument(
-                “–nGFS”, type=int, default=500, help=“Number of restart
-                files to process” ) parser.add_argument( “–GridsPerR”,
-                type=int, default=256, help=“Number of grids per R” )
-                parser.add_argument( “–ZMIN”, type=float, default=-4.0,
-                help=“Minimum Z value (default: -4.0)” )
-                parser.add_argument( “–ZMAX”, type=float, default=4.0,
-                help=“Maximum Z value (default: 4.0)” )
-                parser.add_argument( “–RMAX”, type=float, default=2.0,
-                help=“Maximum R value (default: 2.0)” )
-                parser.add_argument(“–tsnap”, type=float, default=0.01,
-                help=“Time snap interval”) parser.add_argument(
-                “–caseToProcess”, type=str,
-                default=“simulationCases/1000”, help=“Case to process”,
-                ) parser.add_argument( “–folderToSave”, type=str,
-                default=None, help=“Folder to save (default:
-                <case>
-                <p>/Video)” ) parser.add_argument( “–skip-video-encode”,
-                action=“store_true”, help=“Skip ffmpeg video encoding
-                after frame generation” ) parser.add_argument(
-                “–framerate”, type=int, default=90, help=“Input
-                framerate for ffmpeg (default: 90)” )
-                parser.add_argument( “–output-fps”, type=int,
-                default=30, help=“Output video framerate (default: 30)”
-                ) # Colorbar bounds parser.add_argument( “–d2-vmin”,
-                type=float, default=-2.0, help=“Min value for
-                strain-rate colorbar (default: -2.0)” )
-                parser.add_argument( “–d2-vmax”, type=float,
-                default=2.0, help=“Max value for strain-rate colorbar
-                (default: 2.0)” ) parser.add_argument( “–vel-vmin”,
-                type=float, default=0.0, help=“Min value for velocity
-                colorbar (default: 0.0)” ) parser.add_argument(
-                “–vel-vmax”, type=float, default=1.0, help=“Max value
-                for velocity colorbar (default: 1.0)” ) args =
-                parser.parse_args()</p>
-                <h1 id="default-output-directory">Default output
-                directory</h1>
-                <p>output_dir = args.folderToSave if args.folderToSave
-                else os.path.join(args.caseToProcess, “Video”)</p>
-                <p>return RuntimeConfig( cpus=args.CPUs,
-                n_snapshots=args.nGFS, grids_per_r=args.GridsPerR,
-                tsnap=args.tsnap, zmin=args.ZMIN, zmax=args.ZMAX,
-                rmax=args.RMAX, case_dir=args.caseToProcess,
-                output_dir=output_dir,
-                skip_video_encode=args.skip_video_encode,
-                framerate=args.framerate, output_fps=args.output_fps,
-                d2_vmin=args.d2_vmin, d2_vmax=args.d2_vmax,
-                vel_vmin=args.vel_vmin, vel_vmax=args.vel_vmax, )</p>
-                <p>def ensure_directory(path: str) -&gt; None:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    timestamp <span class="op">=</span> datetime.now().strftime(<span class="st">&quot;%H:%M:%S&quot;</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;[</span><span class="sc">{</span>timestamp<span class="sc">}</span><span class="ss">] [</span><span class="sc">{</span>level<span class="sc">}</span><span class="ss">] </span><span class="sc">{</span>message<span class="sc">}</span><span class="ss">&quot;</span>, flush<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parse_arguments() <span class="op">-&gt;</span> RuntimeConfig:</span></code></pre></div></div>
+                <p>Parse command-line arguments and construct runtime
+                configuration.</p>
+                <h4 id="returns">Returns</h4>
+                <ul>
+                <li><code>RuntimeConfig</code>: Configuration object
+                containing all parameters.</li>
+                </ul>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> os.path.isdir(path):</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>        os.makedirs(path, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_helper(command: Sequence[<span class="bu">str</span>], cwd: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Sequence[<span class="bu">str</span>]:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    parser <span class="op">=</span> argparse.ArgumentParser(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">&quot;Generate snapshot videos for bubble bursting simulations.&quot;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(<span class="st">&quot;--CPUs&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">int</span>, default<span class="op">=</span><span class="dv">4</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Number of CPUs to use&quot;</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--nGFS&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">int</span>, default<span class="op">=</span><span class="dv">500</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Number of restart files to process&quot;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--GridsPerR&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">int</span>, default<span class="op">=</span><span class="dv">256</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Number of grids per R&quot;</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMIN&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=-</span><span class="fl">4.0</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Minimum Z value (default: -4.0)&quot;</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMAX&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">4.0</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Maximum Z value (default: 4.0)&quot;</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--RMAX&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">2.0</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Maximum R value (default: 2.0)&quot;</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(<span class="st">&quot;--tsnap&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">0.01</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Time snap interval&quot;</span>)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--caseToProcess&quot;</span>,</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>,</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        default<span class="op">=</span><span class="st">&quot;simulationCases/1000&quot;</span>,</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Case to process&quot;</span>,</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--folderToSave&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>, default<span class="op">=</span><span class="va">None</span>, <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Folder to save (default: &lt;case&gt;/Video)&quot;</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--skip-video-encode&quot;</span>, action<span class="op">=</span><span class="st">&quot;store_true&quot;</span>,</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Skip ffmpeg video encoding after frame generation&quot;</span></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--framerate&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">int</span>, default<span class="op">=</span><span class="dv">90</span>,</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Input framerate for ffmpeg (default: 90)&quot;</span></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--output-fps&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">int</span>, default<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Output video framerate (default: 30)&quot;</span></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(  <span class="co"># colorbar bounds</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmin&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=-</span><span class="fl">2.0</span>,</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Min value for strain-rate colorbar (default: -2.0)&quot;</span></span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmax&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">2.0</span>,</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Max value for strain-rate colorbar (default: 2.0)&quot;</span></span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmin&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">0.0</span>,</span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Min value for velocity colorbar (default: 0.0)&quot;</span></span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a>    parser.add_argument(</span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmax&quot;</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">float</span>, default<span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a>        <span class="bu">help</span><span class="op">=</span><span class="st">&quot;Max value for velocity colorbar (default: 1.0)&quot;</span></span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-58"><a href="#cb11-58" aria-hidden="true" tabindex="-1"></a>    args <span class="op">=</span> parser.parse_args()</span>
+<span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a>    output_dir <span class="op">=</span> (args.folderToSave <span class="cf">if</span> args.folderToSave</span>
+<span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a>                  <span class="cf">else</span> os.path.join(args.caseToProcess, <span class="st">&quot;Video&quot;</span>))</span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> RuntimeConfig(</span>
+<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>        cpus<span class="op">=</span>args.CPUs,</span>
+<span id="cb11-65"><a href="#cb11-65" aria-hidden="true" tabindex="-1"></a>        n_snapshots<span class="op">=</span>args.nGFS,</span>
+<span id="cb11-66"><a href="#cb11-66" aria-hidden="true" tabindex="-1"></a>        grids_per_r<span class="op">=</span>args.GridsPerR,</span>
+<span id="cb11-67"><a href="#cb11-67" aria-hidden="true" tabindex="-1"></a>        tsnap<span class="op">=</span>args.tsnap,</span>
+<span id="cb11-68"><a href="#cb11-68" aria-hidden="true" tabindex="-1"></a>        zmin<span class="op">=</span>args.ZMIN,</span>
+<span id="cb11-69"><a href="#cb11-69" aria-hidden="true" tabindex="-1"></a>        zmax<span class="op">=</span>args.ZMAX,</span>
+<span id="cb11-70"><a href="#cb11-70" aria-hidden="true" tabindex="-1"></a>        rmax<span class="op">=</span>args.RMAX,</span>
+<span id="cb11-71"><a href="#cb11-71" aria-hidden="true" tabindex="-1"></a>        case_dir<span class="op">=</span>args.caseToProcess,</span>
+<span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a>        output_dir<span class="op">=</span>output_dir,</span>
+<span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a>        skip_video_encode<span class="op">=</span>args.skip_video_encode,</span>
+<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a>        framerate<span class="op">=</span>args.framerate,</span>
+<span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a>        output_fps<span class="op">=</span>args.output_fps,</span>
+<span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a>        d2_vmin<span class="op">=</span>args.d2_vmin,</span>
+<span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>        d2_vmax<span class="op">=</span>args.d2_vmax,</span>
+<span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a>        vel_vmin<span class="op">=</span>args.vel_vmin,</span>
+<span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>        vel_vmax<span class="op">=</span>args.vel_vmax,</span>
+<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ensure_directory(path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Create an output directory if it does not exist.</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> os.path.isdir(path):</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        os.makedirs(path, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_helper(command: Sequence[<span class="bu">str</span>], cwd: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Sequence[<span class="bu">str</span>]:</span></code></pre></div></div>
                 <p>Run a helper executable and return its stderr as
                 decoded lines.</p>
                 <p>The compiled helpers deliberately emit their payload
@@ -668,293 +716,357 @@ window.baseDomain = "https://test.comphy-lab.org";
                 absolute paths, so we support running from a specific
                 working directory with relative paths.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    process <span class="op">=</span> sp.Popen(command, stdout<span class="op">=</span>sp.PIPE, stderr<span class="op">=</span>sp.PIPE, cwd<span class="op">=</span>cwd)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    _, stderr <span class="op">=</span> process.communicate()</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> process.returncode <span class="op">!=</span> <span class="dv">0</span>:</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">RuntimeError</span>(</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;Command </span><span class="sc">{</span><span class="st">&#39; &#39;</span><span class="sc">.</span>join(command)<span class="sc">}</span><span class="ss"> failed with code </span><span class="sc">{</span>process<span class="sc">.</span>returncode<span class="sc">}</span><span class="ss">:</span><span class="ch">\n</span><span class="ss">&quot;</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;</span><span class="sc">{</span>stderr<span class="sc">.</span>decode(<span class="st">&#39;utf-8&#39;</span>)<span class="sc">}</span><span class="ss">&quot;</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> stderr.decode(<span class="st">&quot;utf-8&quot;</span>).split(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_facets(filename: <span class="bu">str</span>, case_dir: <span class="bu">str</span>):</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>    process <span class="op">=</span> sp.Popen(command, stdout<span class="op">=</span>sp.PIPE, stderr<span class="op">=</span>sp.PIPE, cwd<span class="op">=</span>cwd)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    _, stderr <span class="op">=</span> process.communicate()</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> process.returncode <span class="op">!=</span> <span class="dv">0</span>:</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">RuntimeError</span>(</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;Command </span><span class="sc">{</span><span class="st">&#39; &#39;</span><span class="sc">.</span>join(command)<span class="sc">}</span><span class="ss"> failed with code </span><span class="sc">{</span>process<span class="sc">.</span>returncode<span class="sc">}</span><span class="ss">:</span><span class="ch">\n</span><span class="ss">&quot;</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;</span><span class="sc">{</span>stderr<span class="sc">.</span>decode(<span class="st">&#39;utf-8&#39;</span>)<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> stderr.decode(<span class="st">&quot;utf-8&quot;</span>).split(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_facets(filename: <span class="bu">str</span>, case_dir: <span class="bu">str</span>):</span></code></pre></div></div>
+                <p>Collect interface facets from getFacet helper with
+                axisymmetric mirroring.</p>
                 <p>Shells out to the compiled <code>getFacet</code>
                 executable, which extracts the volume-of-fluid (VOF)
                 interface as a sequence of line segments. Since the
                 simulation uses axisymmetric coordinates, only the r
                 &gt;= 0 half is computed. This function mirrors each
                 segment about r=0.</p>
-                <p>Args: filename: Relative path to snapshot file (e.g.,
-                ‘intermediate/snapshot-0.0100’) case_dir: Absolute path
-                to case directory (used as cwd)</p>
-                <p>Returns: list[tuple]: Sequence of line segments, each
-                as ((r1, z1), (r2, z2)).</p>
+                <h4 id="args">Args</h4>
+                <ul>
+                <li><code>filename</code>: Relative path to snapshot
+                file (e.g.,
+                <code>intermediate/snapshot-0.0100</code>).</li>
+                <li><code>case_dir</code>: Absolute path to case
+                directory (used as <code>cwd</code>).</li>
+                </ul>
+                <h4 id="returns-1">Returns</h4>
+                <ul>
+                <li><code>list[tuple]</code>: Sequence of line segments,
+                each as <code>((r1, z1), (r2, z2))</code>.</li>
+                </ul>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    temp2 <span class="op">=</span> run_helper([HELPER_GETFACET, filename], cwd<span class="op">=</span>case_dir)</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    segs <span class="op">=</span> []</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    skip <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(temp2) <span class="op">&gt;</span> <span class="fl">1e2</span>:</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> n1 <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(temp2)):</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>            temp3 <span class="op">=</span> temp2[n1].split(<span class="st">&quot; &quot;</span>)</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> temp3 <span class="op">==</span> [<span class="st">&quot;&quot;</span>]:</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>                skip <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> skip <span class="kw">and</span> n1 <span class="op">+</span> <span class="dv">1</span> <span class="op">&lt;</span> <span class="bu">len</span>(temp2):</span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>                temp4 <span class="op">=</span> temp2[n1 <span class="op">+</span> <span class="dv">1</span>].split(<span class="st">&quot; &quot;</span>)</span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>                r1, z1 <span class="op">=</span> np.array([<span class="bu">float</span>(temp3[<span class="dv">1</span>]), <span class="bu">float</span>(temp3[<span class="dv">0</span>])])</span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>                r2, z2 <span class="op">=</span> np.array([<span class="bu">float</span>(temp4[<span class="dv">1</span>]), <span class="bu">float</span>(temp4[<span class="dv">0</span>])])</span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>                segs.append(((r1, z1), (r2, z2)))</span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>                segs.append(((<span class="op">-</span>r1, z1), (<span class="op">-</span>r2, z2)))</span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>                skip <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> segs</span>
-<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_field(filename: <span class="bu">str</span>, case_dir: <span class="bu">str</span>, zmin: <span class="bu">float</span>, zmax: <span class="bu">float</span>, rmax: <span class="bu">float</span>, nr: <span class="bu">int</span>) <span class="op">-&gt;</span> FieldData:</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>    temp2 <span class="op">=</span> run_helper([HELPER_GETFACET, filename], cwd<span class="op">=</span>case_dir)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    segs <span class="op">=</span> []</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    skip <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(temp2) <span class="op">&gt;</span> <span class="fl">1e2</span>:</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> n1 <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(temp2)):</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>            temp3 <span class="op">=</span> temp2[n1].split(<span class="st">&quot; &quot;</span>)</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> temp3 <span class="op">==</span> [<span class="st">&quot;&quot;</span>]:</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>                skip <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> skip <span class="kw">and</span> n1 <span class="op">+</span> <span class="dv">1</span> <span class="op">&lt;</span> <span class="bu">len</span>(temp2):</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>                temp4 <span class="op">=</span> temp2[n1 <span class="op">+</span> <span class="dv">1</span>].split(<span class="st">&quot; &quot;</span>)</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>                r1, z1 <span class="op">=</span> np.array([<span class="bu">float</span>(temp3[<span class="dv">1</span>]), <span class="bu">float</span>(temp3[<span class="dv">0</span>])])</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>                r2, z2 <span class="op">=</span> np.array([<span class="bu">float</span>(temp4[<span class="dv">1</span>]), <span class="bu">float</span>(temp4[<span class="dv">0</span>])])</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>                segs.append(((r1, z1), (r2, z2)))</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>                segs.append(((<span class="op">-</span>r1, z1), (<span class="op">-</span>r2, z2)))</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>                skip <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> segs</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_field(filename: <span class="bu">str</span>, case_dir: <span class="bu">str</span>, zmin: <span class="bu">float</span>, zmax: <span class="bu">float</span>, rmax: <span class="bu">float</span>, nr: <span class="bu">int</span>) <span class="op">-&gt;</span> FieldData:</span></code></pre></div></div>
+                <p>Read field arrays for a single snapshot from getData
+                helper.</p>
                 <p>Shells out to the compiled <code>getData</code>
                 executable, which samples the strain-rate and velocity
                 fields on a structured grid.</p>
-                <p>Args: filename: Relative path to snapshot file (e.g.,
-                ‘intermediate/snapshot-0.0100’) case_dir: Absolute path
-                to case directory (used as cwd) zmin: Minimum axial
-                coordinate for sampling domain zmax: Maximum axial
-                coordinate for sampling domain rmax: Maximum radial
-                coordinate (positive branch only) nr: Number of grid
-                points in radial direction</p>
-                <p>Returns: FieldData: Structured container with
-                reshaped 2D arrays.</p>
+                <h4 id="args-1">Args</h4>
+                <ul>
+                <li><code>filename</code>: Relative path to snapshot
+                file (e.g.,
+                <code>intermediate/snapshot-0.0100</code>).</li>
+                <li><code>case_dir</code>: Absolute path to case
+                directory (used as <code>cwd</code>).</li>
+                <li><code>zmin</code>: Minimum axial coordinate for
+                sampling domain.</li>
+                <li><code>zmax</code>: Maximum axial coordinate for
+                sampling domain.</li>
+                <li><code>rmax</code>: Maximum radial coordinate
+                (positive branch only).</li>
+                <li><code>nr</code>: Number of grid points in radial
+                direction.</li>
+                </ul>
+                <h4 id="returns-2">Returns</h4>
+                <ul>
+                <li><code>FieldData</code>: Structured container with
+                reshaped 2D arrays.</li>
+                </ul>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>    temp2 <span class="op">=</span> run_helper(</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        [</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>            HELPER_GETDATA,</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>            filename,</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(zmin),</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(<span class="dv">0</span>),</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(zmax),</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(rmax),</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(nr),</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        cwd<span class="op">=</span>case_dir,</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    Rtemp, Ztemp, D2temp, veltemp <span class="op">=</span> [], [], [], []</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> n1 <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(temp2)):</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        temp3 <span class="op">=</span> temp2[n1].split(<span class="st">&quot; &quot;</span>)</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> temp3 <span class="op">==</span> [<span class="st">&quot;&quot;</span>]:</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        Ztemp.append(<span class="bu">float</span>(temp3[<span class="dv">0</span>]))</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        Rtemp.append(<span class="bu">float</span>(temp3[<span class="dv">1</span>]))</span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>        D2temp.append(<span class="bu">float</span>(temp3[<span class="dv">2</span>]))</span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>        veltemp.append(<span class="bu">float</span>(temp3[<span class="dv">3</span>]))</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    R <span class="op">=</span> np.asarray(Rtemp)</span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    Z <span class="op">=</span> np.asarray(Ztemp)</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    D2 <span class="op">=</span> np.asarray(D2temp)</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    vel <span class="op">=</span> np.asarray(veltemp)</span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    nz <span class="op">=</span> <span class="bu">int</span>(<span class="bu">len</span>(Z) <span class="op">/</span> nr)</span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;</span><span class="sc">{</span>os<span class="sc">.</span>path<span class="sc">.</span>basename(filename)<span class="sc">}</span><span class="ss">: nz = </span><span class="sc">{</span>nz<span class="sc">}</span><span class="ss">&quot;</span>)</span>
-<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>    R.resize((nz, nr))</span>
-<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    Z.resize((nz, nr))</span>
-<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>    D2.resize((nz, nr))</span>
-<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>    vel.resize((nz, nr))</span>
-<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> FieldData(R<span class="op">=</span>R, Z<span class="op">=</span>Z, strain_rate<span class="op">=</span>D2, velocity<span class="op">=</span>vel, nz<span class="op">=</span>nz)</span>
-<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_snapshot_info(index: <span class="bu">int</span>, config: RuntimeConfig) <span class="op">-&gt;</span> SnapshotInfo:</span></code></pre></div></div>
-                <p>time = config.tsnap * index source =
-                os.path.join(config.case_dir, “intermediate”,
-                f”snapshot-{time:.4f}“) target =
-                os.path.join(config.output_dir, f”{int(time *
-                1000):08d}.png”) return SnapshotInfo(index=index,
-                time=time, source=source, target=target)</p>
-                <p>def draw_domain_outline(ax, bounds: DomainBounds,
-                style: PlotStyle) -&gt; None:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>    temp2 <span class="op">=</span> run_helper(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>        [</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>            HELPER_GETDATA,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>            filename,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(zmin),</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(<span class="dv">0</span>),</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(zmax),</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(rmax),</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>            <span class="bu">str</span>(nr),</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        cwd<span class="op">=</span>case_dir,</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    Rtemp, Ztemp, D2temp, veltemp <span class="op">=</span> [], [], [], []</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> n1 <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(temp2)):</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        temp3 <span class="op">=</span> temp2[n1].split(<span class="st">&quot; &quot;</span>)</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> temp3 <span class="op">==</span> [<span class="st">&quot;&quot;</span>]:</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        Ztemp.append(<span class="bu">float</span>(temp3[<span class="dv">0</span>]))</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        Rtemp.append(<span class="bu">float</span>(temp3[<span class="dv">1</span>]))</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        D2temp.append(<span class="bu">float</span>(temp3[<span class="dv">2</span>]))</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        veltemp.append(<span class="bu">float</span>(temp3[<span class="dv">3</span>]))</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>    R <span class="op">=</span> np.asarray(Rtemp)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>    Z <span class="op">=</span> np.asarray(Ztemp)</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>    D2 <span class="op">=</span> np.asarray(D2temp)</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    vel <span class="op">=</span> np.asarray(veltemp)</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    nz <span class="op">=</span> <span class="bu">int</span>(<span class="bu">len</span>(Z) <span class="op">/</span> nr)</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;</span><span class="sc">{</span>os<span class="sc">.</span>path<span class="sc">.</span>basename(filename)<span class="sc">}</span><span class="ss">: nz = </span><span class="sc">{</span>nz<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>    R.resize((nz, nr))</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>    Z.resize((nz, nr))</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>    D2.resize((nz, nr))</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>    vel.resize((nz, nr))</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> FieldData(R<span class="op">=</span>R, Z<span class="op">=</span>Z, strain_rate<span class="op">=</span>D2, velocity<span class="op">=</span>vel, nz<span class="op">=</span>nz)</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_snapshot_info(index: <span class="bu">int</span>, config: RuntimeConfig) <span class="op">-&gt;</span> SnapshotInfo:</span></code></pre></div></div>
+                <p>Construct file paths for a given timestep index.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>, <span class="dv">0</span>],</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-.&quot;</span>,</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.zero_axis_color,</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmin],</span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
-<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
-<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
-<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
-<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmax],</span>
-<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmin],</span>
-<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
-<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
-<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
-<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
-<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmax],</span>
-<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>        [bounds.zmax, bounds.zmax],</span>
-<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
-<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
-<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
-<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
-<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>        [bounds.rmax, bounds.rmax],</span>
-<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
-<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
-<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
-<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
-<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_colorbar(fig, ax, mappable, <span class="op">*</span>, align: <span class="bu">str</span>, label: <span class="bu">str</span>, style: PlotStyle):</span></code></pre></div></div>
-                <p>l, b, w, h = ax.get_position().bounds if align ==
-                “left”: position = [l - style.left_colorbar_offset, b,
-                style.colorbar_width, h] else: position = [l + w +
-                style.right_colorbar_offset, b, style.colorbar_width, h]
-                cb_ax = fig.add_axes(position) colorbar =
-                plt.colorbar(mappable, cax=cb_ax,
-                orientation=“vertical”) colorbar.set_label(label,
-                fontsize=style.tick_label_size, labelpad=5)
-                colorbar.ax.tick_params(labelsize=style.tick_label_size)
-                colorbar.ax.yaxis.set_major_formatter(StrMethodFormatter(“{x:,.2f}”))
-                if align == “left”:
-                colorbar.ax.yaxis.set_ticks_position(“left”)
-                colorbar.ax.yaxis.set_label_position(“left”) return
-                colorbar</p>
-                <p>def plot_snapshot( field_data: FieldData, facets,
-                bounds: DomainBounds, snapshot: SnapshotInfo, config:
-                RuntimeConfig, style: PlotStyle, ) -&gt; None:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>    time <span class="op">=</span> config.tsnap <span class="op">*</span> index</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    source <span class="op">=</span> os.path.join(config.case_dir, <span class="st">&quot;intermediate&quot;</span>, <span class="ss">f&quot;snapshot-</span><span class="sc">{</span>time<span class="sc">:.4f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    target <span class="op">=</span> os.path.join(config.output_dir, <span class="ss">f&quot;</span><span class="sc">{</span><span class="bu">int</span>(time <span class="op">*</span> <span class="dv">1000</span>)<span class="sc">:08d}</span><span class="ss">.png&quot;</span>)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> SnapshotInfo(index<span class="op">=</span>index, time<span class="op">=</span>time, source<span class="op">=</span>source, target<span class="op">=</span>target)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> draw_domain_outline(ax, bounds: DomainBounds, style: PlotStyle) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Outline computational domain and symmetry line.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>    Render <span class="kw">and</span> persist a single snapshot figure.</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    Visualization:</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span> Left side: log10(D:D) strain<span class="op">-</span>rate field</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span> Right side: velocity magnitude</span></code></pre></div></div>
-                <p>fig, ax = plt.subplots()
-                fig.set_size_inches(*style.figure_size)</p>
-                <p>draw_domain_outline(ax, bounds, style) line_segments
-                = LineCollection( facets, linewidths=4,
-                colors=style.interface_color, linestyle=“solid” )
-                ax.add_collection(line_segments)</p>
-                <p>rminp, rmaxp = field_data.radial_extent zminp, zmaxp
-                = field_data.axial_extent</p>
-                <h1 id="left-strain-rate-field-dd">Left: Strain-rate
-                field (D:D)</h1>
-                <p>cntrl1 = ax.imshow( field_data.strain_rate,
-                cmap=“hot_r”, interpolation=“Bilinear”, origin=“lower”,
-                extent=[-rminp, -rmaxp, zminp, zmaxp],
-                vmax=config.d2_vmax, vmin=config.d2_vmin, )</p>
-                <h1 id="right-velocity-magnitude">Right: Velocity
-                magnitude</h1>
-                <p>cntrl2 = ax.imshow( field_data.velocity,
-                interpolation=“Bilinear”, cmap=“Purples”,
-                origin=“lower”, extent=[rminp, rmaxp, zminp, zmaxp],
-                vmax=config.vel_vmax, vmin=config.vel_vmin, )</p>
-                <p>ax.set_aspect(“equal”) ax.set_xlim(bounds.rmin,
-                bounds.rmax) ax.set_ylim(bounds.zmin, bounds.zmax)
-                ax.set_title(f”<span
-                class="math inline">\(t/\\tau_0\)</span> =
-                {snapshot.time:4.3f}“, fontsize=style.tick_label_size)
-                ax.axis(”off”)</p>
-                <p>add_colorbar( fig, ax, cntrl1, align=“left”,
-                label=r”<span
-                class="math inline">\(\log_{10}\left(\mu_r(\boldsymbol{\mathcal{D}:\mathcal{D}})\right)\)</span>“,
-                style=style, ) add_colorbar( fig, ax, cntrl2,
-                align=”right”, label=r”<span
-                class="math inline">\(\|\boldsymbol{u}\|\)</span>“,
-                style=style, )</p>
-                <p>plt.savefig(snapshot.target, bbox_inches=“tight”)
-                plt.close(fig)</p>
-                <p>def process_timestep(index: int, config:
-                RuntimeConfig, style: PlotStyle) -&gt; None:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>, <span class="dv">0</span>],</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-.&quot;</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.zero_axis_color,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmin],</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmax],</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmin],</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>        [bounds.rmin, bounds.rmax],</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>        [bounds.zmax, bounds.zmax],</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    ax.plot(</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>        [bounds.rmax, bounds.rmax],</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>        [bounds.zmin, bounds.zmax],</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-&quot;</span>,</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>        color<span class="op">=</span>style.axis_color,</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>        linewidth<span class="op">=</span>style.line_width,</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_colorbar(fig, ax, mappable, <span class="op">*</span>, align: <span class="bu">str</span>, label: <span class="bu">str</span>, style: PlotStyle):</span></code></pre></div></div>
+                <p>Attach a vertical colorbar on the requested side of
+                the axis.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>    Worker executed <span class="cf">for</span> every timestep index.</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    Performs availability checks, loads helper outputs, <span class="kw">and</span> calls plot_snapshot.</span></code></pre></div></div>
-                <p>snapshot = build_snapshot_info(index, config) if not
-                os.path.exists(snapshot.source): log_status(f”Missing:
-                {os.path.basename(snapshot.source)}“, level=”WARN”)
-                return if os.path.exists(snapshot.target):
-                log_status(f”Exists, skipping:
-                {os.path.basename(snapshot.target)}“) return</p>
-                <h1
-                id="show-relative-path-casenointermediatefilename">Show
-                relative path: CaseNo/intermediate/filename</h1>
-                <p>src_parts = snapshot.source.split(os.sep) src_rel =
-                os.sep.join(src_parts[-3:]) if len(src_parts) &gt;= 3
-                else snapshot.source log_status(f”Processing
-                {src_rel}“)</p>
-                <h1
-                id="relative-path-for-basilisk-helpers-they-crash-with-very-long-absolute-paths">Relative
-                path for Basilisk helpers (they crash with very long
-                absolute paths)</h1>
-                <p>rel_snapshot = os.path.join(“intermediate”,
-                f”snapshot-{snapshot.time:.4f}“) case_dir =
-                os.path.abspath(config.case_dir)</p>
-                <p>try: facets = get_facets(rel_snapshot, case_dir) nr =
-                int(config.grids_per_r * config.rmax) field_data =
-                get_field( rel_snapshot, case_dir, config.zmin,
-                config.zmax, config.rmax, nr ) plot_snapshot(field_data,
-                facets, config.bounds, snapshot, config, style)</p>
-                <h1 id="show-relative-path-casenovideofilename">Show
-                relative path: CaseNo/Video/filename</h1>
-                <p>tgt_parts = snapshot.target.split(os.sep) tgt_rel =
-                os.sep.join(tgt_parts[-3:]) if len(tgt_parts) &gt;= 3
-                else snapshot.target log_status(f”Saved: {tgt_rel}“)</p>
-                <p>except Exception as err: log_status( f”Error at
-                {src_rel} (t={snapshot.time:.4f}): {err}“, level=”ERROR”
-                ) raise</p>
-                <p>def encode_video(config: RuntimeConfig) -&gt;
-                None:</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>    l, b, w, h <span class="op">=</span> ax.get_position().bounds</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> align <span class="op">==</span> <span class="st">&quot;left&quot;</span>:</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>        position <span class="op">=</span> [l <span class="op">-</span> style.left_colorbar_offset, b, style.colorbar_width, h]</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>        position <span class="op">=</span> [l <span class="op">+</span> w <span class="op">+</span> style.right_colorbar_offset, b, style.colorbar_width, h]</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    cb_ax <span class="op">=</span> fig.add_axes(position)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    colorbar <span class="op">=</span> plt.colorbar(mappable, cax<span class="op">=</span>cb_ax, orientation<span class="op">=</span><span class="st">&quot;vertical&quot;</span>)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    colorbar.set_label(label, fontsize<span class="op">=</span>style.tick_label_size, labelpad<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    colorbar.ax.tick_params(labelsize<span class="op">=</span>style.tick_label_size)</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    colorbar.ax.yaxis.set_major_formatter(StrMethodFormatter(<span class="st">&quot;{x:,.2f}&quot;</span>))</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> align <span class="op">==</span> <span class="st">&quot;left&quot;</span>:</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>        colorbar.ax.yaxis.set_ticks_position(<span class="st">&quot;left&quot;</span>)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>        colorbar.ax.yaxis.set_label_position(<span class="st">&quot;left&quot;</span>)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> colorbar</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plot_snapshot(</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    field_data: FieldData,</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    facets,</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    bounds: DomainBounds,</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>    snapshot: SnapshotInfo,</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>    config: RuntimeConfig,</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>    style: PlotStyle,</span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Render and persist a single snapshot figure.</p>
+                <h4 id="visualization">Visualization</h4>
+                <ul>
+                <li>Left side: log10(D:D) strain-rate field</li>
+                <li>Right side: velocity magnitude</li>
+                </ul>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>    Run ffmpeg to stitch PNG frames into an MP4 video.</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    The output video <span class="kw">is</span> saved <span class="kw">in</span> the case directory <span class="cf">with</span> the case number</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="im">as</span> filename (e.g., simulationCases<span class="op">/</span><span class="dv">1000</span><span class="op">/</span><span class="fl">1000.</span><span class="er">mp4</span>).</span></code></pre></div></div>
-                <h1 id="extract-case-number-from-path">Extract case
-                number from path</h1>
-                <p>case_no = os.path.basename(config.case_dir)</p>
-                <h1 id="output-path-.mp4">Output path:
-                <case_dir>/<case_no>.mp4</h1>
-                <p>output_path = os.path.join(config.case_dir,
-                f”{case_no}.mp4”) input_pattern =
-                os.path.join(config.output_dir, “*.png”)</p>
-                <p>cmd = [ “ffmpeg”, “-y”, “-framerate”,
-                str(config.framerate), “-pattern_type”, “glob”, “-i”,
-                input_pattern, “-vf”,
-                “pad=ceil(iw/2)<em>2:ceil(ih/2)</em>2”, “-c:v”,
-                “libx264”, “-r”, str(config.output_fps), “-pix_fmt”,
-                “yuv420p”, output_path]</p>
-                <p>log_status(f”Encoding video: {output_path}“) result =
-                sp.run(cmd, capture_output=True, text=True) if
-                result.returncode != 0: log_status(f”ffmpeg error:
-                {result.stderr}“, level=”ERROR”) raise
-                RuntimeError(f”ffmpeg failed with code
-                {result.returncode}“) log_status(f”Video saved:
-                {output_path}“)</p>
-                <p>def main():</p>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>    fig, ax <span class="op">=</span> plt.subplots()</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    fig.set_size_inches(<span class="op">*</span>style.figure_size)</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    draw_domain_outline(ax, bounds, style)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    line_segments <span class="op">=</span> LineCollection(</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>        facets, linewidths<span class="op">=</span><span class="dv">4</span>, colors<span class="op">=</span>style.interface_color, linestyle<span class="op">=</span><span class="st">&quot;solid&quot;</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    ax.add_collection(line_segments)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    rminp, rmaxp <span class="op">=</span> field_data.radial_extent</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    zminp, zmaxp <span class="op">=</span> field_data.axial_extent</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    cntrl1 <span class="op">=</span> ax.imshow(  <span class="co"># left half: strain-rate field log10(D:D)</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        field_data.strain_rate,</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>        cmap<span class="op">=</span><span class="st">&quot;hot_r&quot;</span>,</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>        interpolation<span class="op">=</span><span class="st">&quot;Bilinear&quot;</span>,</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>        origin<span class="op">=</span><span class="st">&quot;lower&quot;</span>,</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>        extent<span class="op">=</span>[<span class="op">-</span>rminp, <span class="op">-</span>rmaxp, zminp, zmaxp],</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>        vmax<span class="op">=</span>config.d2_vmax,</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>        vmin<span class="op">=</span>config.d2_vmin,</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>    cntrl2 <span class="op">=</span> ax.imshow(  <span class="co"># right half: velocity magnitude</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>        field_data.velocity,</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>        interpolation<span class="op">=</span><span class="st">&quot;Bilinear&quot;</span>,</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>        cmap<span class="op">=</span><span class="st">&quot;Purples&quot;</span>,</span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>        origin<span class="op">=</span><span class="st">&quot;lower&quot;</span>,</span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>        extent<span class="op">=</span>[rminp, rmaxp, zminp, zmaxp],</span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>        vmax<span class="op">=</span>config.vel_vmax,</span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>        vmin<span class="op">=</span>config.vel_vmin,</span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a>    ax.set_aspect(<span class="st">&quot;equal&quot;</span>)</span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(bounds.rmin, bounds.rmax)</span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(bounds.zmin, bounds.zmax)</span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f&quot;$t/</span><span class="ch">\\</span><span class="ss">tau_0$ = </span><span class="sc">{</span>snapshot<span class="sc">.</span>time<span class="sc">:4.3f}</span><span class="ss">&quot;</span>, fontsize<span class="op">=</span>style.tick_label_size)</span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>    ax.axis(<span class="st">&quot;off&quot;</span>)</span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a>    add_colorbar(</span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>        fig,</span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a>        ax,</span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a>        cntrl1,</span>
+<span id="cb19-43"><a href="#cb19-43" aria-hidden="true" tabindex="-1"></a>        align<span class="op">=</span><span class="st">&quot;left&quot;</span>,</span>
+<span id="cb19-44"><a href="#cb19-44" aria-hidden="true" tabindex="-1"></a>        label<span class="op">=</span><span class="vs">r&quot;$\log_</span><span class="sc">{10}</span><span class="vs">\left(\mu_r(\boldsymbol{\mathcal</span><span class="sc">{D}</span><span class="vs">:\mathcal</span><span class="sc">{D}</span><span class="vs">})\right)$&quot;</span>,</span>
+<span id="cb19-45"><a href="#cb19-45" aria-hidden="true" tabindex="-1"></a>        style<span class="op">=</span>style,</span>
+<span id="cb19-46"><a href="#cb19-46" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-47"><a href="#cb19-47" aria-hidden="true" tabindex="-1"></a>    add_colorbar(</span>
+<span id="cb19-48"><a href="#cb19-48" aria-hidden="true" tabindex="-1"></a>        fig,</span>
+<span id="cb19-49"><a href="#cb19-49" aria-hidden="true" tabindex="-1"></a>        ax,</span>
+<span id="cb19-50"><a href="#cb19-50" aria-hidden="true" tabindex="-1"></a>        cntrl2,</span>
+<span id="cb19-51"><a href="#cb19-51" aria-hidden="true" tabindex="-1"></a>        align<span class="op">=</span><span class="st">&quot;right&quot;</span>,</span>
+<span id="cb19-52"><a href="#cb19-52" aria-hidden="true" tabindex="-1"></a>        label<span class="op">=</span><span class="vs">r&quot;$\|\boldsymbol</span><span class="sc">{u}</span><span class="vs">\|$&quot;</span>,</span>
+<span id="cb19-53"><a href="#cb19-53" aria-hidden="true" tabindex="-1"></a>        style<span class="op">=</span>style,</span>
+<span id="cb19-54"><a href="#cb19-54" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-55"><a href="#cb19-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-56"><a href="#cb19-56" aria-hidden="true" tabindex="-1"></a>    plt.savefig(snapshot.target, bbox_inches<span class="op">=</span><span class="st">&quot;tight&quot;</span>)</span>
+<span id="cb19-57"><a href="#cb19-57" aria-hidden="true" tabindex="-1"></a>    plt.close(fig)</span>
+<span id="cb19-58"><a href="#cb19-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-59"><a href="#cb19-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-60"><a href="#cb19-60" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> process_timestep(index: <span class="bu">int</span>, config: RuntimeConfig, style: PlotStyle) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Worker executed for every timestep index.</p>
+                <p>Performs availability checks, loads helper outputs,
+                and calls plot_snapshot.</p>
                 <div class="code-block-container"><div class="code-block-container"><pre
-                class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> parse_arguments()</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    ensure_directory(config.output_dir)</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Processing case: </span><span class="sc">{</span>config<span class="sc">.</span>case_dir<span class="sc">}</span><span class="ss">&quot;</span>)</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Domain: R=[</span><span class="sc">{</span>config<span class="sc">.</span>rmin<span class="sc">:.2f}</span><span class="ss">,</span><span class="sc">{</span>config<span class="sc">.</span>rmax<span class="sc">:.2f}</span><span class="ss">], Z=[</span><span class="sc">{</span>config<span class="sc">.</span>zmin<span class="sc">:.2f}</span><span class="ss">,</span><span class="sc">{</span>config<span class="sc">.</span>zmax<span class="sc">:.2f}</span><span class="ss">]&quot;</span>)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> mp.Pool(processes<span class="op">=</span>config.cpus) <span class="im">as</span> pool:</span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>        worker <span class="op">=</span> partial(process_timestep, config<span class="op">=</span>config, style<span class="op">=</span>PLOT_STYLE)</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>        pool.<span class="bu">map</span>(worker, <span class="bu">range</span>(config.n_snapshots))</span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Encode video unless skipped</span></span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> config.skip_video_encode:</span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>        encode_video(config)</span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
-<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    main()</span></code></pre></div></div>
+                class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>    snapshot <span class="op">=</span> build_snapshot_info(index, config)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> os.path.exists(snapshot.source):</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>        log_status(<span class="ss">f&quot;Missing: </span><span class="sc">{</span>os<span class="sc">.</span>path<span class="sc">.</span>basename(snapshot.source)<span class="sc">}</span><span class="ss">&quot;</span>, level<span class="op">=</span><span class="st">&quot;WARN&quot;</span>)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> os.path.exists(snapshot.target):</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>        log_status(<span class="ss">f&quot;Exists, skipping: </span><span class="sc">{</span>os<span class="sc">.</span>path<span class="sc">.</span>basename(snapshot.target)<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    src_parts <span class="op">=</span> snapshot.source.split(os.sep)  <span class="co"># show relative path: CaseNo/intermediate/filename</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    src_rel <span class="op">=</span> os.sep.join(src_parts[<span class="op">-</span><span class="dv">3</span>:]) <span class="cf">if</span> <span class="bu">len</span>(src_parts) <span class="op">&gt;=</span> <span class="dv">3</span> <span class="cf">else</span> snapshot.source</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Processing </span><span class="sc">{</span>src_rel<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    rel_snapshot <span class="op">=</span> os.path.join(<span class="st">&quot;intermediate&quot;</span>, <span class="ss">f&quot;snapshot-</span><span class="sc">{</span>snapshot<span class="sc">.</span>time<span class="sc">:.4f}</span><span class="ss">&quot;</span>)  <span class="co"># relative path for Basilisk helpers</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    case_dir <span class="op">=</span> os.path.abspath(config.case_dir)</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>        facets <span class="op">=</span> get_facets(rel_snapshot, case_dir)</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>        nr <span class="op">=</span> <span class="bu">int</span>(config.grids_per_r <span class="op">*</span> config.rmax)</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>        field_data <span class="op">=</span> get_field(</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>            rel_snapshot, case_dir, config.zmin, config.zmax, config.rmax, nr</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>        plot_snapshot(field_data, facets, config.bounds, snapshot, config, style)</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>        tgt_parts <span class="op">=</span> snapshot.target.split(os.sep)  <span class="co"># show relative path: CaseNo/Video/filename</span></span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>        tgt_rel <span class="op">=</span> os.sep.join(tgt_parts[<span class="op">-</span><span class="dv">3</span>:]) <span class="cf">if</span> <span class="bu">len</span>(tgt_parts) <span class="op">&gt;=</span> <span class="dv">3</span> <span class="cf">else</span> snapshot.target</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>        log_status(<span class="ss">f&quot;Saved: </span><span class="sc">{</span>tgt_rel<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> err:</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>        log_status(</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f&quot;Error at </span><span class="sc">{</span>src_rel<span class="sc">}</span><span class="ss"> (t=</span><span class="sc">{</span>snapshot<span class="sc">.</span>time<span class="sc">:.4f}</span><span class="ss">): </span><span class="sc">{</span>err<span class="sc">}</span><span class="ss">&quot;</span>, level<span class="op">=</span><span class="st">&quot;ERROR&quot;</span></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span></span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> encode_video(config: RuntimeConfig) <span class="op">-&gt;</span> <span class="va">None</span>:</span></code></pre></div></div>
+                <p>Run ffmpeg to stitch PNG frames into an MP4
+                video.</p>
+                <p>The output video is saved in the case directory with
+                the case number as filename (e.g.,
+                simulationCases/1000/1000.mp4).</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>    case_no <span class="op">=</span> os.path.basename(config.case_dir)  <span class="co"># extract case number from path</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    output_path <span class="op">=</span> os.path.join(config.case_dir, <span class="ss">f&quot;</span><span class="sc">{</span>case_no<span class="sc">}</span><span class="ss">.mp4&quot;</span>)</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    input_pattern <span class="op">=</span> os.path.join(config.output_dir, <span class="st">&quot;*.png&quot;</span>)</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    cmd <span class="op">=</span> [</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;ffmpeg&quot;</span>, <span class="st">&quot;-y&quot;</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-framerate&quot;</span>, <span class="bu">str</span>(config.framerate),</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-pattern_type&quot;</span>, <span class="st">&quot;glob&quot;</span>,</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-i&quot;</span>, input_pattern,</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-vf&quot;</span>, <span class="st">&quot;pad=ceil(iw/2)*2:ceil(ih/2)*2&quot;</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-c:v&quot;</span>, <span class="st">&quot;libx264&quot;</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-r&quot;</span>, <span class="bu">str</span>(config.output_fps),</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;-pix_fmt&quot;</span>, <span class="st">&quot;yuv420p&quot;</span>,</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>        output_path</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Encoding video: </span><span class="sc">{</span>output_path<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> sp.run(cmd, capture_output<span class="op">=</span><span class="va">True</span>, text<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> result.returncode <span class="op">!=</span> <span class="dv">0</span>:</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>        log_status(<span class="ss">f&quot;ffmpeg error: </span><span class="sc">{</span>result<span class="sc">.</span>stderr<span class="sc">}</span><span class="ss">&quot;</span>, level<span class="op">=</span><span class="st">&quot;ERROR&quot;</span>)</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="ss">f&quot;ffmpeg failed with code </span><span class="sc">{</span>result<span class="sc">.</span>returncode<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Video saved: </span><span class="sc">{</span>output_path<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> main():</span></code></pre></div></div>
+                <p>Entry point for CLI invocation.</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> parse_arguments()</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ensure_directory(config.output_dir)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Processing case: </span><span class="sc">{</span>config<span class="sc">.</span>case_dir<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    log_status(<span class="ss">f&quot;Domain: R=[</span><span class="sc">{</span>config<span class="sc">.</span>rmin<span class="sc">:.2f}</span><span class="ss">,</span><span class="sc">{</span>config<span class="sc">.</span>rmax<span class="sc">:.2f}</span><span class="ss">], Z=[</span><span class="sc">{</span>config<span class="sc">.</span>zmin<span class="sc">:.2f}</span><span class="ss">,</span><span class="sc">{</span>config<span class="sc">.</span>zmax<span class="sc">:.2f}</span><span class="ss">]&quot;</span>)</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> mp.Pool(processes<span class="op">=</span>config.cpus) <span class="im">as</span> pool:</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>        worker <span class="op">=</span> partial(process_timestep, config<span class="op">=</span>config, style<span class="op">=</span>PLOT_STYLE)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>        pool.<span class="bu">map</span>(worker, <span class="bu">range</span>(config.n_snapshots))</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> config.skip_video_encode:  <span class="co"># encode video unless skipped</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>        encode_video(config)</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>    main()</span></code></pre></div></div>
             </div>
         </main>
 

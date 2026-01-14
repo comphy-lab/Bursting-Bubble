@@ -1,18 +1,15 @@
-# Author: Vatsal Sanjay
-# vatsal.sanjay@comphy-lab.org
-# CoMPhy Lab
-# Durham University
-# Last updated: Jan 2025
-
 """
-Post-processing pipeline for Basilisk bubble bursting simulations.
+# Video Post-Processing Pipeline for Bursting Bubble Simulations
+
+This module renders axisymmetric visualizations from Basilisk simulation
+snapshots, producing PNG frames and optional MP4 videos.
 
 Overview
 --------
-The helper executables `postProcess/getFacet` and `postProcess/getData` are
-compiled as part of the Basilisk workflow. This Python wrapper shells out to
-those binaries for every snapshot, reshapes the returned grids, and renders
-axisymmetric visualisations with strain-rate and velocity fields.
+The helper executables ``postProcess/getFacet`` and ``postProcess/getData``
+are compiled as part of the Basilisk workflow. This Python wrapper shells
+out to those binaries for every snapshot, reshapes the returned grids, and
+renders axisymmetric visualizations with strain-rate and velocity fields.
 
 Usage
 -----
@@ -23,6 +20,10 @@ Typical invocation from the repository root::
 Command-line switches expose all relevant knobs (grid density, domain limits,
 time stride, CPU count). The output directory is created on-demand and filled
 with zero-padded PNG files compatible with downstream stitching utilities.
+
+Author: Vatsal Sanjay (vatsal.sanjay@comphy-lab.org)
+Affiliation: CoMPhy Lab, Durham University
+Last updated: Jan 2025
 """
 
 import argparse
@@ -41,7 +42,11 @@ import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import StrMethodFormatter
 
-# Configure matplotlib with LaTeX if available, fallback otherwise
+"""
+Matplotlib Configuration
+------------------------
+Configure matplotlib with LaTeX rendering if available, with serif font fallback.
+"""
 matplotlib.rcParams["font.family"] = "serif"
 if shutil.which("latex"):
     try:
@@ -52,7 +57,12 @@ if shutil.which("latex"):
 else:
     matplotlib.rcParams["text.usetex"] = False
 
-# Script directory for finding helper executables
+"""
+Helper Executable Paths
+-----------------------
+Locate the compiled Basilisk helper executables (getFacet, getData) relative
+to this script's directory.
+"""
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HELPER_GETFACET = os.path.join(SCRIPT_DIR, "getFacet")
 HELPER_GETDATA = os.path.join(SCRIPT_DIR, "getData")
@@ -94,8 +104,7 @@ class RuntimeConfig:
     skip_video_encode: bool
     framerate: int
     output_fps: int
-    # Colorbar bounds
-    d2_vmin: float
+    d2_vmin: float  # colorbar bounds for strain-rate
     d2_vmax: float
     vel_vmin: float
     vel_vmax: float
@@ -180,8 +189,8 @@ def log_status(message: str, *, level: str = "INFO") -> None:
 def parse_arguments() -> RuntimeConfig:
     """Parse command-line arguments and construct runtime configuration.
 
-    Returns:
-        RuntimeConfig: Configuration object containing all parameters.
+    #### Returns
+    - `RuntimeConfig`: Configuration object containing all parameters.
     """
     parser = argparse.ArgumentParser(
         description="Generate snapshot videos for bubble bursting simulations."
@@ -224,8 +233,7 @@ def parse_arguments() -> RuntimeConfig:
         "--output-fps", type=int, default=30,
         help="Output video framerate (default: 30)"
     )
-    # Colorbar bounds
-    parser.add_argument(
+    parser.add_argument(  # colorbar bounds
         "--d2-vmin", type=float, default=-2.0,
         help="Min value for strain-rate colorbar (default: -2.0)"
     )
@@ -243,8 +251,8 @@ def parse_arguments() -> RuntimeConfig:
     )
     args = parser.parse_args()
 
-    # Default output directory
-    output_dir = args.folderToSave if args.folderToSave else os.path.join(args.caseToProcess, "Video")
+    output_dir = (args.folderToSave if args.folderToSave
+                  else os.path.join(args.caseToProcess, "Video"))
 
     return RuntimeConfig(
         cpus=args.CPUs,
@@ -300,12 +308,12 @@ def get_facets(filename: str, case_dir: str):
     the simulation uses axisymmetric coordinates, only the r >= 0 half is
     computed. This function mirrors each segment about r=0.
 
-    Args:
-        filename: Relative path to snapshot file (e.g., 'intermediate/snapshot-0.0100')
-        case_dir: Absolute path to case directory (used as cwd)
+    #### Args
+    - `filename`: Relative path to snapshot file (e.g., `intermediate/snapshot-0.0100`).
+    - `case_dir`: Absolute path to case directory (used as `cwd`).
 
-    Returns:
-        list[tuple]: Sequence of line segments, each as ((r1, z1), (r2, z2)).
+    #### Returns
+    - `list[tuple]`: Sequence of line segments, each as `((r1, z1), (r2, z2))`.
     """
     temp2 = run_helper([HELPER_GETFACET, filename], cwd=case_dir)
     segs = []
@@ -332,16 +340,16 @@ def get_field(filename: str, case_dir: str, zmin: float, zmax: float, rmax: floa
     Shells out to the compiled ``getData`` executable, which samples the
     strain-rate and velocity fields on a structured grid.
 
-    Args:
-        filename: Relative path to snapshot file (e.g., 'intermediate/snapshot-0.0100')
-        case_dir: Absolute path to case directory (used as cwd)
-        zmin: Minimum axial coordinate for sampling domain
-        zmax: Maximum axial coordinate for sampling domain
-        rmax: Maximum radial coordinate (positive branch only)
-        nr: Number of grid points in radial direction
+    #### Args
+    - `filename`: Relative path to snapshot file (e.g., `intermediate/snapshot-0.0100`).
+    - `case_dir`: Absolute path to case directory (used as `cwd`).
+    - `zmin`: Minimum axial coordinate for sampling domain.
+    - `zmax`: Maximum axial coordinate for sampling domain.
+    - `rmax`: Maximum radial coordinate (positive branch only).
+    - `nr`: Number of grid points in radial direction.
 
-    Returns:
-        FieldData: Structured container with reshaped 2D arrays.
+    #### Returns
+    - `FieldData`: Structured container with reshaped 2D arrays.
     """
     temp2 = run_helper(
         [
@@ -458,7 +466,7 @@ def plot_snapshot(
     """
     Render and persist a single snapshot figure.
 
-    Visualization:
+    #### Visualization
     - Left side: log10(D:D) strain-rate field
     - Right side: velocity magnitude
     """
@@ -474,8 +482,7 @@ def plot_snapshot(
     rminp, rmaxp = field_data.radial_extent
     zminp, zmaxp = field_data.axial_extent
 
-    # Left: Strain-rate field (D:D)
-    cntrl1 = ax.imshow(
+    cntrl1 = ax.imshow(  # left half: strain-rate field log10(D:D)
         field_data.strain_rate,
         cmap="hot_r",
         interpolation="Bilinear",
@@ -485,8 +492,7 @@ def plot_snapshot(
         vmin=config.d2_vmin,
     )
 
-    # Right: Velocity magnitude
-    cntrl2 = ax.imshow(
+    cntrl2 = ax.imshow(  # right half: velocity magnitude
         field_data.velocity,
         interpolation="Bilinear",
         cmap="Purples",
@@ -537,13 +543,11 @@ def process_timestep(index: int, config: RuntimeConfig, style: PlotStyle) -> Non
         log_status(f"Exists, skipping: {os.path.basename(snapshot.target)}")
         return
 
-    # Show relative path: CaseNo/intermediate/filename
-    src_parts = snapshot.source.split(os.sep)
+    src_parts = snapshot.source.split(os.sep)  # show relative path: CaseNo/intermediate/filename
     src_rel = os.sep.join(src_parts[-3:]) if len(src_parts) >= 3 else snapshot.source
     log_status(f"Processing {src_rel}")
 
-    # Relative path for Basilisk helpers (they crash with very long absolute paths)
-    rel_snapshot = os.path.join("intermediate", f"snapshot-{snapshot.time:.4f}")
+    rel_snapshot = os.path.join("intermediate", f"snapshot-{snapshot.time:.4f}")  # relative path for Basilisk helpers
     case_dir = os.path.abspath(config.case_dir)
 
     try:
@@ -554,8 +558,7 @@ def process_timestep(index: int, config: RuntimeConfig, style: PlotStyle) -> Non
         )
         plot_snapshot(field_data, facets, config.bounds, snapshot, config, style)
 
-        # Show relative path: CaseNo/Video/filename
-        tgt_parts = snapshot.target.split(os.sep)
+        tgt_parts = snapshot.target.split(os.sep)  # show relative path: CaseNo/Video/filename
         tgt_rel = os.sep.join(tgt_parts[-3:]) if len(tgt_parts) >= 3 else snapshot.target
         log_status(f"Saved: {tgt_rel}")
 
@@ -573,10 +576,7 @@ def encode_video(config: RuntimeConfig) -> None:
     The output video is saved in the case directory with the case number
     as filename (e.g., simulationCases/1000/1000.mp4).
     """
-    # Extract case number from path
-    case_no = os.path.basename(config.case_dir)
-
-    # Output path: <case_dir>/<case_no>.mp4
+    case_no = os.path.basename(config.case_dir)  # extract case number from path
     output_path = os.path.join(config.case_dir, f"{case_no}.mp4")
     input_pattern = os.path.join(config.output_dir, "*.png")
 
@@ -612,8 +612,7 @@ def main():
         worker = partial(process_timestep, config=config, style=PLOT_STYLE)
         pool.map(worker, range(config.n_snapshots))
 
-    # Encode video unless skipped
-    if not config.skip_video_encode:
+    if not config.skip_video_encode:  # encode video unless skipped
         encode_video(config)
 
 
