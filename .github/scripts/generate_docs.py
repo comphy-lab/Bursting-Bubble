@@ -30,6 +30,7 @@ Supported File Types
 - ``.c``, ``.h`` - C source files (processed via literate-c)
 - ``.py`` - Python scripts (syntax highlighted)
 - ``.sh`` - Shell scripts (syntax highlighted)
+- ``.sbatch`` - SLURM batch scripts (syntax highlighted)
 - ``.ipynb`` - Jupyter notebooks (nbconvert or nbviewer embed)
 - ``.params`` - Parameter files (INI-style highlighting)
 - ``Makefile`` - Build files (syntax highlighted)
@@ -421,7 +422,7 @@ def find_source_files(root_dir: Path, source_dirs: List[str]) -> List[Path]:
     Returns:
         A sorted list of Paths to the discovered source files.
     """
-    valid_exts = {'.c', '.h', '.py', '.sh', '.ipynb', '.params'}
+    valid_exts = {'.c', '.h', '.py', '.sh', '.sbatch', '.ipynb', '.params'}
     valid_names = {'Makefile'}
     files = set()
 
@@ -944,6 +945,8 @@ def prepare_pandoc_input(file_path: Path, literate_c_script: Path) -> str:
         return process_python_file(file_path)
     elif file_suffix == '.sh':
         return process_shell_file(file_path)
+    elif file_suffix == '.sbatch':
+        return process_shell_file(file_path)
     elif file_suffix == '.params':
         return process_params_file(file_path)
     elif file_suffix == '.ipynb':
@@ -983,7 +986,7 @@ def run_pandoc(pandoc_input: str, output_html_path: Path, template_path: Path,
         seo_metadata = {}
     
     # Determine if this is for a shell script file
-    is_shell_script = output_html_path.name.endswith('.sh.html') or output_html_path.name == 'Makefile.html'
+    is_shell_script = output_html_path.name.endswith(('.sh.html', '.sbatch.html')) or output_html_path.name == 'Makefile.html'
     
     pandoc_cmd = [
         'pandoc',
@@ -1145,7 +1148,7 @@ def post_process_python_shell_html(html_content: str) -> str:
                 href.startswith('#') or href.endswith('.html')):
                 return link_tag
                 
-            if re.search(r'\.(c|h|py|sh|md)$', href):
+            if re.search(r'\.(c|h|py|sh|sbatch|md)$', href):
                 return re.sub(r'href="([^"]+)"', f'href="{href}.html"', link_tag)
         
         return link_tag
@@ -1597,7 +1600,7 @@ def process_file_with_page2html_logic(file_path: Path, output_html_path: Path, r
         
         # Determine file type for post-processing
         is_python_file = file_path.suffix.lower() == '.py'
-        is_shell_file = file_path.suffix.lower() == '.sh'
+        is_shell_file = file_path.suffix.lower() in {'.sh', '.sbatch'}
         is_params_file = file_path.suffix.lower() == '.params'
         is_markdown_file = file_path.suffix.lower() == '.md'
 

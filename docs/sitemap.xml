@@ -41,6 +41,16 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://test.comphy-lab.org/runSweepHamilton.sbatch.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://test.comphy-lab.org/runSweepSnellius.sbatch.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://test.comphy-lab.org/simulationCases/burstingBubble.c.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
