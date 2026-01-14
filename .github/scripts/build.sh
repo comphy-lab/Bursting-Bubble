@@ -1,4 +1,29 @@
 #!/bin/bash
+# build.sh - Documentation build script for GitHub Pages
+#
+# Description:
+#   Builds HTML documentation from source files using Pandoc and Basilisk's
+#   literate-c processor. Creates a complete static site in docs/ directory.
+#
+# Workflow:
+#   1. Detect GitHub organization from git remote
+#   2. Clone search database (optional, org-specific)
+#   3. Set up Python virtual environment
+#   4. Install dependencies from requirements.txt
+#   5. Run generate_docs.py to build HTML pages
+#   6. Clean HTML files (remove empty anchors)
+#
+# Usage:
+#   .github/scripts/build.sh [--force-rebuild]
+#
+# Options:
+#   --force-rebuild  Rebuild all HTML files even if source unchanged
+#
+# Environment:
+#   SEARCH_REPO  Override search database repository name (default: comphy-search)
+#
+# Author: Vatsal Sanjay
+# Organization: CoMPhy Lab, Durham University
 
 # Exit immediately if a command exits with a non-zero status.
 set -e

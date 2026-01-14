@@ -1,4 +1,23 @@
 #!/bin/bash
+# deploy.sh - Local development server for documentation preview
+#
+# Description:
+#   Starts a Python HTTP server to preview generated documentation locally.
+#   Automatically finds an available port in the range 8000-8010.
+#
+# Usage:
+#   .github/scripts/deploy.sh
+#
+# Prerequisites:
+#   - Run build.sh first to generate docs/ directory
+#   - Python 3 must be installed
+#
+# Notes:
+#   - Press Ctrl+C to stop the server
+#   - Access at http://localhost:<port> shown in output
+#
+# Author: Vatsal Sanjay
+# Organization: CoMPhy Lab, Durham University
 
 # Exit immediately if a command exits with a non-zero status.
 set -e

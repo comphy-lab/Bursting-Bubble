@@ -1,4 +1,62 @@
 #!/usr/bin/env python3
+"""
+Documentation Generator for Basilisk-based CFD Projects.
+
+This script generates HTML documentation from source files using Pandoc and
+Basilisk's literate-c processor. It creates a complete static documentation
+site with search functionality, syntax highlighting, and responsive design.
+
+Features
+--------
+- Converts C/H files using Basilisk literate programming conventions
+- Renders Python files with syntax highlighting
+- Embeds Jupyter notebooks with nbconvert or nbviewer fallback
+- Generates SEO metadata (description, keywords) automatically
+- Creates navigation sidebar from directory structure
+- Supports incremental builds (only rebuilds changed files)
+
+Architecture
+------------
+The generation pipeline follows these stages:
+
+1. ``validate_config()`` - Check dependencies (Basilisk, Pandoc, template)
+2. ``find_source_files()`` - Discover all source files to process
+3. ``process_*()`` - Convert each file type to intermediate Markdown/HTML
+4. ``convert_to_html()`` - Run Pandoc with custom template
+5. ``generate_index()`` - Create index.html with navigation sidebar
+
+Supported File Types
+--------------------
+- ``.c``, ``.h`` - C source files (processed via literate-c)
+- ``.py`` - Python scripts (syntax highlighted)
+- ``.sh`` - Shell scripts (syntax highlighted)
+- ``.ipynb`` - Jupyter notebooks (nbconvert or nbviewer embed)
+- ``.params`` - Parameter files (INI-style highlighting)
+- ``Makefile`` - Build files (syntax highlighted)
+
+Dependencies
+------------
+Required:
+    - Basilisk with darcsit/literate-c script
+    - Pandoc for Markdown to HTML conversion
+
+Optional:
+    - nbconvert: For local Jupyter notebook rendering
+    - BeautifulSoup4: For enhanced notebook HTML processing
+
+Usage
+-----
+::
+
+    python generate_docs.py [--debug] [--force-rebuild]
+
+Options:
+    --debug          Enable verbose debug output
+    --force-rebuild  Rebuild all HTML files even if source unchanged
+
+Author: Vatsal Sanjay
+Organization: CoMPhy Lab, Durham University
+"""
 import os, subprocess, re, shutil, argparse, html, json
 from pathlib import Path
 from typing import Dict, List, Tuple
