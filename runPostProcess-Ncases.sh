@@ -260,18 +260,41 @@ if ! command -v python &> /dev/null; then
     exit 1
 fi
 
+# Check qcc availability (needed to compile helpers)
+if ! command -v qcc &> /dev/null; then
+    echo "ERROR: qcc not found in PATH" >&2
+    exit 1
+fi
+
 # Check Python script exists
 if [ ! -f "$VIDEO_SCRIPT" ]; then
     echo "ERROR: Python script not found: $VIDEO_SCRIPT" >&2
     exit 1
 fi
 
-# Check C helpers exist
+# Compile C helpers (always recompile to ensure consistency)
+echo "Compiling C helpers..."
+pushd "${SCRIPT_DIR}/postProcess" > /dev/null
+
+if ! qcc -O2 -Wall -disable-dimensions getFacet.c -o getFacet -lm; then
+    echo "ERROR: Failed to compile getFacet.c" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+if ! qcc -O2 -Wall -disable-dimensions getData.c -o getData -lm; then
+    echo "ERROR: Failed to compile getData.c" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+popd > /dev/null
+echo "C helpers compiled successfully"
+
+# Validate helpers are executable (sanity check after compilation)
 for helper in "$HELPER_GETFACET" "$HELPER_GETDATA"; do
     if [ ! -x "$helper" ]; then
-        helper_name=$(basename "$helper")
-        echo "ERROR: Compiled helper not found or not executable: $helper" >&2
-        echo "       Compile with: qcc -O2 -Wall -disable-dimensions postProcess/${helper_name}.c -o postProcess/${helper_name} -lm" >&2
+        echo "ERROR: Compiled helper not executable: $helper" >&2
         exit 1
     fi
 done
