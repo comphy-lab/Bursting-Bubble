@@ -11,9 +11,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source parameter parsing library
 if [ -f "${SCRIPT_DIR}/src-local/parse_params.sh" ]; then
+    # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/src-local/parse_params.sh"
 else
     echo "ERROR: src-local/parse_params.sh not found" >&2
+    exit 1
+fi
+
+# Source sweep utilities library
+if [ -f "${SCRIPT_DIR}/src-local/sweep_utils.sh" ]; then
+    # shellcheck disable=SC1091
+    source "${SCRIPT_DIR}/src-local/sweep_utils.sh"
+else
+    echo "ERROR: src-local/sweep_utils.sh not found" >&2
     exit 1
 fi
 
@@ -206,27 +216,12 @@ echo ""
 # Parse Sweep Configuration
 # ============================================================
 # Source the sweep file to get variables
+# shellcheck disable=SC1090
 source "$SWEEP_FILE"
 
 # Validate required variables
-if [ -z "$BASE_CONFIG" ]; then
+if [ -z "${BASE_CONFIG:-}" ]; then
     echo "ERROR: BASE_CONFIG not defined in sweep file" >&2
-    exit 1
-fi
-
-if [ -z "$CASE_START" ] || [ -z "$CASE_END" ]; then
-    echo "ERROR: CASE_START and CASE_END must be defined in sweep file" >&2
-    exit 1
-fi
-
-# Validate CaseNo range
-if [ "$CASE_START" -lt 1000 ] || [ "$CASE_START" -gt 9999 ]; then
-    echo "ERROR: CASE_START must be 4-digit (1000-9999), got: $CASE_START" >&2
-    exit 1
-fi
-
-if [ "$CASE_END" -lt "$CASE_START" ] || [ "$CASE_END" -gt 9999 ]; then
-    echo "ERROR: CASE_END must be >= CASE_START and <= 9999, got: $CASE_END" >&2
     exit 1
 fi
 
@@ -235,129 +230,36 @@ if [ ! -f "$BASE_CONFIG" ]; then
     exit 1
 fi
 
+# Validate case range using shared utility
+validate_case_range "$CASE_START" "$CASE_END" || exit 1
+
 echo "Base configuration: $BASE_CONFIG"
 echo "Case number range: $CASE_START to $CASE_END"
 echo ""
 
 # ============================================================
-# Extract Sweep Variables
+# Extract Sweep Variables (using shared utility)
 # ============================================================
-SWEEP_VARS=()
-SWEEP_VALUES=()
-
-# Read sweep file and extract SWEEP_* variables
-while IFS='=' read -r key value; do
-    # Skip comments and empty lines
-    [[ "$key" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "$key" ]] && continue
-
-    # Match SWEEP_* variables
-    if [[ "$key" =~ ^[[:space:]]*SWEEP_([^=]+) ]]; then
-        var_name="${BASH_REMATCH[1]}"
-        # Remove inline comments and whitespace
-        value=$(echo "$value" | sed 's/#.*//' | xargs)
-
-        SWEEP_VARS+=("$var_name")
-        SWEEP_VALUES+=("$value")
-    fi
-done < "$SWEEP_FILE"
-
-if [ ${#SWEEP_VARS[@]} -eq 0 ]; then
-    echo "ERROR: No SWEEP_* variables found in $SWEEP_FILE" >&2
-    exit 1
-fi
-
-echo "Sweep variables:"
-for i in "${!SWEEP_VARS[@]}"; do
-    echo "  ${SWEEP_VARS[$i]} = ${SWEEP_VALUES[$i]}"
-done
+extract_sweep_variables "$SWEEP_FILE" || exit 1
+print_sweep_variables
 echo ""
 
 # ============================================================
-# Generate Parameter Combinations
+# Generate Parameter Combinations (using shared utility)
 # ============================================================
-# Create temporary directory for generated parameter files
-TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sweep.XXXXXX")
-trap "rm -rf $TEMP_DIR" EXIT
+setup_sweep_temp_dir || exit 1
 
-CASE_NUM=$CASE_START
-COMBINATION_COUNT=0
-
-# Recursive function to generate all combinations
-generate_combinations() {
-    local depth=$1
-    shift
-    local current_values=("$@")
-
-    if [ $depth -eq ${#SWEEP_VARS[@]} ]; then
-        # Base case: all variables assigned, create parameter file
-        local case_file="${TEMP_DIR}/case_$(printf "%04d" $CASE_NUM).params"
-
-        # Copy base config
-        cp "$BASE_CONFIG" "$case_file"
-
-        # Override CaseNo
-        if grep -q "^CaseNo=" "$case_file"; then
-            sed -i.bak "s|^CaseNo=.*|CaseNo=${CASE_NUM}|" "$case_file"
-        else
-            echo "CaseNo=${CASE_NUM}" >> "$case_file"
-        fi
-        rm -f "${case_file}.bak"
-
-        # Override with sweep values
-        for i in "${!SWEEP_VARS[@]}"; do
-            local var="${SWEEP_VARS[$i]}"
-            local val="${current_values[$i]}"
-
-            if grep -q "^${var}=" "$case_file"; then
-                sed -i.bak "s|^${var}=.*|${var}=${val}|" "$case_file"
-            else
-                echo "${var}=${val}" >> "$case_file"
-            fi
-            rm -f "${case_file}.bak"
-        done
-
-        ((++COMBINATION_COUNT))
-
-        # Print summary
-        if [ $DRY_RUN -eq 1 ] || [ $VERBOSE -eq 1 ]; then
-            echo "Case $CASE_NUM:"
-            for i in "${!SWEEP_VARS[@]}"; do
-                echo "  ${SWEEP_VARS[$i]} = ${current_values[$i]}"
-            done
-            echo ""
-        fi
-
-        ((CASE_NUM++))
-        return
-    fi
-
-    # Recursive case: iterate through values for current variable
-    local values="${SWEEP_VALUES[$depth]}"
-    IFS=',' read -ra value_array <<< "$values"
-
-    for val in "${value_array[@]}"; do
-        val=$(echo "$val" | xargs)  # Trim whitespace
-        generate_combinations $((depth + 1)) ${current_values[@]+"${current_values[@]}"} "$val"
-    done
-}
-
-# Start recursion
-generate_combinations 0
-
-echo "Generated $COMBINATION_COUNT parameter combinations"
-
-# Check if number of combinations matches the range
-EXPECTED_COUNT=$((CASE_END - CASE_START + 1))
-if [ $COMBINATION_COUNT -ne $EXPECTED_COUNT ]; then
-    echo "WARNING: Generated $COMBINATION_COUNT combinations, but CASE_END suggests $EXPECTED_COUNT" >&2
-    echo "         Consider adjusting CASE_END in sweep file" >&2
+# Generate combinations (verbose if dry-run or verbose mode)
+VERBOSE_FLAG=0
+if [ $DRY_RUN -eq 1 ] || [ $VERBOSE -eq 1 ]; then
+    VERBOSE_FLAG=1
 fi
+generate_sweep_combinations "$VERBOSE_FLAG" || exit 1
 
-if [ $COMBINATION_COUNT -gt $EXPECTED_COUNT ]; then
-    echo "ERROR: Too many combinations ($COMBINATION_COUNT) for range $CASE_START-$CASE_END" >&2
-    exit 1
-fi
+echo "Generated $SWEEP_COMBINATION_COUNT parameter combinations"
+
+# Validate combination count
+validate_combination_count "$CASE_START" "$CASE_END" || exit 1
 
 echo ""
 
@@ -374,11 +276,8 @@ echo "========================================="
 echo "Running Simulations"
 echo "========================================="
 
-# Build list of parameter files
-PARAM_FILES=()
-for case_file in "$TEMP_DIR"/case_*.params; do
-    PARAM_FILES+=("$case_file")
-done
+# Use parameter files from sweep generation
+# SWEEP_CASE_FILES is populated by generate_sweep_combinations
 
 # Build common flags
 COMMON_FLAGS=""
@@ -398,10 +297,13 @@ elif [ $FOPENMP_ENABLED -eq 1 ]; then
 fi
 
 # Run simulations
-echo "Running $COMBINATION_COUNT simulations sequentially"
+echo "Running $SWEEP_COMBINATION_COUNT simulations sequentially"
 echo ""
 
-for param_file in "${PARAM_FILES[@]}"; do
+# Initialize progress tracking
+sweep_progress_init "$SWEEP_COMBINATION_COUNT"
+
+for param_file in "${SWEEP_CASE_FILES[@]}"; do
     case_no=$(grep "^CaseNo=" "$param_file" | cut -d'=' -f2)
     echo "-----------------------------------------"
     echo "Processing Case $case_no"
@@ -425,13 +327,15 @@ for param_file in "${PARAM_FILES[@]}"; do
         ./runSimulation.sh --stage2 $COMMON_FLAGS $PARALLEL_FLAGS "$param_file"
     fi
 
+    # Update progress
+    sweep_progress_update "$case_no"
     echo ""
 done
 
 echo "========================================="
 echo "Parameter Sweep Complete"
 echo "========================================="
-echo "Total cases: $COMBINATION_COUNT"
-echo "Case range: $CASE_START to $((CASE_START + COMBINATION_COUNT - 1))"
+echo "Total cases: $SWEEP_COMBINATION_COUNT"
+echo "Case range: $CASE_START to $((CASE_START + SWEEP_COMBINATION_COUNT - 1))"
 echo "Output location: simulationCases/"
 echo ""
