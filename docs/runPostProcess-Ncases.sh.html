@@ -340,7 +340,7 @@
 <script>
 window.repoName = "Bursting-Bubble";
 window.githubOrg = "comphy-lab";
-window.baseDomain = "https://test.comphy-lab.org";
+window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 </script>
 
 
@@ -658,261 +658,291 @@ window.baseDomain = "https://test.comphy-lab.org";
 <span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>            <span class="cf">;;</span></span>
 <span id="cb1-224"><a href="#cb1-224" aria-hidden="true" tabindex="-1"></a>        <span class="pp">*</span><span class="kw">)</span></span>
 <span id="cb1-225"><a href="#cb1-225" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Expand ranges and collect case numbers</span></span>
-<span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> <span class="va">IFS</span><span class="op">=</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">case_no</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-227"><a href="#cb1-227" aria-hidden="true" tabindex="-1"></a>                <span class="va">CASE_NUMBERS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-228"><a href="#cb1-228" aria-hidden="true" tabindex="-1"></a>            <span class="cf">done</span> <span class="op">&lt;</span> <span class="op">&lt;(</span><span class="ex">expand_case_arg</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">1&quot;</span><span class="op">)</span></span>
-<span id="cb1-229"><a href="#cb1-229" aria-hidden="true" tabindex="-1"></a>            <span class="bu">shift</span></span>
-<span id="cb1-230"><a href="#cb1-230" aria-hidden="true" tabindex="-1"></a>            <span class="cf">;;</span></span>
-<span id="cb1-231"><a href="#cb1-231" aria-hidden="true" tabindex="-1"></a>    <span class="cf">esac</span></span>
-<span id="cb1-232"><a href="#cb1-232" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
-<span id="cb1-233"><a href="#cb1-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-234"><a href="#cb1-234" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-235"><a href="#cb1-235" aria-hidden="true" tabindex="-1"></a><span class="co"># Validation</span></span>
-<span id="cb1-236"><a href="#cb1-236" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a><span class="co"># Check at least one case number provided</span></span>
-<span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#CASE_NUMBERS[@]} <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: No case numbers provided&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a>    <span class="ex">usage</span></span>
-<span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
-<span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate case numbers are 4-digit</span></span>
-<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="kw">[[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="op">[</span><span class="ss">0</span><span class="op">-</span><span class="ss">9</span><span class="op">]</span><span class="va">{</span><span class="dv">4</span><span class="va">}</span><span class="dt">\$</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Case number must be 4 digits (1000-9999), got: </span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
-<span id="cb1-250"><a href="#cb1-250" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-251"><a href="#cb1-251" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">-lt</span> 1000 <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">-gt</span> 9999 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-252"><a href="#cb1-252" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Case number out of range (1000-9999), got: </span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-253"><a href="#cb1-253" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
-<span id="cb1-254"><a href="#cb1-254" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-255"><a href="#cb1-255" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
-<span id="cb1-256"><a href="#cb1-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-257"><a href="#cb1-257" aria-hidden="true" tabindex="-1"></a><span class="co"># Check Python availability</span></span>
-<span id="cb1-258"><a href="#cb1-258" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="bu">command</span> <span class="at">-v</span> python <span class="op">&amp;&gt;</span> /dev/null<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-259"><a href="#cb1-259" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: python not found in PATH&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
-<span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a><span class="co"># Check Python script exists</span></span>
-<span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">VIDEO_SCRIPT&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: Python script not found: </span><span class="dt">\$</span><span class="st">VIDEO_SCRIPT&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
-<span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a><span class="co"># Check C helpers exist</span></span>
-<span id="cb1-270"><a href="#cb1-270" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> helper <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">HELPER_GETFACET&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">HELPER_GETDATA&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-271"><a href="#cb1-271" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-x</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">helper&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-272"><a href="#cb1-272" aria-hidden="true" tabindex="-1"></a>        <span class="va">helper_name</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="fu">basename</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">helper&quot;</span><span class="kw">)</span></span>
-<span id="cb1-273"><a href="#cb1-273" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Compiled helper not found or not executable: </span><span class="dt">\$</span><span class="st">helper&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-274"><a href="#cb1-274" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;       Compile with: qcc -O2 -Wall -disable-dimensions postProcess/</span><span class="dt">\$</span><span class="st">{helper_name}.c -o postProcess/</span><span class="dt">\$</span><span class="st">{helper_name} -lm&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb1-275"><a href="#cb1-275" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
-<span id="cb1-276"><a href="#cb1-276" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-277"><a href="#cb1-277" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
-<span id="cb1-278"><a href="#cb1-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-279"><a href="#cb1-279" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-280"><a href="#cb1-280" aria-hidden="true" tabindex="-1"></a><span class="co"># Display Configuration</span></span>
-<span id="cb1-281"><a href="#cb1-281" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-282"><a href="#cb1-282" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-283"><a href="#cb1-283" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Bursting Bubble - Post-Processing Pipeline&quot;</span></span>
-<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Cases to process: </span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[*]}&quot;</span></span>
-<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Total cases: </span><span class="dt">\$</span><span class="st">{#CASE_NUMBERS[@]}&quot;</span></span>
-<span id="cb1-287"><a href="#cb1-287" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-288"><a href="#cb1-288" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Settings:&quot;</span></span>
-<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  CPUs:       </span><span class="dt">\$</span><span class="st">CPUS&quot;</span></span>
-<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  nGFS:       </span><span class="dt">\$</span><span class="st">NGFS&quot;</span></span>
-<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  tsnap:      </span><span class="dt">\$</span><span class="st">TSNAP&quot;</span></span>
-<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  GridsPerR:  </span><span class="dt">\$</span><span class="st">GRIDS_PER_R&quot;</span></span>
-<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  Domain:     Z=[</span><span class="dt">\$</span><span class="st">ZMIN, </span><span class="dt">\$</span><span class="st">ZMAX], R=[0, </span><span class="dt">\$</span><span class="st">RMAX]&quot;</span></span>
-<span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  Colorbars:  D2=[</span><span class="dt">\$</span><span class="st">D2_VMIN, </span><span class="dt">\$</span><span class="st">D2_VMAX], vel=[</span><span class="dt">\$</span><span class="st">VEL_VMIN, </span><span class="dt">\$</span><span class="st">VEL_VMAX]&quot;</span></span>
-<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Pipeline:&quot;</span></span>
-<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a><span class="bu">[</span> <span class="dt">\$</span>SKIP_VIDEO_ENCODE <span class="ot">-eq</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;  [1] Video.py (frames + video)&quot;</span> <span class="kw">||</span> <span class="bu">echo</span> <span class="st">&quot;  [1] Video.py (frames only, video SKIPPED)&quot;</span></span>
-<span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-299"><a href="#cb1-299" aria-hidden="true" tabindex="-1"></a><span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;Mode: DRY RUN (no execution)&quot;</span></span>
-<span id="cb1-300"><a href="#cb1-300" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-301"><a href="#cb1-301" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a><span class="co"># Processing Functions</span></span>
-<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-305"><a href="#cb1-305" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-306"><a href="#cb1-306" aria-hidden="true" tabindex="-1"></a><span class="fu">run_video()</span> <span class="kw">{</span></span>
-<span id="cb1-307"><a href="#cb1-307" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_no</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">1&quot;</span></span>
-<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}&quot;</span></span>
-<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">video_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/Video&quot;</span></span>
-<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_params</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/case.params&quot;</span></span>
-<span id="cb1-311"><a href="#cb1-311" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-312"><a href="#cb1-312" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Read zWall from case.params if available, otherwise use default</span></span>
-<span id="cb1-313"><a href="#cb1-313" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_zWall</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">zWall&quot;</span>  <span class="co"># Use global default</span></span>
-<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a>        <span class="ex">parse_param_file</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span></span>
-<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a>        <span class="va">case_zWall</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="ex">get_param</span> <span class="st">&quot;zWall&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">zWall&quot;</span><span class="kw">)</span></span>
-<span id="cb1-317"><a href="#cb1-317" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-318"><a href="#cb1-318" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-319"><a href="#cb1-319" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate domain bounds from zWall if not explicitly set</span></span>
-<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Formula: Ldomain = min(zWall + 6.0, 16.0)</span></span>
-<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ZMIN = -2.0 - zWall, ZMAX = ZMIN + Ldomain</span></span>
-<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_ldomain</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_zWall + 6.0&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
-<span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">((</span> <span class="dt">\$</span>(<span class="va">echo</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_ldomain &gt; 16.0&quot;</span> <span class="op">|</span> <span class="va">bc</span> <span class="op">-</span><span class="va">l</span>) <span class="kw">));</span> <span class="cf">then</span></span>
-<span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a>        <span class="va">calc_ldomain</span><span class="op">=</span><span class="st">&quot;16.0&quot;</span></span>
-<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_zmin</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;-2.0 - </span><span class="dt">\$</span><span class="st">case_zWall&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
-<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_zmax</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmin + </span><span class="dt">\$</span><span class="st">calc_ldomain&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
-<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use calculated values if defaults are still in place</span></span>
-<span id="cb1-330"><a href="#cb1-330" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">use_zmin</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMIN&quot;</span></span>
-<span id="cb1-331"><a href="#cb1-331" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">use_zmax</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMAX&quot;</span></span>
-<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMIN&quot;</span> <span class="ot">=</span> <span class="st">&quot;-4.0&quot;</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMAX&quot;</span> <span class="ot">=</span> <span class="st">&quot;4.0&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Defaults - override with calculated values</span></span>
-<span id="cb1-334"><a href="#cb1-334" aria-hidden="true" tabindex="-1"></a>        <span class="va">use_zmin</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmin&quot;</span></span>
-<span id="cb1-335"><a href="#cb1-335" aria-hidden="true" tabindex="-1"></a>        <span class="va">use_zmax</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmax&quot;</span></span>
-<span id="cb1-336"><a href="#cb1-336" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-337"><a href="#cb1-337" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Build command</span></span>
-<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">cmd_args</span><span class="op">=</span><span class="va">(</span></span>
-<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--caseToProcess&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}&quot;</span></span>
-<span id="cb1-341"><a href="#cb1-341" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--folderToSave&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{video_dir}&quot;</span></span>
-<span id="cb1-342"><a href="#cb1-342" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--CPUs&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CPUS}&quot;</span></span>
-<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--nGFS&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{NGFS}&quot;</span></span>
-<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--tsnap&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{TSNAP}&quot;</span></span>
-<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--GridsPerR&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{GRIDS_PER_R}&quot;</span></span>
-<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMIN&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{use_zmin}&quot;</span></span>
-<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMAX&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{use_zmax}&quot;</span></span>
-<span id="cb1-348"><a href="#cb1-348" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--RMAX&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{RMAX}&quot;</span></span>
-<span id="cb1-349"><a href="#cb1-349" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmin&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{D2_VMIN}&quot;</span></span>
-<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmax&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{D2_VMAX}&quot;</span></span>
-<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmin&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VEL_VMIN}&quot;</span></span>
-<span id="cb1-352"><a href="#cb1-352" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmax&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VEL_VMAX}&quot;</span></span>
-<span id="cb1-353"><a href="#cb1-353" aria-hidden="true" tabindex="-1"></a>    <span class="va">)</span></span>
-<span id="cb1-354"><a href="#cb1-354" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add skip flag if needed</span></span>
-<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a>    <span class="bu">[</span> <span class="dt">\$</span>SKIP_VIDEO_ENCODE <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="va">cmd_args</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;--skip-video-encode&quot;</span><span class="va">)</span></span>
-<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>VERBOSE <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 1 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  CMD: python </span><span class="dt">\$</span><span class="st">{VIDEO_SCRIPT} </span><span class="dt">\$</span><span class="st">{cmd_args[*]}&quot;</span></span>
+<span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a>            <span class="va">expanded_cases</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="ex">expand_case_arg</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">1&quot;</span><span class="kw">)</span> <span class="kw">||</span> <span class="bu">exit</span> <span class="dt">\$</span><span class="pp">?</span></span>
+<span id="cb1-227"><a href="#cb1-227" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> <span class="va">IFS</span><span class="op">=</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">case_no</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-228"><a href="#cb1-228" aria-hidden="true" tabindex="-1"></a>                <span class="va">CASE_NUMBERS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-229"><a href="#cb1-229" aria-hidden="true" tabindex="-1"></a>            <span class="cf">done</span> <span class="op">&lt;&lt;&lt;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">expanded_cases&quot;</span></span>
+<span id="cb1-230"><a href="#cb1-230" aria-hidden="true" tabindex="-1"></a>            <span class="bu">shift</span></span>
+<span id="cb1-231"><a href="#cb1-231" aria-hidden="true" tabindex="-1"></a>            <span class="cf">;;</span></span>
+<span id="cb1-232"><a href="#cb1-232" aria-hidden="true" tabindex="-1"></a>    <span class="cf">esac</span></span>
+<span id="cb1-233"><a href="#cb1-233" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb1-234"><a href="#cb1-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-235"><a href="#cb1-235" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-236"><a href="#cb1-236" aria-hidden="true" tabindex="-1"></a><span class="co"># Validation</span></span>
+<span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a><span class="co"># Check at least one case number provided</span></span>
+<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#CASE_NUMBERS[@]} <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: No case numbers provided&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a>    <span class="ex">usage</span></span>
+<span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate case numbers are 4-digit</span></span>
+<span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="kw">[[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="op">[</span><span class="ss">0</span><span class="op">-</span><span class="ss">9</span><span class="op">]</span><span class="va">{</span><span class="dv">4</span><span class="va">}</span><span class="dt">\$</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Case number must be 4 digits (1000-9999), got: </span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-250"><a href="#cb1-250" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
+<span id="cb1-251"><a href="#cb1-251" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-252"><a href="#cb1-252" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">-lt</span> 1000 <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="ot">-gt</span> 9999 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-253"><a href="#cb1-253" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Case number out of range (1000-9999), got: </span><span class="dt">\$</span><span class="st">case_no&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-254"><a href="#cb1-254" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
+<span id="cb1-255"><a href="#cb1-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-256"><a href="#cb1-256" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb1-257"><a href="#cb1-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-258"><a href="#cb1-258" aria-hidden="true" tabindex="-1"></a><span class="co"># Check Python availability</span></span>
+<span id="cb1-259"><a href="#cb1-259" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="bu">command</span> <span class="at">-v</span> python <span class="op">&amp;&gt;</span> /dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: python not found in PATH&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a><span class="co"># Check qcc availability (needed to compile helpers)</span></span>
+<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="bu">command</span> <span class="at">-v</span> qcc <span class="op">&amp;&gt;</span> /dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: qcc not found in PATH&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-270"><a href="#cb1-270" aria-hidden="true" tabindex="-1"></a><span class="co"># Check Python script exists</span></span>
+<span id="cb1-271"><a href="#cb1-271" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">VIDEO_SCRIPT&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-272"><a href="#cb1-272" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: Python script not found: </span><span class="dt">\$</span><span class="st">VIDEO_SCRIPT&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-273"><a href="#cb1-273" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-274"><a href="#cb1-274" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-275"><a href="#cb1-275" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-276"><a href="#cb1-276" aria-hidden="true" tabindex="-1"></a><span class="co"># Compile C helpers (always recompile to ensure consistency)</span></span>
+<span id="cb1-277"><a href="#cb1-277" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Compiling C helpers...&quot;</span></span>
+<span id="cb1-278"><a href="#cb1-278" aria-hidden="true" tabindex="-1"></a><span class="bu">pushd</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{SCRIPT_DIR}/postProcess&quot;</span> <span class="op">&gt;</span> /dev/null</span>
+<span id="cb1-279"><a href="#cb1-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-280"><a href="#cb1-280" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="ex">qcc</span> <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-disable-dimensions</span> getFacet.c <span class="at">-o</span> getFacet <span class="at">-lm</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-281"><a href="#cb1-281" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: Failed to compile getFacet.c&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-282"><a href="#cb1-282" aria-hidden="true" tabindex="-1"></a>    <span class="bu">popd</span> <span class="op">&gt;</span> /dev/null</span>
+<span id="cb1-283"><a href="#cb1-283" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ot">! </span><span class="ex">qcc</span> <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-disable-dimensions</span> getData.c <span class="at">-o</span> getData <span class="at">-lm</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-287"><a href="#cb1-287" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: Failed to compile getData.c&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-288"><a href="#cb1-288" aria-hidden="true" tabindex="-1"></a>    <span class="bu">popd</span> <span class="op">&gt;</span> /dev/null</span>
+<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="bu">popd</span> <span class="op">&gt;</span> /dev/null</span>
+<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;C helpers compiled successfully&quot;</span></span>
+<span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate helpers are executable (sanity check after compilation)</span></span>
+<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> helper <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">HELPER_GETFACET&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">HELPER_GETDATA&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-x</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">helper&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Compiled helper not executable: </span><span class="dt">\$</span><span class="st">helper&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-299"><a href="#cb1-299" aria-hidden="true" tabindex="-1"></a>        <span class="bu">exit</span> 1</span>
+<span id="cb1-300"><a href="#cb1-300" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-301"><a href="#cb1-301" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a><span class="co"># Display Configuration</span></span>
+<span id="cb1-305"><a href="#cb1-305" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-306"><a href="#cb1-306" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-307"><a href="#cb1-307" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Bursting Bubble - Post-Processing Pipeline&quot;</span></span>
+<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Cases to process: </span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[*]}&quot;</span></span>
+<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Total cases: </span><span class="dt">\$</span><span class="st">{#CASE_NUMBERS[@]}&quot;</span></span>
+<span id="cb1-311"><a href="#cb1-311" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-312"><a href="#cb1-312" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Settings:&quot;</span></span>
+<span id="cb1-313"><a href="#cb1-313" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  CPUs:       </span><span class="dt">\$</span><span class="st">CPUS&quot;</span></span>
+<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  nGFS:       </span><span class="dt">\$</span><span class="st">NGFS&quot;</span></span>
+<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  tsnap:      </span><span class="dt">\$</span><span class="st">TSNAP&quot;</span></span>
+<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  GridsPerR:  </span><span class="dt">\$</span><span class="st">GRIDS_PER_R&quot;</span></span>
+<span id="cb1-317"><a href="#cb1-317" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  Domain:     Z=[</span><span class="dt">\$</span><span class="st">ZMIN, </span><span class="dt">\$</span><span class="st">ZMAX], R=[0, </span><span class="dt">\$</span><span class="st">RMAX]&quot;</span></span>
+<span id="cb1-318"><a href="#cb1-318" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;  Colorbars:  D2=[</span><span class="dt">\$</span><span class="st">D2_VMIN, </span><span class="dt">\$</span><span class="st">D2_VMAX], vel=[</span><span class="dt">\$</span><span class="st">VEL_VMIN, </span><span class="dt">\$</span><span class="st">VEL_VMAX]&quot;</span></span>
+<span id="cb1-319"><a href="#cb1-319" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Pipeline:&quot;</span></span>
+<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a><span class="bu">[</span> <span class="dt">\$</span>SKIP_VIDEO_ENCODE <span class="ot">-eq</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;  [1] Video.py (frames + video)&quot;</span> <span class="kw">||</span> <span class="bu">echo</span> <span class="st">&quot;  [1] Video.py (frames only, video SKIPPED)&quot;</span></span>
+<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a><span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;Mode: DRY RUN (no execution)&quot;</span></span>
+<span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="co"># Processing Functions</span></span>
+<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-330"><a href="#cb1-330" aria-hidden="true" tabindex="-1"></a><span class="fu">run_video()</span> <span class="kw">{</span></span>
+<span id="cb1-331"><a href="#cb1-331" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_no</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">1&quot;</span></span>
+<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}&quot;</span></span>
+<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">video_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/Video&quot;</span></span>
+<span id="cb1-334"><a href="#cb1-334" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_params</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/case.params&quot;</span></span>
+<span id="cb1-335"><a href="#cb1-335" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-336"><a href="#cb1-336" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Read zWall from case.params if available, otherwise use default</span></span>
+<span id="cb1-337"><a href="#cb1-337" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">case_zWall</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">zWall&quot;</span>  <span class="co"># Use global default</span></span>
+<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a>        <span class="ex">parse_param_file</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span></span>
+<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a>        <span class="va">case_zWall</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="ex">get_param</span> <span class="st">&quot;zWall&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">zWall&quot;</span><span class="kw">)</span></span>
+<span id="cb1-341"><a href="#cb1-341" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-342"><a href="#cb1-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate domain bounds from zWall if not explicitly set</span></span>
+<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Formula: Ldomain = min(zWall + 6.0, 16.0)</span></span>
+<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ZMIN = -2.0 - zWall, ZMAX = ZMIN + Ldomain</span></span>
+<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_ldomain</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_zWall + 6.0&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
+<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">((</span> <span class="dt">\$</span>(<span class="va">echo</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_ldomain &gt; 16.0&quot;</span> <span class="op">|</span> <span class="va">bc</span> <span class="op">-</span><span class="va">l</span>) <span class="kw">));</span> <span class="cf">then</span></span>
+<span id="cb1-348"><a href="#cb1-348" aria-hidden="true" tabindex="-1"></a>        <span class="va">calc_ldomain</span><span class="op">=</span><span class="st">&quot;16.0&quot;</span></span>
+<span id="cb1-349"><a href="#cb1-349" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_zmin</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;-2.0 - </span><span class="dt">\$</span><span class="st">case_zWall&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
+<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">calc_zmax</span><span class="op">=</span><span class="dt">\$</span><span class="va">(</span>echo <span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmin + </span><span class="dt">\$</span><span class="st">calc_ldomain&quot;</span> <span class="er">|</span> bc -l<span class="va">)</span></span>
+<span id="cb1-352"><a href="#cb1-352" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-353"><a href="#cb1-353" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use calculated values if defaults are still in place</span></span>
+<span id="cb1-354"><a href="#cb1-354" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">use_zmin</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMIN&quot;</span></span>
+<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">use_zmax</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMAX&quot;</span></span>
+<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMIN&quot;</span> <span class="ot">=</span> <span class="st">&quot;-4.0&quot;</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">ZMAX&quot;</span> <span class="ot">=</span> <span class="st">&quot;4.0&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Defaults - override with calculated values</span></span>
+<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a>        <span class="va">use_zmin</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmin&quot;</span></span>
+<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a>        <span class="va">use_zmax</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">calc_zmax&quot;</span></span>
 <span id="cb1-360"><a href="#cb1-360" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
 <span id="cb1-361"><a href="#cb1-361" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a>        <span class="ex">python</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VIDEO_SCRIPT}&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{cmd_args[@]}&quot;</span></span>
-<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a><span class="co"># Main Processing Loop</span></span>
-<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Processing Cases&quot;</span></span>
-<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="va">SUCCESSFUL_CASES</span><span class="op">=</span><span class="va">()</span></span>
-<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a><span class="va">FAILED_CASES</span><span class="op">=</span><span class="va">()</span></span>
-<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a><span class="va">FAILURE_REASONS</span><span class="op">=</span><span class="va">()</span></span>
-<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-380"><a href="#cb1-380" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;-----------------------------------------&quot;</span></span>
-<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Case </span><span class="dt">\$</span><span class="st">case_no&quot;</span></span>
-<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;-----------------------------------------&quot;</span></span>
-<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a>    <span class="va">case_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}&quot;</span></span>
-<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a>    <span class="va">intermediate_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/intermediate&quot;</span></span>
-<span id="cb1-386"><a href="#cb1-386" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-387"><a href="#cb1-387" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Validate case directory exists</span></span>
-<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_dir&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Case directory not found: </span><span class="dt">\$</span><span class="st">case_dir&quot;</span></span>
-<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;Case directory not found&quot;</span><span class="va">)</span></span>
-<span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
-<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Intermediate directory not found: </span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span></span>
-<span id="cb1-397"><a href="#cb1-397" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-398"><a href="#cb1-398" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;No intermediate/ snapshots&quot;</span><span class="va">)</span></span>
-<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
-<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Count snapshots</span></span>
-<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a>    <span class="va">snapshot_count</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="fu">find</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span> <span class="at">-name</span> <span class="st">&quot;snapshot-*&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="fu">wc</span> <span class="at">-l</span> <span class="kw">|</span> <span class="fu">tr</span> <span class="at">-d</span> <span class="st">&#39; &#39;</span><span class="kw">)</span></span>
-<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;  Found </span><span class="dt">\$</span><span class="st">snapshot_count snapshots in intermediate/&quot;</span></span>
-<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">snapshot_count&quot;</span> <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: No snapshots found&quot;</span></span>
-<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;No snapshots in intermediate/&quot;</span><span class="va">)</span></span>
-<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
-<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Display case parameters if case.params exists</span></span>
-<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a>    <span class="va">case_params</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/case.params&quot;</span></span>
-<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">[</span> <span class="dt">\$</span>VERBOSE <span class="ot">-eq</span> 1 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a>        <span class="ex">parse_param_file</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span></span>
-<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Parameters: Oh=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>Oh<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;), Bond=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>Bond<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;), MAXlevel=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>MAXlevel<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;)&quot;</span></span>
-<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Track step failures</span></span>
-<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a>    <span class="va">step_failed</span><span class="op">=</span>0</span>
-<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Run video generation</span></span>
-<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;  [1/1] Running Video.py...&quot;</span></span>
-<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="ex">run_video</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Video generation failed&quot;</span></span>
-<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a>        <span class="va">step_failed</span><span class="op">=</span>1</span>
-<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
-<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a>        <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;  [1/1] Video generation complete&quot;</span></span>
-<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Record result</span></span>
-<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>step_failed <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a>        <span class="va">SUCCESSFUL_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Case </span><span class="dt">\$</span><span class="st">case_no: SUCCESS&quot;</span></span>
-<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
-<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
-<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;Processing step failed&quot;</span><span class="va">)</span></span>
-<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-442"><a href="#cb1-442" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Case </span><span class="dt">\$</span><span class="st">case_no: FAILED&quot;</span></span>
-<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
-<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a><span class="co"># Summary</span></span>
-<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
-<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Post-Processing Complete&quot;</span></span>
-<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
-<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Total cases: </span><span class="dt">\$</span><span class="st">{#CASE_NUMBERS[@]}&quot;</span></span>
-<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Successful:  </span><span class="dt">\$</span><span class="st">{#SUCCESSFUL_CASES[@]}&quot;</span></span>
-<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Failed:      </span><span class="dt">\$</span><span class="st">{#FAILED_CASES[@]}&quot;</span></span>
-<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Failed cases:&quot;</span></span>
-<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{!FAILED_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  - Case </span><span class="dt">\$</span><span class="st">{FAILED_CASES[</span><span class="dt">\$</span><span class="st">i]}: </span><span class="dt">\$</span><span class="st">{FAILURE_REASONS[</span><span class="dt">\$</span><span class="st">i]}&quot;</span></span>
-<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a>    <span class="cf">done</span></span>
-<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#SUCCESSFUL_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Output locations:&quot;</span></span>
-<span id="cb1-468"><a href="#cb1-468" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{SUCCESSFUL_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb1-469"><a href="#cb1-469" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  </span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}/&quot;</span></span>
-<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a>    <span class="cf">done</span></span>
-<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-473"><a href="#cb1-473" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
-<span id="cb1-474"><a href="#cb1-474" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a><span class="co"># Exit with error if any cases failed</span></span>
-<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
-<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb1-479"><a href="#cb1-479" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-480"><a href="#cb1-480" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span> 0</span></code></pre></div></div>
+<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Validate domain bounds (ZMIN must be less than ZMAX)</span></span>
+<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">((</span> <span class="dt">\$</span>(<span class="va">echo</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">use_zmin &gt;= </span><span class="dt">\$</span><span class="st">use_zmax&quot;</span> <span class="op">|</span> <span class="va">bc</span> <span class="op">-</span><span class="va">l</span>) <span class="kw">));</span> <span class="cf">then</span></span>
+<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;ERROR: Invalid domain bounds: ZMIN (</span><span class="dt">\$</span><span class="st">use_zmin) &gt;= ZMAX (</span><span class="dt">\$</span><span class="st">use_zmax)&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Build command</span></span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">cmd_args</span><span class="op">=</span><span class="va">(</span></span>
+<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--caseToProcess&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}&quot;</span></span>
+<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--folderToSave&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{video_dir}&quot;</span></span>
+<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--CPUs&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CPUS}&quot;</span></span>
+<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--nGFS&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{NGFS}&quot;</span></span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--tsnap&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{TSNAP}&quot;</span></span>
+<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--GridsPerR&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{GRIDS_PER_R}&quot;</span></span>
+<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMIN&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{use_zmin}&quot;</span></span>
+<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--ZMAX&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{use_zmax}&quot;</span></span>
+<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--RMAX&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{RMAX}&quot;</span></span>
+<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmin&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{D2_VMIN}&quot;</span></span>
+<span id="cb1-380"><a href="#cb1-380" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--d2-vmax&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{D2_VMAX}&quot;</span></span>
+<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmin&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VEL_VMIN}&quot;</span></span>
+<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;--vel-vmax&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VEL_VMAX}&quot;</span></span>
+<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a>    <span class="va">)</span></span>
+<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add skip flag if needed</span></span>
+<span id="cb1-386"><a href="#cb1-386" aria-hidden="true" tabindex="-1"></a>    <span class="bu">[</span> <span class="dt">\$</span>SKIP_VIDEO_ENCODE <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="va">cmd_args</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;--skip-video-encode&quot;</span><span class="va">)</span></span>
+<span id="cb1-387"><a href="#cb1-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>VERBOSE <span class="ot">-eq</span> 1 <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 1 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  CMD: python </span><span class="dt">\$</span><span class="st">{VIDEO_SCRIPT} </span><span class="dt">\$</span><span class="st">{cmd_args[*]}&quot;</span></span>
+<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a>        <span class="ex">python</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{VIDEO_SCRIPT}&quot;</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{cmd_args[@]}&quot;</span></span>
+<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-397"><a href="#cb1-397" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-398"><a href="#cb1-398" aria-hidden="true" tabindex="-1"></a><span class="co"># Main Processing Loop</span></span>
+<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Processing Cases&quot;</span></span>
+<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a><span class="va">SUCCESSFUL_CASES</span><span class="op">=</span><span class="va">()</span></span>
+<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a><span class="va">FAILED_CASES</span><span class="op">=</span><span class="va">()</span></span>
+<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a><span class="va">FAILURE_REASONS</span><span class="op">=</span><span class="va">()</span></span>
+<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASE_NUMBERS[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;-----------------------------------------&quot;</span></span>
+<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Case </span><span class="dt">\$</span><span class="st">case_no&quot;</span></span>
+<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;-----------------------------------------&quot;</span></span>
+<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a>    <span class="va">case_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}&quot;</span></span>
+<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a>    <span class="va">intermediate_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/intermediate&quot;</span></span>
+<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Validate case directory exists</span></span>
+<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_dir&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Case directory not found: </span><span class="dt">\$</span><span class="st">case_dir&quot;</span></span>
+<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;Case directory not found&quot;</span><span class="va">)</span></span>
+<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Intermediate directory not found: </span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span></span>
+<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;No intermediate/ snapshots&quot;</span><span class="va">)</span></span>
+<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Count snapshots</span></span>
+<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>    <span class="va">snapshot_count</span><span class="op">=</span><span class="dt">\$</span><span class="kw">(</span><span class="fu">find</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">intermediate_dir&quot;</span> <span class="at">-name</span> <span class="st">&quot;snapshot-*&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="fu">wc</span> <span class="at">-l</span> <span class="kw">|</span> <span class="fu">tr</span> <span class="at">-d</span> <span class="st">&#39; &#39;</span><span class="kw">)</span></span>
+<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;  Found </span><span class="dt">\$</span><span class="st">snapshot_count snapshots in intermediate/&quot;</span></span>
+<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">snapshot_count&quot;</span> <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: No snapshots found&quot;</span></span>
+<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;No snapshots in intermediate/&quot;</span><span class="va">)</span></span>
+<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-442"><a href="#cb1-442" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Display case parameters if case.params exists</span></span>
+<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a>    <span class="va">case_params</span><span class="op">=</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">{case_dir}/case.params&quot;</span></span>
+<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">[</span> <span class="dt">\$</span>VERBOSE <span class="ot">-eq</span> 1 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a>        <span class="ex">parse_param_file</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_params&quot;</span></span>
+<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Parameters: Oh=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>Oh<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;), Bond=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>Bond<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;), MAXlevel=</span><span class="dt">\$</span><span class="st">(get_param &quot;</span>MAXlevel<span class="st">&quot; &quot;</span><span class="pp">?</span><span class="st">&quot;)&quot;</span></span>
+<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Track step failures</span></span>
+<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a>    <span class="va">step_failed</span><span class="op">=</span>0</span>
+<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Run video generation</span></span>
+<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;  [1/1] Running Video.py...&quot;</span></span>
+<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="ex">run_video</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  ERROR: Video generation failed&quot;</span></span>
+<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a>        <span class="va">step_failed</span><span class="op">=</span>1</span>
+<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a>        <span class="bu">[</span> <span class="dt">\$</span>DRY_RUN <span class="ot">-eq</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;  [1/1] Video generation complete&quot;</span></span>
+<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Record result</span></span>
+<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>step_failed <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a>        <span class="va">SUCCESSFUL_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Case </span><span class="dt">\$</span><span class="st">case_no: SUCCESS&quot;</span></span>
+<span id="cb1-468"><a href="#cb1-468" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb1-469"><a href="#cb1-469" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILED_CASES</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;</span><span class="dt">\$</span><span class="st">case_no&quot;</span><span class="va">)</span></span>
+<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a>        <span class="va">FAILURE_REASONS</span><span class="op">+=</span><span class="va">(</span><span class="st">&quot;Processing step failed&quot;</span><span class="va">)</span></span>
+<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  Case </span><span class="dt">\$</span><span class="st">case_no: FAILED&quot;</span></span>
+<span id="cb1-473"><a href="#cb1-473" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb1-474"><a href="#cb1-474" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a><span class="co"># Summary</span></span>
+<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb1-479"><a href="#cb1-479" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-480"><a href="#cb1-480" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-481"><a href="#cb1-481" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Post-Processing Complete&quot;</span></span>
+<span id="cb1-482"><a href="#cb1-482" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;=========================================&quot;</span></span>
+<span id="cb1-483"><a href="#cb1-483" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Total cases: </span><span class="dt">\$</span><span class="st">{#CASE_NUMBERS[@]}&quot;</span></span>
+<span id="cb1-484"><a href="#cb1-484" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Successful:  </span><span class="dt">\$</span><span class="st">{#SUCCESSFUL_CASES[@]}&quot;</span></span>
+<span id="cb1-485"><a href="#cb1-485" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Failed:      </span><span class="dt">\$</span><span class="st">{#FAILED_CASES[@]}&quot;</span></span>
+<span id="cb1-486"><a href="#cb1-486" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-487"><a href="#cb1-487" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-488"><a href="#cb1-488" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-489"><a href="#cb1-489" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Failed cases:&quot;</span></span>
+<span id="cb1-490"><a href="#cb1-490" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{!FAILED_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-491"><a href="#cb1-491" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  - Case </span><span class="dt">\$</span><span class="st">{FAILED_CASES[</span><span class="dt">\$</span><span class="st">i]}: </span><span class="dt">\$</span><span class="st">{FAILURE_REASONS[</span><span class="dt">\$</span><span class="st">i]}&quot;</span></span>
+<span id="cb1-492"><a href="#cb1-492" aria-hidden="true" tabindex="-1"></a>    <span class="cf">done</span></span>
+<span id="cb1-493"><a href="#cb1-493" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-494"><a href="#cb1-494" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#SUCCESSFUL_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-496"><a href="#cb1-496" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-497"><a href="#cb1-497" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Output locations:&quot;</span></span>
+<span id="cb1-498"><a href="#cb1-498" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{SUCCESSFUL_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb1-499"><a href="#cb1-499" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;  </span><span class="dt">\$</span><span class="st">{CASES_DIR}/</span><span class="dt">\$</span><span class="st">{case_no}/&quot;</span></span>
+<span id="cb1-500"><a href="#cb1-500" aria-hidden="true" tabindex="-1"></a>    <span class="cf">done</span></span>
+<span id="cb1-501"><a href="#cb1-501" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-502"><a href="#cb1-502" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-503"><a href="#cb1-503" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb1-504"><a href="#cb1-504" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-505"><a href="#cb1-505" aria-hidden="true" tabindex="-1"></a><span class="co"># Exit with error if any cases failed</span></span>
+<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-507"><a href="#cb1-507" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
+<span id="cb1-508"><a href="#cb1-508" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb1-509"><a href="#cb1-509" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-510"><a href="#cb1-510" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span> 0</span></code></pre></div></div>
             </div>
         </main>
 

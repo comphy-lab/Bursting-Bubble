@@ -340,7 +340,7 @@
 <script>
 window.repoName = "Bursting-Bubble";
 window.githubOrg = "comphy-lab";
-window.baseDomain = "https://test.comphy-lab.org";
+window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 </script>
 
 
@@ -479,6 +479,12 @@ window.baseDomain = "https://test.comphy-lab.org";
                 <li><strong><a
                 href="src-local/parse_params.sh.html">parse_params.sh</a></strong>
                 - Parameter parsing utilities</li>
+                <li><strong><a
+                href="src-local/sweep_utils.sh.html">sweep_utils.sh</a></strong>
+                - Sweep generation utilities</li>
+                <li><strong><a
+                href="src-local/basilisk_version.sh.html">basilisk_version.sh</a></strong>
+                - Centralized version pinning</li>
                 </ul></li>
                 <li><strong><a
                 href="postProcess">postProcess/</a></strong> -
@@ -509,13 +515,31 @@ window.baseDomain = "https://test.comphy-lab.org";
                 - Single case runner</li>
                 <li><strong><a
                 href="runParameterSweep.sh.html">runParameterSweep.sh</a></strong>
-                - Parameter sweep runner</li>
+                - Parameter sweep runner (local)</li>
+                <li><strong><a
+                href="runSweepHamilton-serial.sbatch.html">runSweepHamilton-serial.sbatch</a></strong>
+                - HPC Stage 1 runner (Durham Hamilton)</li>
+                <li><strong><a
+                href="runSweepHamilton.sbatch.html">runSweepHamilton.sbatch</a></strong>
+                - HPC sweep runner (Durham Hamilton)</li>
+                <li><strong><a
+                href="runSweepSnellius-serial.sbatch.html">runSweepSnellius-serial.sbatch</a></strong>
+                - HPC Stage 1 runner (SURF Snellius)</li>
+                <li><strong><a
+                href="runSweepSnellius.sbatch.html">runSweepSnellius.sbatch</a></strong>
+                - HPC sweep runner (SURF Snellius)</li>
+                <li><strong><a
+                href="runPostProcess-Ncases.sh.html">runPostProcess-Ncases.sh</a></strong>
+                - Post-processing pipeline</li>
                 <li><strong><a
                 href="default.params.html">default.params</a></strong> -
                 Single-case configuration</li>
                 <li><strong><a
                 href="sweep.params.html">sweep.params</a></strong> -
                 Sweep configuration</li>
+                <li><strong><a
+                href="CLAUDE.md.html">CLAUDE.md</a></strong> - Developer
+                documentation</li>
                 </ul>
                 </div>
                 <h2 id="key-parameters">Key Parameters</h2>
@@ -544,6 +568,55 @@ window.baseDomain = "https://test.comphy-lab.org";
                 <code>sudo apt-get install libopenmpi-dev</code></li>
                 </ul></li>
                 </ul>
+                <h2 id="two-stage-execution">Two-Stage Execution</h2>
+                <p>The simulation uses a two-stage execution model due
+                to a Basilisk limitation (<code>distance.h</code> is
+                incompatible with MPI):</p>
+                <ol type="1">
+                <li><strong>Stage 1</strong>: Generate restart file
+                (serial or OpenMP)</li>
+                <li><strong>Stage 2</strong>: Run full simulation from
+                restart (supports MPI)</li>
+                </ol>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run both stages (default)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runSimulation.sh</span> default.params</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Or separately:</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">./runSimulation.sh</span> <span class="at">--stage1</span> default.params    <span class="co"># Generate restart</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">./runSimulation.sh</span> <span class="at">--stage2</span> <span class="at">--mpi</span> 8 default.params  <span class="co"># Full simulation</span></span></code></pre></div></div>
+                <h2 id="troubleshooting">Troubleshooting</h2>
+                <h3 id="restart-file-not-found">“restart file not
+                found”</h3>
+                <p>Stage 2 requires a restart file from Stage 1. Run
+                Stage 1 first:</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runSimulation.sh</span> <span class="at">--stage1</span> default.params</span></code></pre></div></div>
+                <h3 id="restart-file-is-empty">“restart file is
+                empty”</h3>
+                <p>Stage 1 may have failed silently. Check for: -
+                Compilation errors in the case directory - Memory issues
+                (reduce MAXlevel) - Invalid parameters</p>
+                <h3 id="qcc-not-found">“qcc not found”</h3>
+                <p>Basilisk is not installed. Run the install
+                script:</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-sL</span> https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh <span class="kw">|</span> <span class="fu">bash</span> <span class="at">-s</span> <span class="at">--</span> <span class="at">--ref</span><span class="op">=</span>v2026-01-13</span></code></pre></div></div>
+                <h3 id="parameters-not-updating-on-reruns">Parameters
+                not updating on reruns</h3>
+                <p>The scripts preserve existing
+                <code>case.params</code> and source files for reruns.
+                Use <code>--force</code> to overwrite:</p>
+                <div class="code-block-container"><div class="code-block-container"><pre
+                class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runSimulation.sh</span> <span class="at">--force</span> default.params</span></code></pre></div></div>
+                <h3 id="hpc-jobs-failing">HPC jobs failing</h3>
+                <ol type="1">
+                <li>Ensure Stage 1 completed locally before submitting
+                Stage 2</li>
+                <li>Check that restart files exist in each case
+                directory</li>
+                <li>Verify SLURM parameters match your allocation</li>
+                </ol>
                 <h2 id="license">License</h2>
                 <p>See <a href="LICENSE">LICENSE</a> file for
                 details.</p>
@@ -585,12 +658,20 @@ window.baseDomain = "https://test.comphy-lab.org";
                 <h3 id="simulationcases">simulationCases</h3>
                 <ul>
                 <li><a
+                href="simulationCases/1000/burstingBubble.c.html">simulationCases/1000/burstingBubble.c</a></li>
+                <li><a
+                href="simulationCases/1000/case.params.html">simulationCases/1000/case.params</a></li>
+                <li><a
                 href="simulationCases/burstingBubble.c.html">simulationCases/burstingBubble.c</a></li>
                 </ul>
                 <h3 id="src-local">src-local</h3>
                 <ul>
                 <li><a
+                href="src-local/basilisk_version.sh.html">src-local/basilisk_version.sh</a></li>
+                <li><a
                 href="src-local/parse_params.sh.html">src-local/parse_params.sh</a></li>
+                <li><a
+                href="src-local/sweep_utils.sh.html">src-local/sweep_utils.sh</a></li>
                 </ul>
             </div>
         </main>
