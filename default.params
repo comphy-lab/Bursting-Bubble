@@ -43,6 +43,8 @@ tmax=1.0
 # ============================================================
 # zWall: distance from bubble south pole to bottom wall
 # Controls domain size: Ldomain = min(zWall + 6.0, 16.0)
-# With zWall=4: domain x in [-6, 4], wall at x=-6
-# With zWall=2: domain x in [-4, 4] (matches original setup)
+# Typical values:
+#   zWall=0.025: Bubble very close to wall (current default)
+#   zWall=2.0: Domain x in [-4, 4] (matches original setup)
+#   zWall=4.0: Domain x in [-6, 4], wall at x=-6
 zWall=0.025

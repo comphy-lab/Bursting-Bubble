@@ -86,6 +86,61 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
   - macOS: `brew install open-mpi`
   - Linux: `sudo apt-get install libopenmpi-dev`
 
+## Two-Stage Execution
+
+The simulation uses a two-stage execution model due to a Basilisk limitation (`distance.h` is incompatible with MPI):
+
+1. **Stage 1**: Generate restart file (serial or OpenMP)
+2. **Stage 2**: Run full simulation from restart (supports MPI)
+
+```bash
+# Run both stages (default)
+./runSimulation.sh default.params
+
+# Or separately:
+./runSimulation.sh --stage1 default.params    # Generate restart
+./runSimulation.sh --stage2 --mpi 8 default.params  # Full simulation
+```
+
+## Troubleshooting
+
+### "restart file not found"
+
+Stage 2 requires a restart file from Stage 1. Run Stage 1 first:
+
+```bash
+./runSimulation.sh --stage1 default.params
+```
+
+### "restart file is empty"
+
+Stage 1 may have failed silently. Check for:
+- Compilation errors in the case directory
+- Memory issues (reduce MAXlevel)
+- Invalid parameters
+
+### "qcc not found"
+
+Basilisk is not installed. Run the install script:
+
+```bash
+curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13
+```
+
+### Parameters not updating on reruns
+
+The scripts preserve existing `case.params` and source files for reruns. Use `--force` to overwrite:
+
+```bash
+./runSimulation.sh --force default.params
+```
+
+### HPC jobs failing
+
+1. Ensure Stage 1 completed locally before submitting Stage 2
+2. Check that restart files exist in each case directory
+3. Verify SLURM parameters match your allocation
+
 ## License
 
 See [LICENSE](LICENSE) file for details.
