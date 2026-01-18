@@ -36,7 +36,7 @@ MAXlevel=12
 # Maximum simulation time (dimensionless, based on capillary time scale)
 # t_cap = sqrt(rho * R^3 / sigma)
 # Typical jet formation occurs at t ~ 0.5-2.0
-tmax=1.0
+tmax=1.5
 
 # ============================================================
 # Domain Configuration
@@ -47,4 +47,4 @@ tmax=1.0
 #   zWall=0.025: Bubble very close to wall (current default)
 #   zWall=2.0: Domain x in [-4, 4] (matches original setup)
 #   zWall=4.0: Domain x in [-6, 4], wall at x=-6
-zWall=0.025
+zWall=0.05

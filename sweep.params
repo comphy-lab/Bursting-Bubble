@@ -29,12 +29,12 @@ CASE_END=1015
 SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0.0464,0.0541,0.0631,0.0736,0.0858,0.1000
 
 # Sweep mesh refinement level
-SWEEP_MAXlevel=12
+# SWEEP_MAXlevel=12
 
 # Sweep wall distance (uncomment to use)
 # zWall: distance from bubble south pole to bottom wall
 # Domain size: Ldomain = min(zWall + 6.0, 16.0)
-SWEEP_zWall=0.025
+# SWEEP_zWall=0.025
 
 # NOTE: Bond is fixed at 1e-3 (only Bo0.0010.dat geometry available)
 # To sweep Bond values, you would need to generate additional Bo*.dat files
