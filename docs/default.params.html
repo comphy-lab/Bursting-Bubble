@@ -340,7 +340,7 @@
 <script>
 window.repoName = "Bursting-Bubble";
 window.githubOrg = "comphy-lab";
-window.baseDomain = "https://test.comphy-lab.org";
+window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 </script>
 
 
@@ -470,16 +470,19 @@ window.baseDomain = "https://test.comphy-lab.org";
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Maximum simulation time (dimensionless, based on capillary time scale)</span></span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a><span class="co"># t_cap = sqrt(rho * R^3 / sigma)</span></span>
 <span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Typical jet formation occurs at t ~ 0.5-2.0</span></span>
-<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="dt">tmax</span><span class="ot">=</span><span class="fl">1.0</span></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="dt">tmax</span><span class="ot">=</span><span class="fl">1.5</span></span>
 <span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
 <span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Domain Configuration</span></span>
 <span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
 <span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a><span class="co"># zWall: distance from bubble south pole to bottom wall</span></span>
 <span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Controls domain size: Ldomain = min(zWall + 6.0, 16.0)</span></span>
-<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a><span class="co"># With zWall=4: domain x in [-6, 4], wall at x=-6</span></span>
-<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a><span class="co"># With zWall=2: domain x in [-4, 4] (matches original setup)</span></span>
-<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a><span class="dt">zWall</span><span class="ot">=</span><span class="fl">0.025</span></span></code></pre></div></div>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a><span class="co"># Typical values:</span></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a><span class="co">#   zWall=0.05: Bubble very close to wall (current default)</span></span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a><span class="co">#   zWall=0.025: Bubble very close to wall</span></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a><span class="co">#   zWall=2.0: Domain x in [-4, 4] (matches original setup)</span></span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a><span class="co">#   zWall=4.0: Domain x in [-6, 4], wall at x=-6</span></span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a><span class="dt">zWall</span><span class="ot">=</span><span class="fl">0.05</span></span></code></pre></div></div>
             </div>
         </main>
 

@@ -139,7 +139,7 @@ generate_sweep_cases() {
 
                 # Replace in parameter file
                 if grep -q "^${var}=" "$case_file"; then
-                    sed -i.bak "s|^${var}=.*|${var}=${val}|" "$case_file"
+                    sed -i'.bak' "s|^${var}=.*|${var}=${val}|" "$case_file"
                 else
                     echo "${var}=${val}" >> "$case_file"
                 fi
@@ -151,7 +151,7 @@ generate_sweep_cases() {
 
             # Set output directory
             if grep -q "^output_dir=" "$case_file"; then
-                sed -i.bak "s|^output_dir=.*|output_dir=${output_dir}|" "$case_file"
+                sed -i'.bak' "s|^output_dir=.*|output_dir=${output_dir}|" "$case_file"
             else
                 echo "output_dir=${output_dir}" >> "$case_file"
             fi
@@ -201,4 +201,28 @@ print_params() {
         key="${key#PARAM_}"
         echo "  $key = $value"
     done
+}
+
+# Validate a restart file exists, is non-empty, and is readable
+# Usage: validate_restart_file [file_path]
+# Returns 0 if valid, 1 if invalid
+validate_restart_file() {
+    local restart_file="${1:-restart}"
+
+    if [ ! -f "$restart_file" ]; then
+        echo "ERROR: Restart file not found: $restart_file" >&2
+        return 1
+    fi
+
+    if [ ! -s "$restart_file" ]; then
+        echo "ERROR: Restart file is empty: $restart_file" >&2
+        return 1
+    fi
+
+    if [ ! -r "$restart_file" ]; then
+        echo "ERROR: Restart file not readable: $restart_file" >&2
+        return 1
+    fi
+
+    return 0
 }

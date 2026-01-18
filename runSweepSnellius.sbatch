@@ -80,15 +80,19 @@ echo ""
 # Setup Basilisk Environment
 # ============================================================
 echo "Setting up Basilisk environment..."
-echo "Ensuring Basilisk is installed locally (ref v2026-01-13)..."
 cd "$SCRIPT_DIR"
 
-if ! command -v curl >/dev/null 2>&1; then
-  echo "ERROR: curl not found (required to install Basilisk)" >&2
+# Source version configuration
+if [ -f "${SCRIPT_DIR}/src-local/basilisk_version.sh" ]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/src-local/basilisk_version.sh"
+else
+  echo "ERROR: src-local/basilisk_version.sh not found" >&2
   exit 1
 fi
 
-curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13
+# Install Basilisk using centralized version
+install_basilisk || exit 1
 
 if [ -f "${SCRIPT_DIR}/.project_config" ]; then
   # shellcheck disable=SC1090
@@ -110,6 +114,15 @@ if [ -f "${SCRIPT_DIR}/src-local/parse_params.sh" ]; then
   source "${SCRIPT_DIR}/src-local/parse_params.sh"
 else
   echo "ERROR: src-local/parse_params.sh not found" >&2
+  exit 1
+fi
+
+# Source sweep utilities library
+if [ -f "${SCRIPT_DIR}/src-local/sweep_utils.sh" ]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/src-local/sweep_utils.sh"
+else
+  echo "ERROR: src-local/sweep_utils.sh not found" >&2
   exit 1
 fi
 
@@ -137,157 +150,40 @@ if [ -z "${BASE_CONFIG:-}" ]; then
   exit 1
 fi
 
-if [ -z "${CASE_START:-}" ] || [ -z "${CASE_END:-}" ]; then
-  echo "ERROR: CASE_START and CASE_END must be defined in sweep file" >&2
-  exit 1
-fi
-
-# Validate CaseNo range
-if [ "$CASE_START" -lt 1000 ] || [ "$CASE_START" -gt 9999 ]; then
-  echo "ERROR: CASE_START must be 4-digit (1000-9999), got: $CASE_START" >&2
-  exit 1
-fi
-
-if [ "$CASE_END" -lt "$CASE_START" ] || [ "$CASE_END" -gt 9999 ]; then
-  echo "ERROR: CASE_END must be >= CASE_START and <= 9999, got: $CASE_END" >&2
-  exit 1
-fi
-
 if [ ! -f "$BASE_CONFIG" ]; then
   echo "ERROR: Base configuration file not found: $BASE_CONFIG" >&2
   exit 1
 fi
+
+# Validate case range using shared utility
+validate_case_range "$CASE_START" "$CASE_END" || exit 1
 
 echo "Base configuration: $BASE_CONFIG"
 echo "Case number range: $CASE_START to $CASE_END"
 echo ""
 
 # ============================================================
-# Extract Sweep Variables
+# Extract Sweep Variables (using shared utility)
 # ============================================================
-SWEEP_VARS=()
-SWEEP_VALUES=()
-
-# Read sweep file and extract SWEEP_* variables
-while IFS='=' read -r key value; do
-  # Skip comments and empty lines
-  [[ "${key:-}" =~ ^[[:space:]]*# ]] && continue
-  [[ -z "${key:-}" ]] && continue
-
-  # Match SWEEP_* variables
-  if [[ "$key" =~ ^[[:space:]]*SWEEP_([^=]+) ]]; then
-    var_name="${BASH_REMATCH[1]}"
-    # Remove inline comments and whitespace
-    value=$(echo "${value:-}" | sed 's/#.*//' | xargs)
-
-    SWEEP_VARS+=("$var_name")
-    SWEEP_VALUES+=("$value")
-  fi
-done < "$SWEEP_FILE"
-
-if [ ${#SWEEP_VARS[@]} -eq 0 ]; then
-  echo "ERROR: No SWEEP_* variables found in $SWEEP_FILE" >&2
-  exit 1
-fi
-
-echo "Sweep variables:"
-for i in "${!SWEEP_VARS[@]}"; do
-  echo "  ${SWEEP_VARS[$i]} = ${SWEEP_VALUES[$i]}"
-done
+extract_sweep_variables "$SWEEP_FILE" || exit 1
+print_sweep_variables
 echo ""
 
 # ============================================================
-# Generate Parameter Combinations
+# Generate Parameter Combinations (using shared utility)
 # ============================================================
 echo "Generating parameter combinations..."
 
-# Create temporary directory for generated parameter files
-# HPC note: Don't use /tmp - use local work directory instead
-TEMP_DIR="${SCRIPT_DIR}/.sweep_tmp_$$"
-mkdir -p "$TEMP_DIR" || {
-  echo "ERROR: Failed to create temp directory: $TEMP_DIR" >&2
-  exit 1
-}
-trap 'rm -rf "$TEMP_DIR"' EXIT
+# Use work directory for temp files (HPC: avoid slow /tmp)
+setup_sweep_temp_dir "$SCRIPT_DIR" || exit 1
 
-CASE_NUM=$CASE_START
-COMBINATION_COUNT=0
-CASE_FILES=()
+# Generate combinations with verbose output
+generate_sweep_combinations 1 || exit 1
 
-# Recursive function to generate all combinations
-generate_combinations() {
-  local depth=$1
-  shift
-  local current_values=("$@")
+echo "Generated $SWEEP_COMBINATION_COUNT parameter combinations"
 
-  if [ $depth -eq ${#SWEEP_VARS[@]} ]; then
-    # Base case: all variables assigned, create parameter file
-    local case_file="${TEMP_DIR}/case_$(printf "%04d" "$CASE_NUM").params"
-
-    # Copy base config
-    cp "$BASE_CONFIG" "$case_file"
-
-    # Override CaseNo
-    if grep -q "^CaseNo=" "$case_file"; then
-      sed -i'.bak' "s|^CaseNo=.*|CaseNo=${CASE_NUM}|" "$case_file"
-    else
-      echo "CaseNo=${CASE_NUM}" >> "$case_file"
-    fi
-    rm -f "${case_file}.bak"
-
-    # Override with sweep values
-    for i in "${!SWEEP_VARS[@]}"; do
-      local var="${SWEEP_VARS[$i]}"
-      local val="${current_values[$i]}"
-
-      if grep -q "^${var}=" "$case_file"; then
-        sed -i'.bak' "s|^${var}=.*|${var}=${val}|" "$case_file"
-      else
-        echo "${var}=${val}" >> "$case_file"
-      fi
-      rm -f "${case_file}.bak"
-    done
-
-    CASE_FILES+=("$case_file")
-    COMBINATION_COUNT=$((COMBINATION_COUNT + 1))
-
-    # Print summary
-    echo "Case $CASE_NUM:"
-    for i in "${!SWEEP_VARS[@]}"; do
-      echo "  ${SWEEP_VARS[$i]} = ${current_values[$i]}"
-    done
-    echo ""
-
-    CASE_NUM=$((CASE_NUM + 1))
-    return
-  fi
-
-  # Recursive case: iterate through values for current variable
-  local values="${SWEEP_VALUES[$depth]}"
-  IFS=',' read -r -a value_array <<< "$values"
-
-  for val in "${value_array[@]}"; do
-    val=$(echo "$val" | xargs)  # Trim whitespace
-    generate_combinations $((depth + 1)) "${current_values[@]}" "$val"
-  done
-}
-
-# Start recursion
-generate_combinations 0
-
-echo "Generated $COMBINATION_COUNT parameter combinations"
-
-# Check if number of combinations matches the range
-EXPECTED_COUNT=$((CASE_END - CASE_START + 1))
-if [ $COMBINATION_COUNT -ne $EXPECTED_COUNT ]; then
-  echo "WARNING: Generated $COMBINATION_COUNT combinations, but CASE_END suggests $EXPECTED_COUNT" >&2
-  echo "         Consider adjusting CASE_END in sweep file" >&2
-fi
-
-if [ $COMBINATION_COUNT -gt $EXPECTED_COUNT ]; then
-  echo "ERROR: Too many combinations ($COMBINATION_COUNT) for range $CASE_START-$CASE_END" >&2
-  exit 1
-fi
+# Validate combination count
+validate_combination_count "$CASE_START" "$CASE_END" || exit 1
 
 echo ""
 
@@ -295,7 +191,7 @@ echo ""
 # Run Simulations (Stage 2 Only - MPI)
 # ============================================================
 echo "============================================="
-echo "Running $COMBINATION_COUNT Simulations"
+echo "Running $SWEEP_COMBINATION_COUNT Simulations"
 echo "============================================="
 echo "Stage 2 only: MPI simulation (${SLURM_NTASKS:-unknown} tasks)"
 echo "Requires existing restart files in each case directory"
@@ -306,7 +202,10 @@ SUCCESSFUL_CASES=0
 FAILED_CASES=0
 SKIPPED_CASES=0
 
-for param_file in "${CASE_FILES[@]}"; do
+# Initialize progress tracking
+sweep_progress_init "$SWEEP_COMBINATION_COUNT"
+
+for param_file in "${SWEEP_CASE_FILES[@]}"; do
   # Parse parameter file to get values
   parse_param_file "$param_file"
   CASE_NO=$(get_param "CaseNo")
@@ -353,6 +252,17 @@ for param_file in "${CASE_FILES[@]}"; do
 
   echo "Found restart file"
 
+  # Use existing case.params if present (allows manual parameter edits for reruns)
+  if [ -f "$CASE_DIR/case.params" ]; then
+    echo "Using existing case.params (manual edits preserved)"
+    parse_param_file "$CASE_DIR/case.params"
+    Oh=$(get_param "Oh" "1e-2")
+    Bond=$(get_param "Bond" "1e-3")
+    MAXlevel=$(get_param "MAXlevel" "10")
+    tmax=$(get_param "tmax" "1.0")
+    zWall=$(get_param "zWall" "0.025")
+  fi
+
   # Copy source file to case directory if needed
   SRC_FILE_ORIG="${SCRIPT_DIR}/simulationCases/${SOURCE_FILE_NAME}"
   SRC_FILE_LOCAL="$CASE_DIR/$SOURCE_FILE_NAME"
@@ -364,7 +274,13 @@ for param_file in "${CASE_FILES[@]}"; do
     continue
   fi
 
-  cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
+  # Use existing source file if present (allows local code edits for reruns)
+  if [ ! -f "$SRC_FILE_LOCAL" ]; then
+    cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
+    echo "Copied source file to case directory"
+  else
+    echo "Using existing $SOURCE_FILE_NAME (local edits preserved)"
+  fi
 
   # Create symlink to DataFiles if needed
   if [ ! -e "DataFiles" ]; then
@@ -407,6 +323,9 @@ for param_file in "${CASE_FILES[@]}"; do
 
   # Return to root directory
   cd "$SCRIPT_DIR"
+
+  # Update progress
+  sweep_progress_update "$CASE_NO"
   echo ""
 done
 
@@ -417,7 +336,7 @@ echo "============================================="
 echo "Parameter Sweep Complete"
 echo "============================================="
 echo "Job completed at: $(date)"
-echo "Total cases: $COMBINATION_COUNT"
+echo "Total cases: $SWEEP_COMBINATION_COUNT"
 echo "Successful: $SUCCESSFUL_CASES"
 echo "Failed: $FAILED_CASES"
 echo "Skipped (no restart file): $SKIPPED_CASES"

@@ -1,67 +1,97 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://test.comphy-lab.org/</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/default.params.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/default.params.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/postProcess/Video.py.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/postProcess/Video.py.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/postProcess/getData.c.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/postProcess/getData.c.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/postProcess/getFacet.c.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/postProcess/getFacet.c.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/runParameterSweep.sh.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runParameterSweep.sh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/runPostProcess-Ncases.sh.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runPostProcess-Ncases.sh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/runSimulation.sh.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runSimulation.sh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/runSweepHamilton.sbatch.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runSweepHamilton-serial.sbatch.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/runSweepSnellius.sbatch.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runSweepHamilton.sbatch.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/simulationCases/burstingBubble.c.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runSweepSnellius-serial.sbatch.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/src-local/parse_params.sh.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/runSweepSnellius.sbatch.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/1000/burstingBubble.c.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/1000/case.params.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/burstingBubble.c.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/src-local/basilisk_version.sh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://test.comphy-lab.org/sweep.params.html</loc>
+    <loc>https://comphy-lab.org/Bursting-Bubble/src-local/parse_params.sh.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/src-local/sweep_utils.sh.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/sweep.params.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

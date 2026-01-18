@@ -276,13 +276,18 @@ REPO_NAME = REPO_ROOT.name
 GITHUB_ORG, GITHUB_REPO = parse_git_remote()
 debug_print(f"Auto-detected: GitHub org={GITHUB_ORG}, repo={GITHUB_REPO}")
 
-# Read domain from CNAME file or use default
+# Read domain from CNAME file or use default (org domain + repo path for project sites)
 try:
     CNAME_PATH = REPO_ROOT / 'CNAME'
-    BASE_DOMAIN = f"https://{CNAME_PATH.read_text().strip()}" if CNAME_PATH.exists() else "https://test.comphy-lab.org"
+    if CNAME_PATH.exists():
+        # Custom domain points directly to this repo
+        BASE_DOMAIN = f"https://{CNAME_PATH.read_text().strip()}"
+    else:
+        # GitHub Pages project site: org domain + repo path
+        BASE_DOMAIN = f"https://comphy-lab.org/{GITHUB_REPO}"
 except Exception as e:
     print(f"Warning: Could not read CNAME file: {e}")
-    BASE_DOMAIN = "https://test.comphy-lab.org"
+    BASE_DOMAIN = f"https://comphy-lab.org/{GITHUB_REPO}"
 
 def extract_h1_from_readme(readme_path: Path) -> str:
     """

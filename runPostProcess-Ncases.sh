@@ -67,8 +67,15 @@ Options:
 
 Arguments:
     CASE_NO             4-digit case numbers (1000-9999)
+                        Supports ranges: 3000-3010
 
 Examples:
+    # Process case range
+    $0 3000-3010
+
+    # Mix individual and ranges
+    $0 3000 3005-3007 3010
+
     # Process multiple cases with default settings
     $0 1000 1001 1002
 
@@ -90,6 +97,27 @@ Output locations:
 
 For more information, see README.md
 EOF
+}
+
+# ============================================================
+# Helper: Expand case argument (supports ranges like 3000-3010)
+# ============================================================
+expand_case_arg() {
+    local arg="$1"
+    # Check if it's a range (contains hyphen between two 4-digit numbers)
+    if [[ "$arg" =~ ^([0-9]{4})-([0-9]{4})$ ]]; then
+        local start="${BASH_REMATCH[1]}"
+        local end="${BASH_REMATCH[2]}"
+        if [ "$start" -gt "$end" ]; then
+            echo "ERROR: Invalid range $arg (start > end)" >&2
+            return 1
+        fi
+        seq "$start" "$end"
+        return 0
+    fi
+    # Single case number
+    echo "$arg"
+    return 0
 }
 
 # ============================================================
@@ -194,8 +222,11 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            # Collect case numbers
-            CASE_NUMBERS+=("$1")
+            # Expand ranges and collect case numbers
+            expanded_cases=$(expand_case_arg "$1") || exit $?
+            while IFS= read -r case_no; do
+                CASE_NUMBERS+=("$case_no")
+            done <<< "$expanded_cases"
             shift
             ;;
     esac
@@ -230,18 +261,41 @@ if ! command -v python &> /dev/null; then
     exit 1
 fi
 
+# Check qcc availability (needed to compile helpers)
+if ! command -v qcc &> /dev/null; then
+    echo "ERROR: qcc not found in PATH" >&2
+    exit 1
+fi
+
 # Check Python script exists
 if [ ! -f "$VIDEO_SCRIPT" ]; then
     echo "ERROR: Python script not found: $VIDEO_SCRIPT" >&2
     exit 1
 fi
 
-# Check C helpers exist
+# Compile C helpers (always recompile to ensure consistency)
+echo "Compiling C helpers..."
+pushd "${SCRIPT_DIR}/postProcess" > /dev/null
+
+if ! qcc -O2 -Wall -disable-dimensions getFacet.c -o getFacet -lm; then
+    echo "ERROR: Failed to compile getFacet.c" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+if ! qcc -O2 -Wall -disable-dimensions getData.c -o getData -lm; then
+    echo "ERROR: Failed to compile getData.c" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+popd > /dev/null
+echo "C helpers compiled successfully"
+
+# Validate helpers are executable (sanity check after compilation)
 for helper in "$HELPER_GETFACET" "$HELPER_GETDATA"; do
     if [ ! -x "$helper" ]; then
-        helper_name=$(basename "$helper")
-        echo "ERROR: Compiled helper not found or not executable: $helper" >&2
-        echo "       Compile with: qcc -O2 -Wall -disable-dimensions postProcess/${helper_name}.c -o postProcess/${helper_name} -lm" >&2
+        echo "ERROR: Compiled helper not executable: $helper" >&2
         exit 1
     fi
 done
@@ -303,6 +357,12 @@ run_video() {
         # Defaults - override with calculated values
         use_zmin="$calc_zmin"
         use_zmax="$calc_zmax"
+    fi
+
+    # Validate domain bounds (ZMIN must be less than ZMAX)
+    if (( $(echo "$use_zmin >= $use_zmax" | bc -l) )); then
+        echo "ERROR: Invalid domain bounds: ZMIN ($use_zmin) >= ZMAX ($use_zmax)" >&2
+        return 1
     fi
 
     # Build command
