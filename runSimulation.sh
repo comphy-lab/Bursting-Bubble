@@ -13,13 +13,20 @@ set -euo pipefail  # Exit on error, unset variables, pipeline failures
 # ============================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source version configuration for install instructions
+if [ -f "${SCRIPT_DIR}/src-local/basilisk_version.sh" ]; then
+    # shellcheck disable=SC1091
+    source "${SCRIPT_DIR}/src-local/basilisk_version.sh"
+fi
+
 # Source project configuration
 if [ -f "${SCRIPT_DIR}/.project_config" ]; then
+    # shellcheck disable=SC1090
     source "${SCRIPT_DIR}/.project_config"
 else
     echo "WARNING: .project_config not found. BASILISK path may not be set." >&2
     echo "         Install Basilisk first (creates .project_config):" >&2
-    echo "         curl -sL https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh | bash -s -- --ref=v2026-01-13" >&2
+    echo "         curl -sL ${BASILISK_INSTALL_URL:-https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh} | bash -s -- --ref=${BASILISK_REF:-v2026-01-13}" >&2
 fi
 
 # Source parameter parsing library
@@ -58,6 +65,8 @@ Parallelization:
 Other Options:
     -c, --compile-only  Compile but don't run simulation
     -d, --debug         Compile with debug flags (-g -DTRASH=1)
+    -f, --force         Force overwrite of case.params and source file
+                        (by default, existing files are preserved for reruns)
     -v, --verbose       Verbose output
     -h, --help          Show this help message
 
@@ -95,6 +104,7 @@ EOF
 COMPILE_ONLY=0
 DEBUG_FLAGS=""
 VERBOSE=0
+FORCE_OVERWRITE=0
 STAGE=0                # Default to both stages (0 = both, 1 = stage1, 2 = stage2)
 FOPENMP_ENABLED=0
 FOPENMP_THREADS=8      # Default thread count
@@ -111,6 +121,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -d|--debug)
             DEBUG_FLAGS="-g -DTRASH=1"
+            shift
+            ;;
+        -f|--force)
+            FORCE_OVERWRITE=1
             shift
             ;;
         --stage1)
@@ -296,8 +310,22 @@ else
     echo "Case directory exists"
 fi
 
-# Copy parameter file to case directory for record keeping
-cp "$PARAM_FILE" "$CASE_DIR/case.params"
+# Copy or preserve case.params
+if [ $FORCE_OVERWRITE -eq 1 ]; then
+    cp "$PARAM_FILE" "$CASE_DIR/case.params"
+    echo "Copied case.params (--force: overwriting existing)"
+elif [ ! -f "$CASE_DIR/case.params" ]; then
+    cp "$PARAM_FILE" "$CASE_DIR/case.params"
+else
+    echo "Using existing case.params (manual edits preserved; use --force to overwrite)"
+    # Re-parse from case.params to get potentially modified values
+    parse_param_file "$CASE_DIR/case.params"
+    Oh=$(get_param "Oh" "1e-2")
+    Bond=$(get_param "Bond" "1e-3")
+    MAXlevel=$(get_param "MAXlevel" "10")
+    tmax=$(get_param "tmax" "1.0")
+    zWall=$(get_param "zWall" "4")
+fi
 
 # Change to case directory
 cd "$CASE_DIR"
@@ -316,8 +344,16 @@ if [ ! -f "$SRC_FILE_ORIG" ]; then
     exit 1
 fi
 
-# Copy source file to case directory for compilation
-cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
+# Copy or preserve source file
+if [ $FORCE_OVERWRITE -eq 1 ]; then
+    cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
+    echo "Copied source file (--force: overwriting existing)"
+elif [ ! -f "$SRC_FILE_LOCAL" ]; then
+    cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
+    echo "Copied source file to case directory"
+else
+    echo "Using existing burstingBubble.c (local edits preserved; use --force to overwrite)"
+fi
 
 # Create symlink to DataFiles (required for initial condition loading)
 if [ ! -e "DataFiles" ]; then
@@ -402,9 +438,8 @@ fi
 # Stage 2: Full Simulation
 # ============================================================
 if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
-    # Check restart file exists
-    if [ ! -f "restart" ]; then
-        echo "ERROR: restart file not found in $CASE_DIR" >&2
+    # Validate restart file (exists, non-empty, readable)
+    if ! validate_restart_file "restart"; then
         echo "       Run Stage 1 first: $0 --stage1 $PARAM_FILE" >&2
         exit 1
     fi

@@ -67,8 +67,15 @@ Options:
 
 Arguments:
     CASE_NO             4-digit case numbers (1000-9999)
+                        Supports ranges: 3000-3010
 
 Examples:
+    # Process case range
+    $0 3000-3010
+
+    # Mix individual and ranges
+    $0 3000 3005-3007 3010
+
     # Process multiple cases with default settings
     $0 1000 1001 1002
 
@@ -90,6 +97,27 @@ Output locations:
 
 For more information, see README.md
 EOF
+}
+
+# ============================================================
+# Helper: Expand case argument (supports ranges like 3000-3010)
+# ============================================================
+expand_case_arg() {
+    local arg="$1"
+    # Check if it's a range (contains hyphen between two 4-digit numbers)
+    if [[ "$arg" =~ ^([0-9]{4})-([0-9]{4})$ ]]; then
+        local start="${BASH_REMATCH[1]}"
+        local end="${BASH_REMATCH[2]}"
+        if [ "$start" -gt "$end" ]; then
+            echo "ERROR: Invalid range $arg (start > end)" >&2
+            return 1
+        fi
+        seq "$start" "$end"
+        return 0
+    fi
+    # Single case number
+    echo "$arg"
+    return 0
 }
 
 # ============================================================
@@ -194,8 +222,10 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            # Collect case numbers
-            CASE_NUMBERS+=("$1")
+            # Expand ranges and collect case numbers
+            while IFS= read -r case_no; do
+                CASE_NUMBERS+=("$case_no")
+            done < <(expand_case_arg "$1")
             shift
             ;;
     esac
@@ -303,6 +333,12 @@ run_video() {
         # Defaults - override with calculated values
         use_zmin="$calc_zmin"
         use_zmax="$calc_zmax"
+    fi
+
+    # Validate domain bounds (ZMIN must be less than ZMAX)
+    if (( $(echo "$use_zmin >= $use_zmax" | bc -l) )); then
+        echo "ERROR: Invalid domain bounds: ZMIN ($use_zmin) >= ZMAX ($use_zmax)" >&2
+        return 1
     fi
 
     # Build command
