@@ -271,8 +271,37 @@ fi
 CASE_DIR="simulationCases/${CASE_NO}"
 
 # ============================================================
+# Create Case Directory
+# ============================================================
+if [ ! -d "$CASE_DIR" ]; then
+    echo "Creating case directory: $CASE_DIR"
+    mkdir -p "$CASE_DIR"
+else
+    echo "Case directory exists"
+fi
+
+# Copy or preserve case.params
+if [ $FORCE_OVERWRITE -eq 1 ]; then
+    cp "$PARAM_FILE" "$CASE_DIR/case.params"
+    echo "Copied case.params (--force: overwriting existing)"
+elif [ ! -f "$CASE_DIR/case.params" ]; then
+    cp "$PARAM_FILE" "$CASE_DIR/case.params"
+else
+    echo "Using existing case.params (manual edits preserved; use --force to overwrite)"
+    # Re-parse from case.params to get potentially modified values
+    parse_param_file "$CASE_DIR/case.params"
+    Oh=$(get_param "Oh" "1e-2")
+    Bond=$(get_param "Bond" "1e-3")
+    MAXlevel=$(get_param "MAXlevel" "10")
+    tmax=$(get_param "tmax" "1.0")
+    zWall=$(get_param "zWall" "4")
+fi
+
+# ============================================================
 # Display Configuration
 # ============================================================
+# NOTE: Display AFTER preservation logic so values reflect what will actually be used
+echo ""
 echo "========================================="
 echo "Bursting Bubble Simulation (Newtonian)"
 echo "========================================="
@@ -299,33 +328,6 @@ else
     echo "Parallelization: Serial"
 fi
 echo ""
-
-# ============================================================
-# Create Case Directory
-# ============================================================
-if [ ! -d "$CASE_DIR" ]; then
-    echo "Creating case directory: $CASE_DIR"
-    mkdir -p "$CASE_DIR"
-else
-    echo "Case directory exists"
-fi
-
-# Copy or preserve case.params
-if [ $FORCE_OVERWRITE -eq 1 ]; then
-    cp "$PARAM_FILE" "$CASE_DIR/case.params"
-    echo "Copied case.params (--force: overwriting existing)"
-elif [ ! -f "$CASE_DIR/case.params" ]; then
-    cp "$PARAM_FILE" "$CASE_DIR/case.params"
-else
-    echo "Using existing case.params (manual edits preserved; use --force to overwrite)"
-    # Re-parse from case.params to get potentially modified values
-    parse_param_file "$CASE_DIR/case.params"
-    Oh=$(get_param "Oh" "1e-2")
-    Bond=$(get_param "Bond" "1e-3")
-    MAXlevel=$(get_param "MAXlevel" "10")
-    tmax=$(get_param "tmax" "1.0")
-    zWall=$(get_param "zWall" "4")
-fi
 
 # Change to case directory
 cd "$CASE_DIR"
