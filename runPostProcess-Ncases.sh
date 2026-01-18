@@ -223,9 +223,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             # Expand ranges and collect case numbers
+            expanded_cases=$(expand_case_arg "$1") || exit $?
             while IFS= read -r case_no; do
                 CASE_NUMBERS+=("$case_no")
-            done < <(expand_case_arg "$1")
+            done <<< "$expanded_cases"
             shift
             ;;
     esac
