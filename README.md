@@ -51,19 +51,25 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 ## Repository Structure
 
 ```
-├── src-local/              Modular helper files
-│   └── parse_params.sh    Parameter parsing utilities
-├── postProcess/           Post-processing tools and visualization
-│   ├── getData.c          Field extraction on structured grids
-│   ├── getFacet.c         Interface geometry extraction
-│   └── Video.py           Frame-by-frame visualization pipeline
-├── simulationCases/       Case-based simulation outputs
-│   ├── burstingBubble.c   Main simulation case
-│   └── DataFiles/         Input geometry data
-├── runSimulation.sh       Single case runner
-├── runParameterSweep.sh   Parameter sweep runner
-├── default.params         Single-case configuration
-└── sweep.params           Sweep configuration
+├── src-local/                     Modular helper files
+│   ├── parse_params.sh            Parameter parsing utilities
+│   ├── sweep_utils.sh             Sweep generation utilities
+│   └── basilisk_version.sh        Centralized version pinning
+├── postProcess/                   Post-processing tools and visualization
+│   ├── getData.c                  Field extraction on structured grids
+│   ├── getFacet.c                 Interface geometry extraction
+│   └── Video.py                   Frame-by-frame visualization pipeline
+├── simulationCases/               Case-based simulation outputs
+│   ├── burstingBubble.c           Main simulation case
+│   └── DataFiles/                 Input geometry data
+├── runSimulation.sh               Single case runner
+├── runParameterSweep.sh           Parameter sweep runner (local)
+├── runSweepHamilton.sbatch        HPC sweep runner (Durham Hamilton)
+├── runSweepSnellius.sbatch        HPC sweep runner (SURF Snellius)
+├── runPostProcess-Ncases.sh       Post-processing pipeline
+├── default.params                 Single-case configuration
+├── sweep.params                   Sweep configuration
+└── CLAUDE.md                      Developer documentation
 ```
 
 ## Key Parameters
