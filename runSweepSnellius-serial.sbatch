@@ -178,7 +178,7 @@ echo ""
 # ============================================================
 # Prepare Status Tracking
 # ============================================================
-STATUS_DIR="${TEMP_DIR}/status"
+STATUS_DIR="${SWEEP_TEMP_DIR}/status"
 mkdir -p "$STATUS_DIR"
 
 # ============================================================
@@ -325,7 +325,7 @@ echo "All cases launched, waiting for completion..."
 echo ""
 
 # Wait for all remaining jobs
-wait
+wait || true
 
 # ============================================================
 # Collect Results

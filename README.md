@@ -64,7 +64,9 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 │   └── DataFiles/                 Input geometry data
 ├── runSimulation.sh               Single case runner
 ├── runParameterSweep.sh           Parameter sweep runner (local)
+├── runSweepHamilton-serial.sbatch HPC Stage 1 runner (Durham Hamilton)
 ├── runSweepHamilton.sbatch        HPC sweep runner (Durham Hamilton)
+├── runSweepSnellius-serial.sbatch HPC Stage 1 runner (SURF Snellius)
 ├── runSweepSnellius.sbatch        HPC sweep runner (SURF Snellius)
 ├── runPostProcess-Ncases.sh       Post-processing pipeline
 ├── default.params                 Single-case configuration
