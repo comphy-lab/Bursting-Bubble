@@ -133,10 +133,14 @@ setup_sweep_temp_dir() {
         }
     else
         # Use system temp directory
-        SWEEP_TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sweep.XXXXXX")
+        if ! SWEEP_TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sweep.XXXXXX") || [ -z "$SWEEP_TEMP_DIR" ]; then
+            echo "ERROR: Failed to create temp directory with mktemp" >&2
+            SWEEP_TEMP_DIR=""
+            return 1
+        fi
     fi
 
-    # Setup cleanup trap
+    # Setup cleanup trap (only after successful temp dir creation)
     trap 'rm -rf "$SWEEP_TEMP_DIR"' EXIT
 
     return 0
