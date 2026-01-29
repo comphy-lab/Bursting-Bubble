@@ -11,13 +11,35 @@ permissions:
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment across Pages workflows
+# Allow only one concurrent deployment across Pages workflows; queue older runs
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  check-latest:
+    runs-on: ubuntu-latest
+    outputs:
+      should-skip: ${{ steps.check.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - id: check
+        name: Check if latest commit
+        run: |
+          should_skip=false
+          if latest_sha="$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"; then
+            if [ -n "$latest_sha" ] && [ "$latest_sha" != "$GITHUB_SHA" ]; then
+              should_skip=true
+            fi
+          fi
+
+          echo "should_skip=$should_skip" >> "$GITHUB_OUTPUT"
+
   deploy:
+    needs: check-latest
+    if: ${{ needs.check-latest.outputs.should-skip == 'false' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

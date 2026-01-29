@@ -15,10 +15,20 @@ permissions:
 jobs:
   update-search:
     runs-on: ubuntu-latest
-    
+    env:
+      APP_BOT_USER_ID: 256885647
+
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0  # Fetch all history for proper git operations
 
       - name: Clone search database repository
@@ -64,12 +74,12 @@ jobs:
       
       - name: Commit and push changes directly
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --global user.name 'comphy-search-updater[bot]'
+          git config --global user.email "${{ env.APP_BOT_USER_ID }}+comphy-search-updater[bot]@users.noreply.github.com"
           git add docs/assets/js/search_db.json
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Update search database from comphy-search repository [skip-deploy]"
-            git push "https://${{ secrets.BYPASS_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+            git push "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
           fi

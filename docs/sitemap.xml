@@ -61,16 +61,6 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/1000/burstingBubble.c.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/1000/case.params.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://comphy-lab.org/Bursting-Bubble/simulationCases/burstingBubble.c.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

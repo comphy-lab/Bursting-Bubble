@@ -12,10 +12,10 @@ permissions:
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
+# Allow only one concurrent deployment; queue older runs so they can exit cleanly
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check-skip:
@@ -29,11 +29,18 @@ jobs:
       - id: check
         name: Check if should skip
         run: |
+          should_skip=false
           if git log -1 --pretty=%B | grep -q "\[skip-deploy\]"; then
-            echo "should_skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+            should_skip=true
           fi
+
+          if latest_sha="$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"; then
+            if [ -n "$latest_sha" ] && [ "$latest_sha" != "$GITHUB_SHA" ]; then
+              should_skip=true
+            fi
+          fi
+
+          echo "should_skip=$should_skip" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: check-skip

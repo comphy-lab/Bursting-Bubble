@@ -1,5 +1,7 @@
 # Bursting Bubble Simulation - Developer Guide
 
+See @README.md for the user-facing overview.
+
 ## Overview
 
 This codebase simulates bursting bubble dynamics using Basilisk C, a finite volume solver for PDEs. The simulation uses adaptive mesh refinement (AMR) and supports both serial and parallel (MPI) execution.

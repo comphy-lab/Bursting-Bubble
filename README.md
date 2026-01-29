@@ -71,7 +71,6 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 ├── runPostProcess-Ncases.sh       Post-processing pipeline
 ├── default.params                 Single-case configuration
 ├── sweep.params                   Sweep configuration
-└── CLAUDE.md                      Developer documentation
 ```
 
 ## Key Parameters
@@ -145,7 +144,9 @@ The scripts preserve existing `case.params` and source files for reruns. Use `--
 
 ## License
 
-See [LICENSE](LICENSE) file for details.
+Copyright (C) 2026 CoMPhy Lab.
+
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
 ## Contact
 
