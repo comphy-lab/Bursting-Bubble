@@ -295,7 +295,7 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
 
   # Compile with MPI
   if CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc \
-    -Wall -O2 -D_MPI=1 -disable-dimensions \
+    -Wall -O2 -D_MPI=1 -disable-dimensions -I../../src-local \
     "$SOURCE_FILE_NAME" -o "$EXECUTABLE_NAME" -lm 2>&1; then
     echo "MPI compilation successful"
   else
@@ -307,10 +307,10 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
 
   # Run simulation with srun
   echo "Running full simulation with ${SLURM_NTASKS:-unknown} MPI tasks..."
-  echo "Command: srun -n ${SLURM_NTASKS:-1} ./$EXECUTABLE_NAME $MAXlevel $Oh $Bond $tmax $zWall"
+  echo "Command: srun -n ${SLURM_NTASKS:-1} ./$EXECUTABLE_NAME case.params"
   echo ""
 
-  if srun -n "${SLURM_NTASKS:-1}" ./$EXECUTABLE_NAME $MAXlevel $Oh $Bond $tmax $zWall; then
+  if srun -n "${SLURM_NTASKS:-1}" ./$EXECUTABLE_NAME case.params; then
     echo ""
     echo "Case $CASE_NO completed successfully"
     SUCCESSFUL_CASES=$((SUCCESSFUL_CASES + 1))

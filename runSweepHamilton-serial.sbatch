@@ -271,9 +271,9 @@ run_stage1_case() {
         echo "Compilation successful"
 
         # Run Stage 1 with small tmax
-        # Bursting-Bubble argument order: $MAXlevel $Oh $Bond $tmax $zWall
+        # Reads case.params; trailing token overrides tmax for the short restart run
         echo "Running Stage 1 (tmax=$stage1_tmax)..."
-        if ./burstingBubble $MAXlevel $Oh $Bond $stage1_tmax $zWall; then
+        if ./burstingBubble case.params tmax=$stage1_tmax; then
             echo "Stage 1 completed"
 
             # Verify restart file was created

@@ -324,10 +324,10 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
 
     # Run simulation with mpirun (Hamilton uses mpirun, not srun)
     echo "Running full simulation with ${MPI_TASKS} MPI tasks..."
-    echo "Command: mpirun -np ${MPI_TASKS} ./$EXECUTABLE_NAME $MAXlevel $Oh $Bond $tmax $zWall"
+    echo "Command: mpirun -np ${MPI_TASKS} ./$EXECUTABLE_NAME case.params"
     echo ""
 
-    if mpirun -np ${MPI_TASKS} ./$EXECUTABLE_NAME $MAXlevel $Oh $Bond $tmax $zWall; then
+    if mpirun -np ${MPI_TASKS} ./$EXECUTABLE_NAME case.params; then
         echo ""
         echo "Case $CASE_NO completed successfully"
         ((SUCCESSFUL_CASES++)) || true

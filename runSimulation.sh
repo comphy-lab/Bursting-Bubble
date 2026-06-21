@@ -375,17 +375,17 @@ if [ $STAGE -eq 1 ] || [ $STAGE -eq 0 ]; then
     if [ $FOPENMP_ENABLED -eq 1 ]; then
         echo "Compiling with OpenMP..."
         [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
-        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp $DEBUG_FLAGS $QCC_FLAGS"
+        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
-        qcc -O2 -Wall -disable-dimensions -fopenmp \
+        qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
             $DEBUG_FLAGS $QCC_FLAGS \
             "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
     else
         echo "Compiling for serial execution..."
         [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
-        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions $DEBUG_FLAGS $QCC_FLAGS"
+        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
-        qcc -O2 -Wall -disable-dimensions \
+        qcc -O2 -Wall -disable-dimensions -I../../src-local \
             $DEBUG_FLAGS $QCC_FLAGS \
             "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
     fi
@@ -414,9 +414,9 @@ if [ $STAGE -eq 1 ] || [ $STAGE -eq 0 ]; then
     else
         echo "  Running single-threaded"
     fi
-    echo "  Command: ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.10 $zWall"
+    echo "  Command: ./${EXECUTABLE} case.params tmax=0.10"
 
-    ./${EXECUTABLE} $MAXlevel $Oh $Bond 0.10 $zWall
+    ./${EXECUTABLE} case.params tmax=0.10
 
     if [ ! -f "restart" ]; then
         echo "ERROR: Stage 1 failed - restart file was not created" >&2
@@ -461,7 +461,7 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
             [ $VERBOSE -eq 1 ] && echo "Flags: -Wall -O2 -D_MPI=1 -disable-dimensions $DEBUG_FLAGS $QCC_FLAGS"
 
             CC99='mpicc -std=c99' qcc \
-                -Wall -O2 -D_MPI=1 -disable-dimensions \
+                -Wall -O2 -D_MPI=1 -disable-dimensions -I../../src-local \
                 $DEBUG_FLAGS $QCC_FLAGS \
                 "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
         else
@@ -470,24 +470,24 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
             [ $VERBOSE -eq 1 ] && echo "Flags: -Wall -O2 -D_MPI=1 -disable-dimensions $DEBUG_FLAGS $QCC_FLAGS"
 
             CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc \
-                -Wall -O2 -D_MPI=1 -disable-dimensions \
+                -Wall -O2 -D_MPI=1 -disable-dimensions -I../../src-local \
                 $DEBUG_FLAGS $QCC_FLAGS \
                 "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
         fi
     elif [ $FOPENMP_ENABLED -eq 1 ]; then
         echo "Compiling with OpenMP..."
         [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
-        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp $DEBUG_FLAGS $QCC_FLAGS"
+        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
-        qcc -O2 -Wall -disable-dimensions -fopenmp \
+        qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
             $DEBUG_FLAGS $QCC_FLAGS \
             "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
     else
         echo "Compiling for serial execution..."
         [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
-        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions $DEBUG_FLAGS $QCC_FLAGS"
+        [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
-        qcc -O2 -Wall -disable-dimensions \
+        qcc -O2 -Wall -disable-dimensions -I../../src-local \
             $DEBUG_FLAGS $QCC_FLAGS \
             "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
     fi
@@ -510,20 +510,20 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
     # Execution
     echo ""
     echo "Starting full simulation..."
-    echo "  Command args: $MAXlevel $Oh $Bond $tmax $zWall"
+    echo "  Command: ./$EXECUTABLE case.params  (Oh=$Oh Bond=$Bond MAXlevel=$MAXlevel tmax=$tmax zWall=$zWall)"
     echo "========================================="
 
     if [ $MPI_ENABLED -eq 1 ]; then
-        [ $VERBOSE -eq 1 ] && echo "Command: mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
-        mpirun -np $MPI_CORES ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
+        [ $VERBOSE -eq 1 ] && echo "Command: mpirun -np $MPI_CORES ./$EXECUTABLE case.params"
+        mpirun -np $MPI_CORES ./$EXECUTABLE case.params
     elif [ $FOPENMP_ENABLED -eq 1 ]; then
         export OMP_NUM_THREADS=$FOPENMP_THREADS
         [ $VERBOSE -eq 1 ] && echo "OMP_NUM_THREADS=$FOPENMP_THREADS"
-        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
-        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
+        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE case.params"
+        ./$EXECUTABLE case.params
     else
-        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall"
-        ./$EXECUTABLE $MAXlevel $Oh $Bond $tmax $zWall
+        [ $VERBOSE -eq 1 ] && echo "Command: ./$EXECUTABLE case.params"
+        ./$EXECUTABLE case.params
     fi
 
     EXIT_CODE=$?
