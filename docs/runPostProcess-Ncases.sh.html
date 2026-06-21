@@ -672,7 +672,7 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 <span id="cb1-237"><a href="#cb1-237" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
 <span id="cb1-238"><a href="#cb1-238" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-239"><a href="#cb1-239" aria-hidden="true" tabindex="-1"></a><span class="co"># Check at least one case number provided</span></span>
-<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#CASE_NUMBERS[@]} <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-240"><a href="#cb1-240" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#CASE_NUMBERS<span class="pp">[</span><span class="ss">@</span><span class="pp">]</span>} <span class="ot">-eq</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
 <span id="cb1-241"><a href="#cb1-241" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;ERROR: No case numbers provided&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
 <span id="cb1-242"><a href="#cb1-242" aria-hidden="true" tabindex="-1"></a>    <span class="ex">usage</span></span>
 <span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
@@ -919,7 +919,7 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 <span id="cb1-484"><a href="#cb1-484" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Successful:  </span><span class="dt">\$</span><span class="st">{#SUCCESSFUL_CASES[@]}&quot;</span></span>
 <span id="cb1-485"><a href="#cb1-485" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;Failed:      </span><span class="dt">\$</span><span class="st">{#FAILED_CASES[@]}&quot;</span></span>
 <span id="cb1-486"><a href="#cb1-486" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-487"><a href="#cb1-487" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-487"><a href="#cb1-487" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES<span class="pp">[</span><span class="ss">@</span><span class="pp">]</span>} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
 <span id="cb1-488"><a href="#cb1-488" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
 <span id="cb1-489"><a href="#cb1-489" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Failed cases:&quot;</span></span>
 <span id="cb1-490"><a href="#cb1-490" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{!FAILED_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
@@ -927,7 +927,7 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 <span id="cb1-492"><a href="#cb1-492" aria-hidden="true" tabindex="-1"></a>    <span class="cf">done</span></span>
 <span id="cb1-493"><a href="#cb1-493" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
 <span id="cb1-494"><a href="#cb1-494" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#SUCCESSFUL_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#SUCCESSFUL_CASES<span class="pp">[</span><span class="ss">@</span><span class="pp">]</span>} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
 <span id="cb1-496"><a href="#cb1-496" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
 <span id="cb1-497"><a href="#cb1-497" aria-hidden="true" tabindex="-1"></a>    <span class="bu">echo</span> <span class="st">&quot;Output locations:&quot;</span></span>
 <span id="cb1-498"><a href="#cb1-498" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> case_no <span class="kw">in</span> <span class="st">&quot;</span><span class="dt">\$</span><span class="st">{SUCCESSFUL_CASES[@]}&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
@@ -938,7 +938,7 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 <span id="cb1-503"><a href="#cb1-503" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;&quot;</span></span>
 <span id="cb1-504"><a href="#cb1-504" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-505"><a href="#cb1-505" aria-hidden="true" tabindex="-1"></a><span class="co"># Exit with error if any cases failed</span></span>
-<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES[@]} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="dt">\$</span>{#FAILED_CASES<span class="pp">[</span><span class="ss">@</span><span class="pp">]</span>} <span class="ot">-gt</span> 0 <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
 <span id="cb1-507"><a href="#cb1-507" aria-hidden="true" tabindex="-1"></a>    <span class="bu">exit</span> 1</span>
 <span id="cb1-508"><a href="#cb1-508" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
 <span id="cb1-509"><a href="#cb1-509" aria-hidden="true" tabindex="-1"></a></span>

@@ -695,9 +695,9 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
 <span id="cb1-260"><a href="#cb1-260" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;Compilation successful&quot;</span></span>
 <span id="cb1-261"><a href="#cb1-261" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-262"><a href="#cb1-262" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Run Stage 1 with small tmax</span></span>
-<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Bursting-Bubble argument order: \$MAXlevel \$Oh \$Bond \$tmax \$zWall</span></span>
+<span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Reads case.params; tmax override forces the short Stage 1 run.</span></span>
 <span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a>        <span class="bu">echo</span> <span class="st">&quot;Running Stage 1 (tmax=</span><span class="dt">\$</span><span class="st">stage1_tmax)...&quot;</span></span>
-<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="ex">./burstingBubble</span> <span class="dt">\$</span>MAXlevel <span class="dt">\$</span>Oh <span class="dt">\$</span>Bond <span class="dt">\$</span>stage1_tmax <span class="dt">\$</span>zWall<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="ex">./burstingBubble</span> case.params tmax=<span class="dt">\$</span>stage1_tmax<span class="kw">;</span> <span class="cf">then</span></span>
 <span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a>            <span class="bu">echo</span> <span class="st">&quot;Stage 1 completed&quot;</span></span>
 <span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Verify restart file was created</span></span>

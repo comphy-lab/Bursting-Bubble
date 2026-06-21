@@ -71,6 +71,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://comphy-lab.org/Bursting-Bubble/src-local/params.h.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://comphy-lab.org/Bursting-Bubble/src-local/parse_params.sh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

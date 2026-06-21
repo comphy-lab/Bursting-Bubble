@@ -478,13 +478,17 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
                 <ul>
                 <li><strong><a
                 href="src-local/parse_params.sh.html">parse_params.sh</a></strong>
-                - Parameter parsing utilities</li>
+                - Parameter parsing utilities (shell layer)</li>
                 <li><strong><a
                 href="src-local/sweep_utils.sh.html">sweep_utils.sh</a></strong>
                 - Sweep generation utilities</li>
                 <li><strong><a
                 href="src-local/basilisk_version.sh.html">basilisk_version.sh</a></strong>
                 - Centralized version pinning</li>
+                <li><strong><a
+                href="src-local/params.h.html">params.h</a></strong> -
+                C-side runtime parameter layer (struct + file parser +
+                CLI overrides + validation)</li>
                 </ul></li>
                 <li><strong><a
                 href="postProcess">postProcess/</a></strong> -
@@ -540,18 +544,58 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
                 </ul>
                 </div>
                 <h2 id="key-parameters">Key Parameters</h2>
+                <p>All knobs live in <code>default.params</code> (single
+                case) or per-case <code>case.params</code> files and are
+                read at runtime by the simulation; you never edit the
+                source to change a run. The main physical parameters
+                are:</p>
                 <ul>
                 <li><strong>Ohnesorge Number (Oh)</strong>:
                 <code>Oh = mu/sqrt(rho*sigma*R)</code> - ratio of
-                viscous to inertial-capillary forces</li>
+                viscous to inertial-capillary forces
+                (<code>OhRatio</code> sets the gas-phase value,
+                <code>Oha = OhRatio*Oh</code>)</li>
                 <li><strong>Bond Number (Bo)</strong>:
                 <code>Bo = rho*g*R^2/sigma</code> - ratio of
                 gravitational to surface tension forces</li>
-                <li><strong>Maximum Refinement Level</strong>: Controls
-                mesh resolution (e.g., level 10 = 1024 cells)</li>
                 <li><strong>tmax</strong>: Maximum simulation time
-                (dimensionless, based on capillary time scale)</li>
+                (dimensionless, based on the capillary time scale)</li>
+                <li><strong>zWall</strong>: Distance from the bubble
+                south pole to the bottom wall (sets the domain
+                size)</li>
                 </ul>
+                <h3 id="adaptive-resolution">Adaptive resolution</h3>
+                <p>Both the mesh and the timestep are adaptive, and
+                every control is a tunable parameter:</p>
+                <ul>
+                <li><strong>Space</strong> — <code>MAXlevel</code>
+                (finest level, e.g. 12 = 4096 cells),
+                <code>MINlevel</code> (far-field coarsening floor; the
+                interface is always kept at <code>MAXlevel</code>),
+                <code>init_grid_level</code> (initial uniform grid), and
+                the wavelet error tolerances <code>fErr</code>,
+                <code>VelErr</code>, <code>KErr</code>.</li>
+                <li><strong>Time</strong> — <code>CFL</code>,
+                <code>TOLERANCE</code> (Poisson/viscous solver), and
+                <code>dtmax</code>. <strong><code>dtmax</code> is a
+                <em>ceiling</em>, not a fixed step.</strong> Surface
+                tension is time-explicit, so <code>tension.h</code>
+                reduces the real step to the capillary-wave limit
+                <code>T = sqrt(rho_m * Delta_min^3 / (pi * sigma))</code>
+                every iteration. The effective timestep is therefore
+                genuinely adaptive and scales with the finest cell size
+                — coarser runs automatically take larger steps. (Earlier
+                versions hard-capped <code>dtmax</code> at
+                <code>1e-5</code>, below the capillary limit, which
+                fixed the step and throttled the run.)</li>
+                </ul>
+                <p>To change resolution, edit
+                <code>default.params</code>; to study its effect, sweep
+                it (e.g. <code>SWEEP_MAXlevel=10,11,12</code> in
+                <code>sweep.params</code>). A legacy positional CLI
+                (<code>./burstingBubble &lt;MAXlevel&gt; &lt;Oh&gt; &lt;Bond&gt; &lt;tmax&gt; &lt;zWall&gt;</code>)
+                is still accepted as a fallback, but the parameter-file
+                interface is preferred.</p>
                 <h2 id="requirements">Requirements</h2>
                 <ul>
                 <li><strong>Basilisk Framework</strong>: Install via the
@@ -663,6 +707,8 @@ window.baseDomain = "https://comphy-lab.org/Bursting-Bubble";
                 <ul>
                 <li><a
                 href="src-local/basilisk_version.sh.html">src-local/basilisk_version.sh</a></li>
+                <li><a
+                href="src-local/params.h.html">src-local/params.h</a></li>
                 <li><a
                 href="src-local/parse_params.sh.html">src-local/parse_params.sh</a></li>
                 <li><a
