@@ -52,9 +52,10 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 
 ```
 ├── src-local/                     Modular helper files
-│   ├── parse_params.sh            Parameter parsing utilities
+│   ├── parse_params.sh            Parameter parsing utilities (shell layer)
 │   ├── sweep_utils.sh             Sweep generation utilities
-│   └── basilisk_version.sh        Centralized version pinning
+│   ├── basilisk_version.sh        Centralized version pinning
+│   └── params.h                   C-side runtime parameter layer (struct + file parser + CLI overrides + validation)
 ├── postProcess/                   Post-processing tools and visualization
 │   ├── getData.c                  Field extraction on structured grids
 │   ├── getFacet.c                 Interface geometry extraction
@@ -75,10 +76,34 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 
 ## Key Parameters
 
-- **Ohnesorge Number (Oh)**: `Oh = mu/sqrt(rho*sigma*R)` - ratio of viscous to inertial-capillary forces
+All knobs live in `default.params` (single case) or per-case `case.params` files and are
+read at runtime by the simulation; you never edit the source to change a run. The main
+physical parameters are:
+
+- **Ohnesorge Number (Oh)**: `Oh = mu/sqrt(rho*sigma*R)` - ratio of viscous to inertial-capillary forces (`OhRatio` sets the gas-phase value, `Oha = OhRatio*Oh`)
 - **Bond Number (Bo)**: `Bo = rho*g*R^2/sigma` - ratio of gravitational to surface tension forces
-- **Maximum Refinement Level**: Controls mesh resolution (e.g., level 10 = 1024 cells)
-- **tmax**: Maximum simulation time (dimensionless, based on capillary time scale)
+- **tmax**: Maximum simulation time (dimensionless, based on the capillary time scale)
+- **zWall**: Distance from the bubble south pole to the bottom wall (sets the domain size)
+
+### Adaptive resolution
+
+Both the mesh and the timestep are adaptive, and every control is a tunable parameter:
+
+- **Space** — `MAXlevel` (finest level, e.g. 12 = 4096 cells), `MINlevel` (far-field
+  coarsening floor; the interface is always kept at `MAXlevel`), `init_grid_level`
+  (initial uniform grid), and the wavelet error tolerances `fErr`, `VelErr`, `KErr`.
+- **Time** — `CFL`, `TOLERANCE` (Poisson/viscous solver), and `dtmax`. **`dtmax` is a
+  *ceiling*, not a fixed step.** Surface tension is time-explicit, so `tension.h` reduces
+  the real step to the capillary-wave limit
+  `T = sqrt(rho_m * Delta_min^3 / (pi * sigma))` every iteration. The effective timestep is
+  therefore genuinely adaptive and scales with the finest cell size — coarser runs
+  automatically take larger steps. (Earlier versions hard-capped `dtmax` at `1e-5`, below
+  the capillary limit, which fixed the step and throttled the run.)
+
+To change resolution, edit `default.params`; to study its effect, sweep it (e.g.
+`SWEEP_MAXlevel=10,11,12` in `sweep.params`). A legacy positional CLI
+(`./burstingBubble <MAXlevel> <Oh> <Bond> <tmax> <zWall>`) is still accepted as a fallback,
+but the parameter-file interface is preferred.
 
 ## Requirements
 

@@ -34,8 +34,9 @@ The simulation uses a two-stage execution model due to a Basilisk limitation:
 ├── runSweepSnellius-serial.sbatch   # HPC sweep runner (Snellius Stage 1)
 ├── default.params             # Default parameter file
 ├── sweep.params               # Parameter sweep configuration
-├── src-local/                 # Shared shell libraries
-│   ├── parse_params.sh        # Parameter file parsing
+├── src-local/                 # Shared shell + C runtime libraries
+│   ├── params.h               # C-side runtime parameter layer (case.params)
+│   ├── parse_params.sh        # Parameter file parsing (shell layer)
 │   ├── sweep_utils.sh         # Sweep generation utilities
 │   └── basilisk_version.sh    # Basilisk version pinning
 ├── simulationCases/           # Output directory
@@ -62,16 +63,52 @@ Oh=1e-2      # Inline comments allowed
 Bond=1e-3
 ```
 
-### Required Parameters
+### Parameters
 
-| Parameter | Description | Typical Values |
-|-----------|-------------|----------------|
-| `CaseNo` | 4-digit case identifier (1000-9999) | 1000 |
-| `Oh` | Ohnesorge number (viscosity) | 1e-3 to 1e-1 |
-| `Bond` | Bond number (gravity) | 1e-3 |
-| `MAXlevel` | Max refinement level | 10-12 |
-| `tmax` | Simulation end time | 0.5-2.0 |
-| `zWall` | Distance to bottom wall | 0.025-4.0 |
+The simulation reads its configuration directly from a `case.params` file via the C-side
+parameter layer in `src-local/params.h` (struct `SimulationParams`,
+`parse_params_from_file`, `key=value` CLI overrides via `apply_cli_overrides`, a legacy
+positional fallback `parse_params_from_cli`, plus `validate_params` / `print_params`).
+Compiles must add `-I../../src-local` so `#include "params.h"` resolves.
+
+The binary is invoked as:
+
+```bash
+./burstingBubble case.params [key=value ...]      # preferred; trailing tokens override the file
+./burstingBubble <MAXlevel> <Oh> <Bond> <tmax> <zWall>   # legacy positional fallback
+```
+
+Stage 1 (restart generation) uses the override form `./burstingBubble case.params tmax=0.10`.
+
+| Parameter | Group | Description | Default |
+|-----------|-------|-------------|---------|
+| `CaseNo` | case | 4-digit case identifier (1000-9999) | 1000 |
+| `Oh` | physical | Ohnesorge number, liquid | 1e-2 |
+| `Bond` | physical | Bond number (gravity) | 1e-3 |
+| `OhRatio` | physical | gas/liquid Ohnesorge ratio; `Oha = OhRatio*Oh` | 2e-2 |
+| `zWall` | geometry | distance from bubble south pole to bottom wall | 0.05 |
+| `MAXlevel` | space | maximum refinement level | 10 |
+| `MINlevel` | space | far-field coarsening floor | 4 |
+| `init_grid_level` | space | initial uniform grid level | 5 |
+| `fErr` | space | wavelet tolerance on VOF `f` | 1e-3 |
+| `VelErr` | space | wavelet tolerance on velocity | 1e-3 |
+| `KErr` | space | wavelet tolerance on curvature | 1e-6 |
+| `CFL` | time | advective CFL number | 0.1 |
+| `dtmax` | time | timestep ceiling (see note) | 1e-2 |
+| `TOLERANCE` | time | Poisson/viscous solver tolerance | 1e-4 |
+| `tmax` | time | simulation end time | 1.0 |
+| `tsnap` | time | snapshot/restart dump interval | 1e-2 |
+
+### Adaptive time & space resolution
+
+Both mesh and timestep are adaptive. **`dtmax` is a ceiling, not a fixed step**: the
+surface-tension scheme (`tension.h`) is time-explicit and reduces the step each iteration to
+the capillary-wave limit `T = sqrt(rho_m * Delta_min^3 / (pi * sigma))` with
+`rho_m = (rho1+rho2)/2`, so the effective step is set adaptively and scales with the finest
+cell. Earlier versions hard-capped `dtmax` at `1e-5` (below that limit), pinning the step;
+it is now a generous ceiling. `MINlevel` is an explicit far-field floor (previously the
+implicit `MAXlevel-6` inside `adapt_wavelet`); the interface itself is always refined to
+`MAXlevel` through the `fErr` criterion.
 
 ### Sweep File Format
 
