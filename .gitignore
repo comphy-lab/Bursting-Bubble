@@ -114,3 +114,6 @@ postProcess/getFacet
 
 # Timestamped CSS backups
 **/custom_styles_backup_*.css
+
+# One-off post-processing render output (render_one.py default)
+/latest_frame.png
