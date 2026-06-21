@@ -231,7 +231,9 @@ generate_sweep_combinations() {
 
         for val in "${value_array[@]}"; do
             val=$(echo "$val" | xargs)  # Trim whitespace
-            _generate_combinations_recursive $((depth + 1)) "${current_values[@]}" "$val"
+            # ${arr[@]+"${arr[@]}"} expands to nothing for an empty array, avoiding
+            # the "unbound variable" error from set -u on bash 3.2 (macOS default).
+            _generate_combinations_recursive $((depth + 1)) ${current_values[@]+"${current_values[@]}"} "$val"
         done
     }
 
