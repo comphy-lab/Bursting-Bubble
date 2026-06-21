@@ -8,25 +8,35 @@ Worthington jets and droplets that emerge during the bursting process.
 ## Physics Overview
 
 The simulation implements a two-phase axisymmetric flow model with
-adaptive mesh refinement. A bubble initially at rest bursts at a
-free surface, creating a cavity collapse and subsequent jet formation.
+adaptive mesh refinement and adaptive (surface-tension-limited) time
+stepping. A bubble initially at rest bursts at a free surface, creating a
+cavity collapse and subsequent jet formation.
 
 ## Usage
 
+Preferred (parameter-file mode):
+
 ```
-./program maxLevel Oh Bond tmax zWall
+./burstingBubble case.params [key=value ...]
 ```
 
-Where:
-- `maxLevel`: Maximum refinement level for adaptive mesh
-- `Oh`: Ohnesorge number (ratio of viscous to inertial-capillary forces)
-- `Bond`: Bond number (ratio of gravitational to surface tension forces)
-- `tmax`: Maximum simulation time
-- `zWall`: Distance from bubble south pole to bottom wall
+The simulation reads every knob from `case.params` (see `default.params`
+for the documented template). Trailing `key=value` tokens override the
+file, e.g. the Stage 1 restart run uses `./burstingBubble case.params
+tmax=0.10`.
+
+Legacy positional mode (new resolution knobs take defaults):
+
+```
+./burstingBubble <MAXlevel> <Oh> <Bond> <tmax> <zWall>
+```
+
+See `src-local/params.h` for the full parameter list, defaults, and
+validation rules.
 
 @file burstingBubble.c
 @author Vatsal Sanjay
-@version 1.0
+@version 2.0
 @date Jan 04, 2025
 */
 
@@ -34,16 +44,11 @@ Where:
 #include "navier-stokes/centered.h"
 
 /**
-## Simulation Parameters
+## Solver Configuration
 
 - `FILTERED`: Enable density and viscosity jump smoothing
-- `tsnap`: Time interval between snapshots (default: 1e-2)
-- `fErr`: Error tolerance for volume fraction (1e-3)
-- `KErr`: Error tolerance for curvature calculation (1e-6)
-- `VelErr`: Error tolerance for velocity field (1e-3)
-- `Ldomain`: Domain size in characteristic lengths (8)
 */
-#define FILTERED 1// Smear density and viscosity jumps
+#define FILTERED 1 // Smear density and viscosity jumps
 #include "two-phase.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"
@@ -52,12 +57,17 @@ Where:
 #include "distance.h"
 #endif
 
-#define tsnap (1e-2)
+/**
+## Runtime Parameters
 
-// Error tolerances
-#define fErr (1e-3)   // Error tolerance in f1 VOF
-#define KErr (1e-6)   // Error tolerance in VoF curvature calculated using height function method
-#define VelErr (1e-3) // Error tolerances in velocity
+All configuration is read at runtime from `case.params` via the C-side
+parameter layer. Adaptive space (levels, wavelet tolerances) and adaptive
+time (CFL, dtmax ceiling, solver tolerance) are now tunable knobs rather
+than compile-time constants — see `src-local/params.h`.
+*/
+#include "params.h"
+
+struct SimulationParams params;
 
 // Boundary conditions - outflow on the right boundary
 u.n[right] = neumann(0.);
@@ -68,43 +78,64 @@ f[left] = dirichlet(1.0);      // Liquid at wall
 u.n[left] = dirichlet(0.0);    // No-slip normal
 u.t[left] = dirichlet(0.0);    // No-slip tangential
 
-int MAXlevel;
-// Physical parameters:
-// Oh -> Ohnesorge number (liquid)
-// Oha -> Ohnesorge number (air) = 2e-2 * Oh
+// Mesh control (set from params in main)
+int MAXlevel, MINlevel;
+
+// Physical parameters (set from params in main):
+//   Oh  -> Ohnesorge number (liquid)
+//   Oha -> Ohnesorge number (gas) = OhRatio * Oh
 double Oh, Oha, Bond, tmax;
+
 // Domain parameters:
-// zWall -> distance from bubble south pole to bottom wall
-// Ldomain -> computed domain size: min(zWall + 6.0, 16.0)
+//   zWall   -> distance from bubble south pole to bottom wall
+//   Ldomain -> computed domain size: min(zWall + 6.0, 16.0)
 double zWall, Ldomain;
+
+// Adaptive-resolution controls (set from params in main):
+//   fErr/VelErr/KErr -> wavelet error tolerances (VOF, velocity, curvature)
+double fErr, VelErr, KErr;
+
+// tsnap -> snapshot/restart dump interval. Needs a non-zero static initial
+// value: Basilisk classifies event expressions (e.g. `t += tsnap`) before
+// main() runs, and a zero increment would be misread as a second condition.
+// main() overrides this with params.tsnap for the actual firing interval.
+double tsnap = 1e-2;
+
 char nameOut[80], dumpFile[80];
 
 /**
 ## Main Function
 
-Initializes the simulation parameters and sets up the domain.
+Reads parameters, configures the domain and fluid properties, and starts
+the run.
 
-- Uses command line arguments to set simulation parameters
+- Parses `case.params` (or legacy positional CLI) into `params`
+- Validates the configuration before allocating the grid
 - Sets up the physical domain with appropriate dimensions
 - Configures fluid properties for both phases
-- Creates necessary directories for output
+- Maps the adaptive space/time knobs onto Basilisk's solver globals
 */
-int main(int argc, char const *argv[]) {
-  dtmax = 1e-5;
-
-  // Ensure that all the variables were transferred properly from the terminal or job script.
-  if (argc < 6){
-    fprintf(ferr, "Usage: %s MAXlevel Oh Bond tmax zWall\n", argv[0]);
-    fprintf(ferr, "Lack of command line arguments. Need %d more arguments\n", 6-argc);
+int main(int argc, char *argv[]) {
+  // Parse and validate runtime configuration
+  if (params_init(argc, argv, &params) != 0)
+    return 1;
+  if (!validate_params(&params)) {
+    fprintf(ferr, "ERROR: Invalid parameters. Aborting.\n");
     return 1;
   }
 
-  // Values taken from the terminal
-  MAXlevel = atoi(argv[1]);
-  Oh = atof(argv[2]);
-  Bond = atof(argv[3]);
-  tmax = atof(argv[4]);
-  zWall = atof(argv[5]);
+  // Map physical parameters onto module globals
+  MAXlevel = params.MAXlevel;
+  MINlevel = params.MINlevel;
+  Oh = params.Oh;
+  Oha = params.OhRatio * params.Oh;
+  Bond = params.Bond;
+  tmax = params.tmax;
+  zWall = params.zWall;
+  fErr = params.fErr;
+  VelErr = params.VelErr;
+  KErr = params.KErr;
+  tsnap = params.tsnap;
 
   // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
   // zWall = distance from bubble south pole to bottom wall
@@ -114,7 +145,20 @@ int main(int argc, char const *argv[]) {
   L0 = Ldomain;
   origin(-2.0 - zWall, 0.);
 
-  init_grid(1 << 5);
+  init_grid(1 << params.init_grid_level);
+
+  /**
+  ## Adaptive Time Control
+
+  Set the advective CFL and the timestep ceiling. Surface tension is
+  time-explicit, so `tension.h` reduces the timestep each step to the
+  capillary-wave period `T = sqrt(rho_m * Delta_min^3 / (pi * sigma))`;
+  `dtmax` is therefore a safety ceiling and the effective step is adaptive
+  (it scales with the finest cell size and the resolved physics).
+  */
+  CFL = params.CFL;
+  dtmax = params.dtmax;
+  TOLERANCE = params.TOLERANCE;
 
   // Create a folder named intermediate where all the simulation snapshots are stored.
   char comm[80];
@@ -130,20 +174,14 @@ int main(int argc, char const *argv[]) {
   Sets up the material properties for both phases:
   - `rho1`, `rho2`: Density of liquid and gas phases
   - `mu1`, `mu2`: Dynamic viscosity of liquid and gas phases
-
-  Dimensionless parameters:
-  - `Oh`: Ohnesorge number for liquid phase
-  - `Oha`: Ohnesorge number for gas phase (= 2e-2 * Oh)
-  - `Bond`: Bond number
   */
   rho1 = 1., rho2 = 1e-3;
-  Oha = 2e-2 * Oh;
   mu1 = Oh, mu2 = Oha;
 
   f.sigma = 1.0;
 
-  TOLERANCE = 1e-4;
-  CFL = 1e-1;
+  if (pid() == 0)
+    print_params(&params, ferr);
 
   run();
 }
@@ -207,9 +245,10 @@ Refines the mesh based on gradients of key fields:
 - Velocity components
 - Curvature
 
-The refinement criteria are set by the error tolerance parameters defined
-at the beginning of the file. This adaptive approach allows for high resolution
-in regions of interest while maintaining computational efficiency.
+The wavelet error tolerances (`fErr`, `VelErr`, `KErr`) and the refinement
+band (`MINlevel` to `MAXlevel`) are runtime parameters. The interface is
+always resolved to `MAXlevel` through the `fErr` criterion, while `MINlevel`
+sets how coarse the far field is allowed to become.
 */
 event adapt(i++) {
   scalar KAPPA[];
@@ -217,7 +256,7 @@ event adapt(i++) {
 
   adapt_wavelet((scalar *){f, u.x, u.y, KAPPA},
     (double[]){fErr, VelErr, VelErr, KErr},
-    MAXlevel, MAXlevel-6);
+    MAXlevel, MINlevel);
 }
 
 /**
