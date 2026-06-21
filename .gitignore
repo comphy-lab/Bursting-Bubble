@@ -68,6 +68,14 @@ dkms.conf
 # Basilisk installation (installed via curl script)
 basilisk/
 
+# Local environment artefacts (never committed)
+# local Python virtualenv
+.venv/
+# qcc-lsp config generated in the workspace
+.comphy-basilisk
+# basilisk-docker mode flag
+.docker_mode
+
 # Case folders (4-digit case numbers: 1000-9999)
 simulationCases/[0-9][0-9][0-9][0-9]/
 docs/simulationCases/[0-9][0-9][0-9][0-9]/
