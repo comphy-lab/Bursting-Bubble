@@ -22,13 +22,52 @@ Oh=1e-2
 # Note: Currently only Bo=0.0010 geometry available (Bo0.0010.dat)
 Bond=1e-3
 
+# Gas/liquid Ohnesorge ratio: the gas-phase Ohnesorge number is
+# Oha = OhRatio*Oh, setting the viscosity contrast across the interface
+OhRatio=2e-2
+
 # ============================================================
-# Numerical Parameters (Mesh Adaptation)
+# Mesh Adaptation (space)
 # ============================================================
 # Maximum refinement level (2^MAXlevel cells at finest resolution)
 # Level 10 -> 1024 cells, Level 11 -> 2048 cells, Level 12 -> 4096 cells
 # Higher levels give better accuracy but slower computation
 MAXlevel=12
+
+# Far-field coarsening floor (the interface is always kept at MAXlevel;
+# this only limits how coarse the quiescent bulk is allowed to become)
+MINlevel=4
+
+# Initial uniform grid level used before adaptation kicks in
+init_grid_level=5
+
+# Wavelet error tolerance on the VOF tracer f (interface location)
+fErr=1e-3
+
+# Wavelet error tolerance on the velocity field
+VelErr=1e-3
+
+# Wavelet error tolerance on interface curvature
+KErr=1e-6
+
+# ============================================================
+# Time Resolution (adaptive)
+# ============================================================
+# dtmax is a CEILING on the timestep, not a fixed step: surface tension
+# (tension.h) reduces the real step to the capillary-wave limit each
+# iteration, so the effective timestep is set adaptively at run time.
+
+# Advective CFL number
+CFL=0.1
+
+# Timestep ceiling; the capillary-wave limit sets the real adaptive step
+dtmax=1e-2
+
+# Poisson/viscous solver convergence tolerance
+TOLERANCE=1e-4
+
+# Snapshot/restart dump interval (capillary time units)
+tsnap=1e-2
 
 # ============================================================
 # Time Control

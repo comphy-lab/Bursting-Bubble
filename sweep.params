@@ -40,6 +40,29 @@ SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0
 # To sweep Bond values, you would need to generate additional Bo*.dat files
 
 # ============================================================
+# Resolution sweep examples (commented out)
+# ============================================================
+# The new adaptive space/time knobs can be swept exactly like Oh, using the
+# same SWEEP_<key> mechanism. Uncomment ONE block (and comment out SWEEP_Oh
+# above) to run a focused convergence/sensitivity study.
+#
+# Mesh-convergence study (3 cases): vary the max refinement level.
+# SWEEP_MAXlevel=10,11,12
+#
+# Timestep-ceiling sensitivity (2 cases): vary the adaptive dt ceiling.
+# SWEEP_dtmax=1e-2,5e-3
+#
+# CFL sensitivity (2 cases): vary the CFL number.
+# SWEEP_CFL=0.1,0.2
+#
+# IMPORTANT: CASE_END must equal CASE_START + (Cartesian product size) - 1,
+# i.e. the product of the lengths of ALL ACTIVE (uncommented) SWEEP_ variables.
+# Adding a second active sweep variable MULTIPLIES the case count: e.g.
+# SWEEP_MAXlevel=10,11,12 alone => 3 cases (CASE_END = CASE_START + 2), but
+# SWEEP_MAXlevel=10,11,12 together with SWEEP_dtmax=1e-2,5e-3 => 3 x 2 = 6
+# cases (CASE_END = CASE_START + 5). Update CASE_END accordingly before running.
+
+# ============================================================
 # Output Configuration
 # ============================================================
 # Output folders are created in simulationCases/<CaseNo>/
