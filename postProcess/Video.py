@@ -26,9 +26,16 @@ Affiliation: CoMPhy Lab, Durham University
 Last updated: Jan 2025
 """
 
+import os
+import tempfile
+
+# Best-effort worker isolation: per-process matplotlib cache dir and single-thread
+# BLAS/OMP. Must run before "import matplotlib" so the settings take effect.
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), f"mpl_{os.getpid()}"))
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import argparse
 import multiprocessing as mp
-import os
 import subprocess as sp
 from dataclasses import dataclass
 from functools import partial
@@ -187,7 +194,10 @@ def parse_arguments() -> RuntimeConfig:
     parser = argparse.ArgumentParser(
         description="Generate snapshot videos for bubble bursting simulations."
     )
-    parser.add_argument("--CPUs", type=int, default=4, help="Number of CPUs to use")
+    parser.add_argument(
+        "--CPUs", "--cpus", type=int, default=4, dest="cpus",
+        help="Number of CPUs to use"
+    )
     parser.add_argument(
         "--nGFS", type=int, default=500, help="Number of restart files to process"
     )
@@ -243,11 +253,14 @@ def parse_arguments() -> RuntimeConfig:
     )
     args = parser.parse_args()
 
+    if args.cpus <= 0:
+        parser.error("--cpus/--CPUs must be a positive integer")
+
     output_dir = (args.folderToSave if args.folderToSave
                   else os.path.join(args.caseToProcess, "Video"))
 
     return RuntimeConfig(
-        cpus=args.CPUs,
+        cpus=args.cpus,
         n_snapshots=args.nGFS,
         grids_per_r=args.GridsPerR,
         tsnap=args.tsnap,
