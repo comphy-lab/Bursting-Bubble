@@ -49,6 +49,7 @@ def get_facets(rel, case_dir):
             if not p: skip = False; continue
             if not skip and i + 1 < len(out):
                 q = out[i + 1].split()
+                try:
                     r1, z1 = float(p[1]), float(p[0]); r2, z2 = float(q[1]), float(q[0])
                 except Exception:
                     continue
