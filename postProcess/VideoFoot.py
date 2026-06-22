@@ -43,13 +43,12 @@ def run_helper(cmd, cwd):
 
 def get_facets(rel, case_dir):
     out = run_helper([GETFACET, rel], case_dir); segs = []; skip = False
-    if len(out) > 1e2:
+    if len(out) > 1:
         for i in range(len(out)):
-            p = out[i].split(" ")
-            if p == [""]: skip = False; continue
+            p = out[i].split()
+            if not p: skip = False; continue
             if not skip and i + 1 < len(out):
-                q = out[i + 1].split(" ")
-                try:
+                q = out[i + 1].split()
                     r1, z1 = float(p[1]), float(p[0]); r2, z2 = float(q[1]), float(q[0])
                 except Exception:
                     continue
