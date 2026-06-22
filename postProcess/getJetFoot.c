@@ -11,16 +11,18 @@ Candidates (over the MAIN connected liquid body; detached drops excluded):
   - (z_low, r_low) : globally lowest interfacial point (min axial x).
   - (z_maxk, r_maxk): point of maximum |curvature| below the free surface.
 
-Base flux, evaluated on a thin axial band  z_b - HB < x < z_b + HB  and
-0 < r < r_b, for EACH candidate (r_b = that candidate's radius):
-  - q_jet = INT_0^{r_b} u_z r dr    [L^3/T]   (band sum of u_z*y*dA / 2HB)
+Base flux, evaluated on the single cell-row at the z_b cross-section
+(|x - z_b| < Delta/2) over 0 < r < r_b, for EACH candidate (r_b = that
+candidate's radius). Volume flux through the annulus stack with normal z_hat,
+annulus element dr = Delta:
+  - q_jet = INT_0^{r_b} u_z r dr  =  sum u_z * y * Delta   [L^3/T]
             physical meaning: the flow rate feeding into the jet,
             q_jet ~ r_jet^2 v_jet ~ r_jet^((3*alpha-1)/alpha).
-  - q_l   = INT_0^{r_b} u_z dr      [L^2/T]   (band sum of u_z*dA  / 2HB)
+  - q_l   = INT_0^{r_b} u_z dr    =  sum u_z * Delta       [L^2/T]
             flow rate per unit length.
-where u_z = u.x (axial), r = y (radial), dA = sq(Delta). HB ~ 2 finest cells.
-(No 2*pi factor and no f-weighting, per the requested definition; the base
-region is essentially all liquid so f-weighting is ~identical.)
+where u_z = u.x (axial), r = y (radial). No 2*pi factor and no f-weighting,
+per the requested definition (multiply by 2*pi for the true volume flux; the
+base region is essentially all liquid so f-weighting is ~identical).
 
 Coords: x = axial (= z), y = radial (= r >= 0). Newtonian dump: only f, u.
 
@@ -73,9 +75,7 @@ int main(int a, char const *arguments[]) {
   double zlow = HUGE, rlow = -1.;
   double zk = -1000., rk = -1000., kmax = -1.;
   double zjet = -1000.;            // jet tip = max axial position near the axis
-  double dmin = HUGE;
   foreach(serial) {
-    if (Delta < dmin) dmin = Delta;
     if (f[] <= 1e-6 || f[] >= 1. - 1e-6) continue;   // interfacial only
     if (d[] != MainPhase) continue;
     if (y > RCAV) continue;
@@ -88,24 +88,22 @@ int main(int a, char const *arguments[]) {
   }
   if (rlow < 0.) { zlow = -1000.; rlow = -1000.; }
 
-  // --- base flux through each candidate (thin axial band, 0<r<r_b) ---
-  double HB = 2.0 * dmin;          // band half-width ~ 2 finest cells
+  // --- base flux through each candidate: single cell-row at the z_b plane ---
+  // annulus stack with normal z_hat, dr = Delta:
+  //   q  = sum u_z * y * Delta  [L^3/T] ;  q_l = sum u_z * Delta  [L^2/T]
   double q1 = 0., ql1 = 0., q2 = 0., ql2 = 0.;
   int have1 = (rlow > 0.), have2 = (rk > 0.);
   if (have1 || have2) {
     foreach(reduction(+:q1) reduction(+:ql1) reduction(+:q2) reduction(+:ql2)) {
-      double dA = sq(Delta);
-      if (have1 && fabs(x - zlow) < HB && y > 0. && y < rlow) {
-        q1  += u.x[] * y * dA;
-        ql1 += u.x[] * dA;
+      if (have1 && fabs(x - zlow) < 0.5*Delta && y > 0. && y < rlow) {
+        q1  += u.x[] * y * Delta;
+        ql1 += u.x[] * Delta;
       }
-      if (have2 && fabs(x - zk) < HB && y > 0. && y < rk) {
-        q2  += u.x[] * y * dA;
-        ql2 += u.x[] * dA;
+      if (have2 && fabs(x - zk) < 0.5*Delta && y > 0. && y < rk) {
+        q2  += u.x[] * y * Delta;
+        ql2 += u.x[] * Delta;
       }
     }
-    double norm = 2.0 * HB;
-    q1 /= norm; ql1 /= norm; q2 /= norm; ql2 /= norm;
   }
   if (!have1) { q1 = -1000.; ql1 = -1000.; }
   if (!have2) { q2 = -1000.; ql2 = -1000.; }

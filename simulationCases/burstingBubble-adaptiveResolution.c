@@ -26,9 +26,10 @@ Inception latch (never resets once set): jetFormed = 1 when
   rmaxk in [0, R_AXIS_K) and rlow > AXIS_BAND.
 Probe selection: jetFormed -> (z_b,r_b) = (z_low,r_low)  [jet base];
                  else        (z_b,r_b) = (z_maxk,r_maxk)  [cavity focus].
-Base flux on a thin axial band |x - z_b| < HB, HB = 2*dmin, 0 < y < r_b:
-  q_jet = (1/(2*HB)) * SUM[ u.x[]*y*sq(Delta) ];
-  q_l   = (1/(2*HB)) * SUM[ u.x[]*sq(Delta)   ].
+Base flux on the single cell-row at z_b (|x - z_b| < Delta/2), 0 < y < r_b
+(annulus stack with normal z_hat, dr = Delta):
+  q_jet = SUM[ u.x[]*y*Delta ]   [L^3/T];
+  q_l   = SUM[ u.x[]*Delta   ]   [L^2/T].
 Sentinel -1000 for any candidate/flux that does not exist.
 
 Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
@@ -356,9 +357,7 @@ event logWriting(i++) {
   double zlow = HUGE, rlow = -1.;
   double zk = -1000., rk = -1000., kmax = -1.;
   double zjet = -1000.;            // jet tip = max axial position near the axis
-  double dmin = HUGE;
   foreach(serial) {
-    if (Delta < dmin) dmin = Delta;
     if (f[] <= 1e-6 || f[] >= 1. - 1e-6) continue;   // interfacial only
     if (d[] != MainPhase) continue;
     if (y > RCAV) continue;
@@ -396,22 +395,20 @@ event logWriting(i++) {
   /**
   ### Base flux through the selected probe
 
-  Thin axial band |x - zb| < HB (HB = 2 finest cells), integrated 0 < y < rb.
+  Single cell-row at the zb cross-section (|x - zb| < Delta/2), 0 < y < rb;
+  annulus stack with normal z_hat, dr = Delta:
+    q_jet = sum u_z * y * Delta  [L^3/T] ;  q_l = sum u_z * Delta  [L^2/T].
   Reductions keep the sums MPI-safe.
   */
-  double HB = 2.0 * dmin;
   double q_jet = 0., q_l = 0.;
   int have = (rb > 0.);
   if (have) {
     foreach(reduction(+:q_jet) reduction(+:q_l)) {
-      if (fabs(x - zb) < HB && y > 0. && y < rb) {
-        double dA = sq(Delta);
-        q_jet += u.x[] * y * dA;
-        q_l   += u.x[] * dA;
+      if (fabs(x - zb) < 0.5*Delta && y > 0. && y < rb) {
+        q_jet += u.x[] * y * Delta;
+        q_l   += u.x[] * Delta;
       }
     }
-    double norm = 2.0 * HB;
-    q_jet /= norm; q_l /= norm;
   } else {
     zb = -1000.; rb = -1000.; q_jet = -1000.; q_l = -1000.;
   }
