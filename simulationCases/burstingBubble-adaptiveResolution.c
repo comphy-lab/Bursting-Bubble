@@ -2,8 +2,8 @@
 # Bursting Bubbles in Newtonian Fluids — jet-base tracking (LOGGING ONLY)
 
 This is `burstingBubble.c` with extra per-log-step diagnostics that track the
-Worthington jet base / cavity focus and the axial flow rate through it. It is
-a pure *instrumentation* extension:
+Worthington jet-base / cavity-focus PROBE LOCATION on the fly. It is a pure
+*instrumentation* extension:
 
 - The physics, boundary conditions, properties, and time stepping are byte-for-
   byte identical to `burstingBubble.c`.
@@ -11,26 +11,24 @@ a pure *instrumentation* extension:
   added or modified here. This file does NOT alter the mesh in any way.
 
 The only behavioural change is inside `logWriting(i++)`: after the kinetic
-energy `ke` is computed we evaluate the geometric jet-base probe and the base
-flux, and append five columns to the log. The detection + flux algorithm and
-all constants are reproduced from the post-processing helper `getJetFoot.c`,
-with the time-ordered inception latch realised in-solver as a static,
-forward-in-time flag (`jetFormed`).
+energy `ke` is computed we evaluate the geometric jet-base probe and append its
+coordinates (r_b, z_b) to the log. The detection algorithm and constants are
+reproduced from the post-processing helper `getJetFoot.c`, with the
+time-ordered inception latch realised in-solver as a static, forward-in-time
+flag (`jetFormed`). Fluxes (q_jet, q_l) and the tip height (z_jet) are
+intentionally NOT computed here — they are post-processing diagnostics
+(getJetFoot.c); the solver only needs the probe location, which is the eventual
+hook for adaptive refinement.
 
 Probe (over the MAIN connected liquid body; detached drops excluded),
 interfacial cells f in (1e-6, 1-1e-6) with y < RCAV:
   - (z_low, r_low) : globally lowest interfacial point (min axial x).
   - (z_maxk, r_maxk): point of max |curvature| with x < ZSURF_CURV.
-  - z_jet          : max axial x over interfacial cells with y < R_TIP (tip).
 Inception latch (never resets once set): jetFormed = 1 when
   rmaxk in [0, R_AXIS_K) and rlow > AXIS_BAND.
 Probe selection: jetFormed -> (z_b,r_b) = (z_low,r_low)  [jet base];
                  else        (z_b,r_b) = (z_maxk,r_maxk)  [cavity focus].
-Base flux on the single cell-row at z_b (|x - z_b| < Delta/2), 0 < y < r_b
-(annulus stack with normal z_hat, dr = Delta):
-  q_jet = SUM[ u.x[]*y*Delta ]   [L^3/T];
-  q_l   = SUM[ u.x[]*Delta   ]   [L^2/T].
-Sentinel -1000 for any candidate/flux that does not exist.
+Sentinel -1000 when no probe exists.
 
 Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
 
@@ -123,7 +121,6 @@ Geometry-tuned for case 1000: origin(-6,0), L0=10, free surface near z=0.
 */
 #define RCAV       1.20    // exclude the flat outer free surface (r spans to L0)
 #define ZSURF_CURV 0.0     // max|k| search restricted below this axial level
-#define R_TIP      0.25    // near-axis band for the jet tip height z_jet
 #define R_AXIS_K   0.05    // inception latch: max|k| point must be near the axis
 #define AXIS_BAND  0.04    // inception latch: lowest point must be off the axis
 
@@ -316,7 +313,7 @@ event end(t = end) {
 
 Records key simulation data at each timestep:
 - Iteration number, timestep size, current simulation time, kinetic energy
-- Jet-base probe: r_b, z_b, base flux q_jet, q_l, and jet tip height z_jet
+- Jet-base probe location: r_b, z_b (fluxes/tip are post-processing; getJetFoot.c)
 
 Also performs the original safety checks (kinetic-energy blow-up / too-small),
 which are left fully intact.
@@ -356,13 +353,11 @@ event logWriting(i++) {
   // Candidates (mirror getJetFoot.c: serial sweep over interfacial cells).
   double zlow = HUGE, rlow = -1.;
   double zk = -1000., rk = -1000., kmax = -1.;
-  double zjet = -1000.;            // jet tip = max axial position near the axis
   foreach(serial) {
     if (f[] <= 1e-6 || f[] >= 1. - 1e-6) continue;   // interfacial only
     if (d[] != MainPhase) continue;
     if (y > RCAV) continue;
     if (x < zlow) { zlow = x; rlow = y; }
-    if (y < R_TIP && x > zjet) zjet = x;             // tip height (max z at r->0)
     if (x < ZSURF_CURV && kappa[] != nodata) {
       double ak = fabs(kappa[]);
       if (ak > kmax) { kmax = ak; zk = x; rk = y; }
@@ -392,48 +387,29 @@ event logWriting(i++) {
   if (jetFormed) { zb = zlow; rb = rlow; }   // rule 1: jet base
   else           { zb = zk;   rb = rk;   }   // rule 2: cavity focus
 
-  /**
-  ### Base flux through the selected probe
-
-  Single cell-row at the zb cross-section (|x - zb| < Delta/2), 0 < y < rb;
-  annulus stack with normal z_hat, dr = Delta:
-    q_jet = sum u_z * y * Delta  [L^3/T] ;  q_l = sum u_z * Delta  [L^2/T].
-  Reductions keep the sums MPI-safe.
-  */
-  double q_jet = 0., q_l = 0.;
-  int have = (rb > 0.);
-  if (have) {
-    foreach(reduction(+:q_jet) reduction(+:q_l)) {
-      if (fabs(x - zb) < 0.5*Delta && y > 0. && y < rb) {
-        q_jet += u.x[] * y * Delta;
-        q_l   += u.x[] * Delta;
-      }
-    }
-  } else {
-    zb = -1000.; rb = -1000.; q_jet = -1000.; q_l = -1000.;
-  }
+  if (rb <= 0.) { zb = -1000.; rb = -1000.; }   // no probe found this step
 
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
       fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
               MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
-      fprintf(ferr, "i dt t ke r_b z_b q_jet q_l z_jet\n");
+      fprintf(ferr, "i dt t ke r_b z_b\n");
       fp = fopen("log", "w");
       fprintf(fp, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
               MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
-      fprintf(fp, "i dt t ke r_b z_b q_jet q_l z_jet\n");
-      fprintf(fp, "%d %g %g %g %7.6e %7.6e %7.6e %7.6e %7.6e\n",
-              i, dt, t, ke, rb, zb, q_jet, q_l, zjet);
+      fprintf(fp, "i dt t ke r_b z_b\n");
+      fprintf(fp, "%d %g %g %g %7.6e %7.6e\n",
+              i, dt, t, ke, rb, zb);
       fclose(fp);
     } else {
       fp = fopen("log", "a");
-      fprintf(fp, "%d %g %g %g %7.6e %7.6e %7.6e %7.6e %7.6e\n",
-              i, dt, t, ke, rb, zb, q_jet, q_l, zjet);
+      fprintf(fp, "%d %g %g %g %7.6e %7.6e\n",
+              i, dt, t, ke, rb, zb);
       fclose(fp);
     }
-    fprintf(ferr, "%d %g %g %g %7.6e %7.6e %7.6e %7.6e %7.6e\n",
-            i, dt, t, ke, rb, zb, q_jet, q_l, zjet);
+    fprintf(ferr, "%d %g %g %g %7.6e %7.6e\n",
+            i, dt, t, ke, rb, zb);
 
     assert(ke > -1e-10);
 
