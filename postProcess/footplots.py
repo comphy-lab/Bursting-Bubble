@@ -183,9 +183,11 @@ def main():
     # (a) q_jet vs r_jet: data + theory prediction (solid) + best fit (dashed)
     rmin = min(xq); rmax = max(xq)
     rr = [rmin * (rmax/rmin)**(k/60.0) for k in range(61)]
-    y_at_rmin = math.exp(cqj + mqj*math.log(rmin))         # fit value at r_min (anchor)
-    y_theory = [y_at_rmin * (r/rmin)**exp_pred for r in rr]  # theory slope (3a-1)/a
-    y_fit    = [math.exp(cqj + mqj*math.log(r)) for r in rr] # least-squares fit
+    # theory line q = K r^exp_pred: fit the prefactor K (slope fixed at exp_pred)
+    # by least squares over the SAME window as the free best-fit (blue) line.
+    logK = sum(math.log(y) - exp_pred*math.log(x) for x, y in fitpts) / len(fitpts)
+    y_theory = [math.exp(logK) * r**exp_pred for r in rr]    # theory: K r^((3a-1)/a)
+    y_fit    = [math.exp(cqj + mqj*math.log(r)) for r in rr] # free least-squares fit
     ax2[0].plot(rr, y_theory, '-',  color='k',  lw=1.3,
                 label=r'theory $\propto r^{%.2f}$' % exp_pred)
     ax2[0].plot(rr, y_fit,    '--', color=BLUE, lw=1.3,
