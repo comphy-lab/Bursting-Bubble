@@ -83,12 +83,19 @@ def main():
             if ln.startswith('#') or not ln.strip(): continue
             rows.append([float(v) for v in ln.split()])
     reg1 = [r for r in rows if int(r[5]) == 1]
+    if not reg1:
+        raise SystemExit("conefit: no jet-base rows (regime==1) in %s — inception never "
+                         "latched, nothing to fit. Check the run / latch thresholds." % a.dat)
     incept_t = reg1[0][0]
     rel = os.path.join("intermediate", "snapshot-%.4f" % incept_t)
 
     # --- cone fit on the cavity wall at inception ---
     pts = facet_points(rel, case_dir)
     wall = [(z, r) for (z, r) in pts if a.zlo <= z <= a.zhi and a.rlo <= r <= a.rhi]
+    if len(wall) < 2:
+        raise SystemExit("conefit: cone-fit window {z in [%.2f,%.2f], r in [%.2f,%.2f]} has %d "
+                         "facet points (<2) at t=%.4f — widen --zlo/--zhi/--rlo/--rhi."
+                         % (a.zlo, a.zhi, a.rlo, a.rhi, len(wall), incept_t))
     zs = [z for z, r in wall]; rs = [r for z, r in wall]
     m, c, r2 = linfit(zs, rs)
     beta = math.degrees(math.atan(m))

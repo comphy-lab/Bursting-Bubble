@@ -143,6 +143,10 @@ def main():
     incept_t = t[jet_i[0]] if jet_i else None
     valid = [(zjet[i], t[i]) for i in range(N) if zjet[i] > SENT]
     tmax = max(valid)[1] if valid else None
+    if incept_t is None or tmax is None:
+        raise SystemExit("footplots: no jet-base phase (regime==1) or no valid z_jet in %s — "
+                         "cannot build the jet-base scaling figure (the time-series figure was "
+                         "still written)." % a.dat)
 
     def inwin(i):
         return (reg[i] == 1 and rb[i] > SENT and incept_t is not None
@@ -170,6 +174,9 @@ def main():
     rel = "intermediate/snapshot-%.4f" % incept_t
     pts = facet_points(rel, case_dir)
     wall = [(z, r) for (z, r) in pts if -1.30 <= z <= -0.25 and 0.20 <= r <= 1.10]
+    if len(wall) < 2:
+        raise SystemExit("footplots: cone-fit window has %d facet points (<2) at t=%.4f — "
+                         "adjust the fit window or check the inception snapshot." % (len(wall), incept_t))
     cm, cc = linfit([z for z, r in wall], [r for z, r in wall])
     beta = math.degrees(math.atan(cm)); z_apex = -cc/cm
     nu = solve_nu(beta); alpha = 1.0/(2.0 - nu); exp_pred = (3*alpha - 1)/alpha
