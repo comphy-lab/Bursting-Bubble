@@ -24,6 +24,11 @@ Probe (over the MAIN connected liquid body; detached drops excluded),
 interfacial cells f in (1e-6, 1-1e-6) with y < RCAV:
   - (z_low, r_low) : globally lowest interfacial point (min axial x).
   - (z_maxk, r_maxk): point of max |curvature| with x < ZSURF_CURV.
+These are computed MPI-SAFELY: tag() merges connected components across ranks,
+the per-region size sum is MPI-reduced (so MainPhase is the global largest
+region), and the argmin/argmax candidates are obtained via cross-rank reductions
+(value, then coordinates). The probe is therefore correct under mpirun, not only
+serial/OpenMP.
 Inception latch (never resets once set): jetFormed = 1 when
   rmaxk in [0, R_AXIS_K) and rlow > AXIS_BAND.
 Probe selection: jetFormed -> (z_b,r_b) = (z_low,r_low)  [jet base];
@@ -334,14 +339,19 @@ event logWriting(i++) {
   /**
   ### Jet-base / cavity-focus probe (logging only)
   */
-  // Main connected liquid region (exclude detached drops).
+  // Main connected liquid region (exclude detached drops). tag() merges
+  // components across ranks under MPI; the per-region size sum is reduced too,
+  // so MainPhase is the GLOBALLY largest region (MPI-safe, not per-rank).
   scalar d[];
   foreach() d[] = (f[] > 1e-4);
   int n = tag(d);
   int MainPhase = 0;
   if (n > 0) {
     double *sz = calloc(n, sizeof(double));
-    foreach(serial) if (d[] > 0) sz[(int)d[] - 1] += 1.;
+    foreach(serial) if (d[] > 0) sz[((int) d[]) - 1] += 1.;  // per-rank: serial avoids OpenMP race; MPI_Allreduce sums across ranks
+#if _MPI
+    MPI_Allreduce(MPI_IN_PLACE, sz, n, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
     double sm = -1.;
     for (int j = 0; j < n; j++) if (sz[j] > sm) { sm = sz[j]; MainPhase = j + 1; }
     free(sz);
@@ -350,20 +360,44 @@ event logWriting(i++) {
   scalar kappa[];
   curvature(f, kappa);
 
-  // Candidates (mirror getJetFoot.c: serial sweep over interfacial cells).
-  double zlow = HUGE, rlow = -1.;
-  double zk = -1000., rk = -1000., kmax = -1.;
-  foreach(serial) {
-    if (f[] <= 1e-6 || f[] >= 1. - 1e-6) continue;   // interfacial only
-    if (d[] != MainPhase) continue;
-    if (y > RCAV) continue;
-    if (x < zlow) { zlow = x; rlow = y; }
+  /**
+  ### Candidates (MPI-safe)
+
+  Argmin/argmax with associated coordinates is done in passes so every quantity
+  is cross-rank reduced: (1) the extremal VALUES over the MAIN region's
+  interfacial cells (y < RCAV) -- min axial x (zlow) and max |curvature| (kmax);
+  then (2) the COORDINATES at the extremum by exact value match with a
+  deterministic min-y / min-x tiebreak. Equality compares are exact and safe
+  because zlow / kmax are themselves cell values (running min/max), not the
+  result of arithmetic.
+  */
+  double zlow = HUGE, kmax = -1.;
+  foreach(reduction(min:zlow) reduction(max:kmax)) {
+    if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || d[] != MainPhase || y > RCAV) continue;
+    if (x < zlow) zlow = x;
     if (x < ZSURF_CURV && kappa[] != nodata) {
       double ak = fabs(kappa[]);
-      if (ak > kmax) { kmax = ak; zk = x; rk = y; }
+      if (ak > kmax) kmax = ak;
     }
   }
-  if (rlow < 0.) { zlow = -1000.; rlow = -1000.; }
+  double rlow = HUGE, zk = HUGE;
+  foreach(reduction(min:rlow) reduction(min:zk)) {
+    if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || d[] != MainPhase || y > RCAV) continue;
+    if (zlow != HUGE && x == zlow && y < rlow) rlow = y;       // r at the lowest point
+    if (kmax >= 0. && x < ZSURF_CURV && kappa[] != nodata
+        && fabs(kappa[]) == kmax && x < zk) zk = x;            // x of the max-|k| cell
+  }
+  double rk = HUGE;
+  foreach(reduction(min:rk)) {
+    if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || d[] != MainPhase || y > RCAV) continue;
+    if (kmax >= 0. && zk != HUGE && x < ZSURF_CURV && kappa[] != nodata
+        && fabs(kappa[]) == kmax && x == zk && y < rk) rk = y; // r of the max-|k| cell
+  }
+  // resolve sentinels (-1000 when a candidate does not exist)
+  if (zlow == HUGE) { zlow = -1000.; rlow = -1000.; }
+  if (rlow == HUGE) rlow = -1000.;
+  if (kmax < 0. || zk == HUGE) { zk = -1000.; rk = -1000.; }
+  if (rk == HUGE) rk = -1000.;
 
   /**
   ### Inception latch (static, forward-in-time)
