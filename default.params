@@ -88,3 +88,58 @@ tmax=1.5
 #   zWall=2.0: Domain x in [-4, 4] (matches original setup)
 #   zWall=4.0: Domain x in [-6, 4], wall at x=-6
 zWall=4.0
+
+# ============================================================
+# Drill Adaptive-Resolution Trigger
+# ============================================================
+# These keys are consumed ONLY by burstingBubble-drillResolution.c. The plain
+# solvers (burstingBubble.c / burstingBubble-adaptiveResolution.c) parse and
+# ignore them, so leaving them here is harmless.
+#
+# The drill promotes the jet-base probe from a passive diagnostic into the
+# driver of the mesh ceiling: it "drills" resolution into the collapsing region
+# as the singularity approaches and relaxes it elsewhere. Mechanism modelled on
+# comphy-lab/ElasticPinchOff (LiquidOutThinning.c), generalised from a
+# neck-radius scalar to the two-regime bursting-bubble probe. See the solver
+# header and DRILL-RESOLUTION.md (repo root) for the full description.
+
+# Master switch. 1 = feature-tracking ramp of the local ceiling maxlevelLocal;
+# 0 = pin maxlevelLocal at MAXlevel, reproducing the fixed-level reference run
+# bit-for-bit (use 0 for A/B validation against burstingBubble.c).
+drillAMR=1
+
+# Coarsest level the ramp is allowed to fall to (ramp floor). The far field
+# still coarsens to MINlevel through the wavelet criterion; this only caps how
+# coarse the tracked-feature band may become. For a from-scratch run this must
+# resolve the initial film — prefer the two-stage workflow (fixed-level Stage 1
+# to rupture the film, drill Stage 2 for collapse/jet/pinch).
+drillMaxlevelStart=8
+
+# Cells the tracked length must span before the current level is deemed enough.
+# Two regimes because a curving front and a slender column resolve differently:
+#   drillNcellsK   -> cavity-focus (curvature-radius 1/|kappa|_max), pre-inception
+#   drillNcellsJet -> jet-base radius r_b, post-inception
+# Calibration knob: nCells=5 tracked the fixed-level-12 reference kinetic energy
+# to ~1% through the pre-focus phase while running two levels coarser. Raise for
+# a tighter match, lower for more aggressive savings.
+drillNcellsK=5
+drillNcellsJet=5
+
+# Level to relax the ceiling to after the FIRST tip droplet sheds
+# (jetFormed && n_components>1). <=0 disables relaxation, holding resolution on
+# the receding base — the safe default, because the target observable R_j x Q_L
+# is measured at the base. Set >0 (e.g. 9-10) to run the long post-pinch tail
+# cheaply once you have confirmed the base measurement is complete.
+drillRelaxLevel=-1
+
+# Adaptive time-resolution of OUTPUT: 1 = tighten tsnap as the mesh refines so
+# the fast jet/pinch window is sampled densely (tsnap = base * 2^(start-level));
+# 0 = uniform tsnap. (The solver timestep itself is always adaptive via the
+# capillary-wave limit in tension.h and tightens automatically as the mesh
+# refines — this knob only controls snapshot cadence.)
+drillTsnapStages=1
+
+# Floor on the staged snapshot interval as a fraction of tsnap, so a low
+# drillMaxlevelStart cannot trigger a snapshot storm. tsnap never falls below
+# drillTsnapMinFactor * tsnap.
+drillTsnapMinFactor=0.1

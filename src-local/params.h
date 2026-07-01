@@ -63,6 +63,29 @@ struct SimulationParams {
   // Time control
   double tmax;           /**< Maximum simulation time (capillary units) */
   double tsnap;          /**< Snapshot/restart dump interval */
+
+  // Drill adaptive-resolution trigger (feature-tracking AMR + time)
+  // Only consumed by burstingBubble-drillResolution.c. The plain adaptive
+  // solver ignores these. See that file's header for the mechanism.
+  int drillAMR;              /**< Master switch: 1 = feature-tracking ramp of the
+                                  local ceiling maxlevelLocal; 0 = pin at MAXlevel
+                                  (reproduces the fixed-level reference run) */
+  int drillMaxlevelStart;    /**< Coarsest level the ramp is allowed to fall to
+                                  (ramp floor); the far field still coarsens to
+                                  MINlevel via the wavelet criterion */
+  double drillNcellsK;       /**< Cells the tracked length must span before the
+                                  current level is deemed sufficient — cavity-focus
+                                  (curvature-radius) regime, pre-inception */
+  double drillNcellsJet;     /**< Same, jet-base-radius regime, post-inception */
+  int drillRelaxLevel;       /**< Level to relax to after the first tip droplet
+                                  sheds; <=0 disables relaxation (hold resolution
+                                  on the receding base — the safe default) */
+  int drillTsnapStages;      /**< 1 = tighten the snapshot interval as the mesh
+                                  refines (adaptive time-resolution of output);
+                                  0 = uniform tsnap */
+  double drillTsnapMinFactor;/**< Floor on the staged snapshot interval as a
+                                  fraction of tsnap (guards against a snapshot
+                                  storm when start is far below MAXlevel) */
 };
 
 /**
@@ -102,6 +125,16 @@ static inline void set_default_params(struct SimulationParams *p) {
   // Time control
   p->tmax = 1.0;
   p->tsnap = 1.0e-2;
+
+  // Drill adaptive-resolution trigger (safe defaults: track the singularity,
+  // never relax, mildly stage the output cadence)
+  p->drillAMR = 1;
+  p->drillMaxlevelStart = 8;
+  p->drillNcellsK = 5.0;
+  p->drillNcellsJet = 5.0;
+  p->drillRelaxLevel = -1;      // relaxation disabled by default
+  p->drillTsnapStages = 1;
+  p->drillTsnapMinFactor = 0.1;
 }
 
 /**
@@ -134,6 +167,13 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
   else if (strcmp(key, "tmax")            == 0) p->tmax = atof(value);
   else if (strcmp(key, "tsnap")           == 0) p->tsnap = atof(value);
+  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = atoi(value);
+  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = atoi(value);
+  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = atof(value);
+  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = atof(value);
+  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
+  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
+  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
   else return 0;
   return 1;
 }
@@ -370,6 +410,30 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: Invalid tsnap (tsnap = %g, tmax = %g)\n", p->tsnap, p->tmax);
     valid = 0;
   }
+  // Drill trigger consistency (only meaningful for the drill solver, but a
+  // malformed value should still fail fast rather than silently mis-refine).
+  if (p->drillAMR) {
+    if (p->drillMaxlevelStart < p->MINlevel || p->drillMaxlevelStart > p->MAXlevel) {
+      fprintf(stderr, "ERROR: drillMaxlevelStart (%d) must be in [MINlevel, MAXlevel] = [%d, %d]\n",
+              p->drillMaxlevelStart, p->MINlevel, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillNcellsK <= 0 || p->drillNcellsJet <= 0) {
+      fprintf(stderr, "ERROR: drillNcellsK/drillNcellsJet must be positive (%g / %g)\n",
+              p->drillNcellsK, p->drillNcellsJet);
+      valid = 0;
+    }
+    if (p->drillRelaxLevel > 0 &&
+        (p->drillRelaxLevel < p->MINlevel || p->drillRelaxLevel > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillRelaxLevel (%d) must be <=0 (disabled) or in [MINlevel, MAXlevel]\n",
+              p->drillRelaxLevel);
+      valid = 0;
+    }
+    if (p->drillTsnapMinFactor <= 0 || p->drillTsnapMinFactor > 1) {
+      fprintf(stderr, "ERROR: drillTsnapMinFactor must be in (0, 1] (%g)\n", p->drillTsnapMinFactor);
+      valid = 0;
+    }
+  }
   return valid;
 }
 
@@ -401,6 +465,18 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
   fprintf(fp, "Time Control:\n");
   fprintf(fp, "  tmax:                   %g\n", p->tmax);
   fprintf(fp, "  tsnap:                  %g\n", p->tsnap);
+  fprintf(fp, "Drill Trigger (drill solver only):\n");
+  if (p->drillAMR) {
+    fprintf(fp, "  drillAMR:               ON\n");
+    fprintf(fp, "  maxlevel start/floor:   %d\n", p->drillMaxlevelStart);
+    fprintf(fp, "  cells/feature (K/jet):  %g / %g\n", p->drillNcellsK, p->drillNcellsJet);
+    fprintf(fp, "  relax level (post-pinch): %s%d\n",
+            p->drillRelaxLevel > 0 ? "" : "disabled (", p->drillRelaxLevel);
+    fprintf(fp, "  staged tsnap:           %s (floor factor %g)\n",
+            p->drillTsnapStages ? "ON" : "OFF", p->drillTsnapMinFactor);
+  } else {
+    fprintf(fp, "  drillAMR:               OFF (pinned at MAXlevel = %d)\n", p->MAXlevel);
+  }
   fprintf(fp, "========================================\n\n");
   fflush(fp);
 }
