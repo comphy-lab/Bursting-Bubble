@@ -34,7 +34,7 @@ box; override for a zoomed region-of-interest render.
 #include "view.h"
 
 scalar f[];
-char filename[80], Imagename[80];
+char filename[512], Imagename[512];
 
 static void draw_scene()
 {
@@ -75,8 +75,14 @@ int main (int a, char const * arguments[])
     return 1;
   }
 
-  snprintf (filename, sizeof(filename), "%s", arguments[1]);
-  snprintf (Imagename, sizeof(Imagename), "%s", arguments[2]);
+  /* A truncated output path used to make save() fail silently (rc = 0, no
+     file written) — fail loudly instead of rendering into the void. */
+  if (snprintf (filename, sizeof(filename), "%s", arguments[1]) >= (int) sizeof(filename) ||
+      snprintf (Imagename, sizeof(Imagename), "%s", arguments[2]) >= (int) sizeof(Imagename)) {
+    fprintf (stderr, "%s: path longer than %zu characters\n",
+             arguments[0], sizeof(filename) - 1);
+    return 1;
+  }
   restore (file = filename);
 
   double fov = 24.;   // degrees; smaller = more zoomed in
