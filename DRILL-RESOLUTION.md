@@ -296,15 +296,27 @@ qcc -O2 -Wall -disable-dimensions postProcess/getView2D.c -o getView2D \
 ```
 
 Usage: `./getView2D <snapshot> <output.png> [fov tx ty width height]`.
-`fov` (degrees) controls zoom — smaller is tighter. Basilisk's native (x,y) are
-(axial, radial), unrotated, so the rendered image has **axial horizontal,
-radial vertical** — the opposite of the r-horizontal/z-vertical convention
-`VideoFoot.py`/`render_drill.py` use for the jet-video renders. `tx`, `ty` pan
-the camera; to center on a physical point `(z0, r0)` (e.g. the current
-jet-base/cavity-focus probe from the solver `log`), set `tx = -z0/L0`,
-`ty = -r0/L0` (Basilisk scales the scene by `1/L0` before translating). A
-`fov` of 4–6 with these auto-centering formulas gives a tight, well-framed
-zoom on the singularity; `fov=24` (default) frames roughly the whole box.
+`fov` (degrees) controls zoom — smaller is tighter. `tx`, `ty` pan the camera;
+to center on a physical point `(z0, r0)` (e.g. the current jet-base/cavity-focus
+probe from the solver `log`), set `tx = -z0/L0`, `ty = -r0/L0` (Basilisk scales
+the scene by `1/L0` before translating). A `fov` of 4–6 with these
+auto-centering formulas gives a tight, well-framed zoom on the singularity;
+`fov=24` (default) frames roughly the whole box.
+
+**Rotate the output 90° CCW.** Basilisk's native (x,y) are (axial, radial),
+unrotated, so the raw render has axial horizontal / radial vertical — sideways
+relative to the r-horizontal/z-vertical, jet-points-up convention every other
+figure in this project uses. Post-process with:
+
+```sh
+magick getView2D_output.png -rotate -90 final.png
+```
+
+(ImageMagick's `-rotate` is clockwise for positive degrees, so `-90` is the
+needed 90° CCW turn.) Verified against a late-time frame with a fully-formed
+jet and pinched tip droplet: after rotation the free surface is horizontal,
+the crater dips below it, and the jet rises correctly upward through it —
+matching every other rendering in this project.
 
 ## Files
 
