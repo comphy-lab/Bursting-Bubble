@@ -83,7 +83,7 @@ zc = 0.5 * (zbot + ztop)
 #   vertical, matching col1 (r horizontal, z vertical).
 import math
 winH = ztop - zbot
-D = 2.55                                        # calibrated so col2 r-window ~ col1
+D = 3.0   # exact: getView2D visible half-r = 3*L0*tan(fov/2) (view.h camera at depth 3, scaled 1/L0)
 fov = math.degrees(2.0 * math.atan(rmax / (D * LDOMAIN)))
 W = 1100
 H = max(200, int(round(W * (2.0 * rmax) / winH)))
@@ -107,8 +107,11 @@ ax1.set_xlim(-rmax, rmax); ax1.set_ylim(zbot, ztop)
 ax1.set_aspect("equal"); ax1.axis("off")
 ax1.set_title("interface + jet-base marker", fontsize=13)
 
-# col2: interface + grid (raster from getView2D, already green)
-ax2.imshow(grid_img)
+# col2: interface + grid (raster from getView2D, already green).
+# extent ties the image to the SAME data window as col1 (exact because D=3),
+# so the two panels show identical zoom and the interface aligns.
+ax2.imshow(grid_img, extent=[-rmax, rmax, zbot, ztop], aspect="equal", origin="upper")
+ax2.set_xlim(-rmax, rmax); ax2.set_ylim(zbot, ztop)
 ax2.axis("off")
 ax2.set_title("interface + adaptive mesh", fontsize=13)
 
