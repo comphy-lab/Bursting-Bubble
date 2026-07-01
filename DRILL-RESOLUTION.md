@@ -21,10 +21,11 @@ This PR also bundles the logging-only probe solver
 (`burstingBubble-adaptiveResolution.c`) and the flux post-processing
 (`getJetFoot.c`, `VideoFoot.py`, `footplots.py`, `conefit.py`), so the base
 flux `q_jet`/`q_l`, cone-fit, and `R_j × Q_L` observable can be computed from a
-run. Note the drill's `log` adds a `maxlevel` column (`i dt t ke maxlevel r_b
-z_b`) vs the logging solver's `i dt t ke r_b z_b`; the post-processing parsers
-were written for the latter, so drill logs need a one-column offset (a small
-follow-up).
+run. The post-processing reads the snapshot **dumps** (`getJetFoot`/`getFacet`
+via `restore()`), not the solver `log`, and the drill dumps the same `f`,`u`
+fields — so the pipeline runs on drill snapshots unchanged. (The drill `log`
+does add a `maxlevel` column, `i dt t ke maxlevel r_b z_b`, for its own
+diagnostics; nothing consumes it downstream.)
 
 ## Why the fixed-level run wastes work
 
