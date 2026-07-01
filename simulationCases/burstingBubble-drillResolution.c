@@ -169,6 +169,13 @@ double drillNcellsK, drillNcellsJet, drillTsnapMinFactor;
 double g_rb = -1000., g_zb = -1000.;
 int    g_jetFormed = 0;
 
+// Science observable exported by drillProbe(i++) (inlined getBase.c logic):
+//   g_rbase, g_zbase -> lowest OUTER-free-surface cell of the main liquid
+//     body (latch-free, satellite-proof; this is the r_b of R_j x Q_L)
+//   g_qjet = INT_0^{r_base} u_z r dr, g_ql = INT_0^{r_base} u_z dr at z_base
+double g_rbase = -1000., g_zbase = -1000.;
+double g_qjet = -1000., g_ql = -1000.;
+
 // Physical parameters (set from params in main):
 //   Oh  -> Ohnesorge number (liquid)
 //   Oha -> Ohnesorge number (gas) = OhRatio * Oh
@@ -529,6 +536,86 @@ event drillProbe(i++) {
   }
 
   /**
+  ### Robust base observable + base fluxes (inlined getBase.c)
+
+  The science observable (R_j x Q_L) wants the OUTER-free-surface base, not
+  the AMR probe above: post-inception, satellite bubbles / shed droplets
+  string along the axis below the base and the "globally lowest interfacial
+  point" latches onto them. getBase.c's protocol is inlined here verbatim:
+  MainLiq = largest PURE-liquid component (drops detached droplets), MainGas
+  = largest PURE-gas component (drops entrained bubbles); an outer-surface
+  cell face-touches both; the base is the lowest such cell. All MPI-safe
+  (Allreduce'd tallies + cross-rank reductions), matching the validated
+  serial post-processing tool. This is LOGGING ONLY — the AMR ceiling above
+  keeps tracking the sharpest feature (thin jet / diverging curvature),
+  which demands far more resolution than the base radius would.
+  */
+  scalar dl[], dg[];
+  foreach() {
+    dl[] = (f[] > 1. - 1e-4);
+    dg[] = (f[] < 1e-4);
+  }
+  int nliq = tag(dl), ngas = tag(dg);
+  int MainLiq = 0, MainGas = 0;
+  if (nliq > 0) {
+    double *sz = calloc(nliq, sizeof(double));
+    foreach(serial) if (dl[] > 0) sz[(int)dl[] - 1] += 1.;   // serial: no OpenMP race
+#if _MPI
+    MPI_Allreduce(MPI_IN_PLACE, sz, nliq, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+    double sm = -1.;
+    for (int j = 0; j < nliq; j++) if (sz[j] > sm) { sm = sz[j]; MainLiq = j + 1; }
+    free(sz);
+  }
+  if (ngas > 0) {
+    double *sz = calloc(ngas, sizeof(double));
+    foreach(serial) if (dg[] > 0) sz[(int)dg[] - 1] += 1.;
+#if _MPI
+    MPI_Allreduce(MPI_IN_PLACE, sz, ngas, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+    double sm = -1.;
+    for (int j = 0; j < ngas; j++) if (sz[j] > sm) { sm = sz[j]; MainGas = j + 1; }
+    free(sz);
+  }
+  boundary((scalar *){dl, dg});   // sync tag labels into ghosts (incl. across ranks)
+
+  // Pass 1: lowest outer-surface cell (min axial x)
+  double zbase = HUGE;
+  foreach(reduction(min:zbase)) {
+    if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || y > RCAV) continue;
+    bool touchGas = ((int)dg[1,0] == MainGas) || ((int)dg[-1,0] == MainGas) ||
+                    ((int)dg[0,1] == MainGas) || ((int)dg[0,-1] == MainGas);
+    bool touchLiq = ((int)dl[1,0] == MainLiq) || ((int)dl[-1,0] == MainLiq) ||
+                    ((int)dl[0,1] == MainLiq) || ((int)dl[0,-1] == MainLiq);
+    if (touchGas && touchLiq && x < zbase) zbase = x;
+  }
+  // Pass 2: radius there (min-y tiebreak)
+  double rbase = HUGE;
+  foreach(reduction(min:rbase)) {
+    if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || y > RCAV) continue;
+    bool touchGas = ((int)dg[1,0] == MainGas) || ((int)dg[-1,0] == MainGas) ||
+                    ((int)dg[0,1] == MainGas) || ((int)dg[0,-1] == MainGas);
+    bool touchLiq = ((int)dl[1,0] == MainLiq) || ((int)dl[-1,0] == MainLiq) ||
+                    ((int)dl[0,1] == MainLiq) || ((int)dl[0,-1] == MainLiq);
+    if (touchGas && touchLiq && zbase != HUGE && x == zbase && y < rbase) rbase = y;
+  }
+
+  // Base fluxes: single cell-row at the z_base plane, dr = Delta, y < r_base
+  // (getJetFoot.c definition: no 2*pi factor, no f-weighting)
+  //   q_jet = sum u_z * y * Delta  [L^3/T] ;  q_l = sum u_z * Delta  [L^2/T]
+  double qjet = 0., ql = 0.;
+  int haveBase = (zbase != HUGE && rbase != HUGE && rbase > 0.);
+  if (haveBase) {
+    foreach(reduction(+:qjet) reduction(+:ql)) {
+      if (fabs(x - zbase) < 0.5*Delta && y > 0. && y < rbase) {
+        qjet += u.x[] * y * Delta;
+        ql   += u.x[] * Delta;
+      }
+    }
+  }
+  if (!haveBase) { zbase = -1000.; rbase = -1000.; qjet = -1000.; ql = -1000.; }
+
+  /**
   ### Export probe/level state for logWriting
 
   The updated `maxlevelLocal` is consumed by the `adapt` event on the NEXT
@@ -536,6 +623,7 @@ event drillProbe(i++) {
   event header: the probe must not sit between curvature and adapt_wavelet).
   */
   g_zb = zb; g_rb = rb; g_jetFormed = jetFormed;
+  g_zbase = zbase; g_rbase = rbase; g_qjet = qjet; g_ql = ql;
 }
 
 /**
@@ -547,7 +635,9 @@ Creates periodic snapshots of the simulation state.
 */
 event writingFiles(t = 0; t += tsnap; t <= tmax) {
   dump(file = dumpFile);
-  sprintf(nameOut, "intermediate/snapshot-%5.4f", t);
+  // 6 decimal places: the staged tsnap can drop below 1e-4 near inception,
+  // where 4-decimal names would collide and silently overwrite snapshots.
+  sprintf(nameOut, "intermediate/snapshot-%8.6f", t);
   dump(file = nameOut);
 }
 
@@ -568,12 +658,17 @@ event end(t = end) {
 Records key simulation data at each timestep:
 - Iteration number, timestep size, current simulation time, kinetic energy
 - The active local refinement ceiling `maxlevelLocal` (the drill state)
-- Jet-base probe location r_b, z_b (fluxes/tip are post-processing; getJetFoot.c)
+- AMR probe location r_b, z_b (the sharp-feature tracker driving the drill)
+- The science observable: robust outer-surface base r_base, z_base (inlined
+  getBase.c) and the base fluxes q_jet = INT u_z r dr, q_l = INT u_z dr
+  through the z_base plane — the on-the-fly R_j x Q_L data.
 
-The probe and level are NOT recomputed here — they were computed in
-`drillProbe(i++)` (which runs after `adapt`, earlier in the same step) and
-exported through the `g_rb`, `g_zb`, `g_jetFormed` globals. Log columns:
-`i dt t ke maxlevel r_b z_b`.
+Nothing is recomputed here — all state was computed in `drillProbe(i++)`
+(which runs after `adapt`, earlier in the same step) and exported through
+the `g_*` globals. Log columns:
+`i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l`.
+Time is printed to 8 decimals and observables to 6 significant decimals so
+post-hoc q_jet(r_jet) / q_l(r_jet) fits are not precision-starved.
 
 Also performs the original safety checks (kinetic-energy blow-up / too-small),
 which are left fully intact.
@@ -585,30 +680,31 @@ event logWriting(i++) {
     ke += (2*pi*y)*(0.5*rho(f[])*(sq(u.x[]) + sq(u.y[])))*sq(Delta);
   }
 
-  // Probe/level state exported by drillProbe (this step, post-adapt grid)
+  // Probe/level/observable state exported by drillProbe (this step, post-adapt grid)
   double rb = g_rb, zb = g_zb;
+  double rbase = g_rbase, zbase = g_zbase, qjet = g_qjet, ql = g_ql;
 
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
       fprintf(ferr, "MAXlevel %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
               MAXlevel, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
-      fprintf(ferr, "i dt t ke maxlevel r_b z_b\n");
+      fprintf(ferr, "i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l\n");
       fp = fopen("log", "w");
       fprintf(fp, "MAXlevel %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
               MAXlevel, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
-      fprintf(fp, "i dt t ke maxlevel r_b z_b\n");
-      fprintf(fp, "%d %g %g %g %d %7.6e %7.6e\n",
-              i, dt, t, ke, maxlevelLocal, rb, zb);
+      fprintf(fp, "i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l\n");
+      fprintf(fp, "%d %.6e %.8f %.6e %d %.6e %.6e %.6e %.6e %.6e %.6e\n",
+              i, dt, t, ke, maxlevelLocal, rb, zb, rbase, zbase, qjet, ql);
       fclose(fp);
     } else {
       fp = fopen("log", "a");
-      fprintf(fp, "%d %g %g %g %d %7.6e %7.6e\n",
-              i, dt, t, ke, maxlevelLocal, rb, zb);
+      fprintf(fp, "%d %.6e %.8f %.6e %d %.6e %.6e %.6e %.6e %.6e %.6e\n",
+              i, dt, t, ke, maxlevelLocal, rb, zb, rbase, zbase, qjet, ql);
       fclose(fp);
     }
-    fprintf(ferr, "%d %g %g %g %d %7.6e %7.6e\n",
-            i, dt, t, ke, maxlevelLocal, rb, zb);
+    fprintf(ferr, "%d %.6e %.8f %.6e %d %.6e %.6e %.6e %.6e %.6e %.6e\n",
+            i, dt, t, ke, maxlevelLocal, rb, zb, rbase, zbase, qjet, ql);
 
     assert(ke > -1e-10);
 

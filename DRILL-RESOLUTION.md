@@ -112,11 +112,37 @@ the drill solver; the plain solvers parse and ignore them.
 
 ## Log format
 
-`log` columns are now `i dt t ke maxlevel r_b z_b` (the reference solver had no
-`maxlevel` column). `maxlevel` is `maxlevelLocal`, the live ceiling — plot it
-against `t` to see the drill work. The probe and level are computed once per
-step in `drillProbe(i++)` and reused in `logWriting`, so curvature/tagging is
-evaluated as in the reference solver `burstingBubble.c`.
+`log` columns are now `i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l`
+(the reference solver had no `maxlevel` column). `maxlevel` is
+`maxlevelLocal`, the live ceiling — plot it against `t` to see the drill
+work. The probe and level are computed once per step in `drillProbe(i++)`
+and reused in `logWriting`, so curvature/tagging is evaluated as in the
+reference solver `burstingBubble.c`.
+
+Two base-point columns coexist deliberately:
+
+- `r_b z_b` — the AMR probe (max-|kappa| cavity focus pre-inception, lowest
+  MainPhase interfacial point post-inception). This drives the drill; it can
+  latch onto satellites late in the jet phase, which is fine for refinement
+  (it over-refines the thin column) but wrong as an observable.
+- `r_base z_base` — the robust outer-free-surface base (inlined
+  `postProcess/getBase.c` logic: MainLiq + MainGas double-tag, satellite- and
+  droplet-proof). `q_jet = INT_0^{r_base} u_z r dr` and
+  `q_l = INT_0^{r_base} u_z dr` are the single-plane base fluxes at `z_base`
+  (getJetFoot.c definitions, no 2*pi, no f-weighting). These are the
+  on-the-fly science observables: `q_jet(r_jet)` / `q_l(r_jet)` and
+  `R_j x Q_L` come straight off the log.
+
+Time is logged to 8 decimals, observables to 6-decimal scientific — dense
+staged-cadence data near inception is not precision-starved.
+
+## Snapshot names
+
+Snapshots are dumped as `intermediate/snapshot-%8.6f` (6 decimals; was 4).
+The staged `tsnap` can drop below `1e-4` near inception, where 4-decimal
+names would collide and silently overwrite dumps. The postProcess tools
+discover snapshots by glob and parse `t` from the filename, so both old
+(4-dp) and new (6-dp) cases remain readable.
 
 ## Build
 
