@@ -277,6 +277,35 @@ validated serial, OpenMP, and MPI.
 - **`drillRelaxLevel`** reclaims the post-pinch tail. Leave disabled until the
   base measurement (`R_j × Q_L`) is confirmed complete, then set to ~9–10.
 
+## Visualizing the mesh: `getView2D`
+
+`postProcess/getView2D.c` renders one snapshot's interface + adaptive mesh
+(`cells()`) to a PNG, mirrored across the r=0 axis — a 2D analogue of
+`comphy-lab/Jumping-Drops`' `postProcess/getView3D_v2.c`, using the same
+`view.h`/`draw.h` (bview) machinery but without the 3D camera angles/multi-axis
+mirrors (axisymmetric only needs one mirror). This is the tool to *see* the
+drill working — the AMR "onion layers" coarsening away from the tracked
+feature.
+
+Compilation is different from the plain solvers — link against Basilisk's
+headless software-rendering framebuffer (`fb_tiny`), no display needed:
+
+```sh
+qcc -O2 -Wall -disable-dimensions postProcess/getView2D.c -o getView2D \
+    -L$BASILISK/gl -lglutils -lfb_tiny -lm
+```
+
+Usage: `./getView2D <snapshot> <output.png> [fov tx ty width height]`.
+`fov` (degrees) controls zoom — smaller is tighter. Basilisk's native (x,y) are
+(axial, radial), unrotated, so the rendered image has **axial horizontal,
+radial vertical** — the opposite of the r-horizontal/z-vertical convention
+`VideoFoot.py`/`render_drill.py` use for the jet-video renders. `tx`, `ty` pan
+the camera; to center on a physical point `(z0, r0)` (e.g. the current
+jet-base/cavity-focus probe from the solver `log`), set `tx = -z0/L0`,
+`ty = -r0/L0` (Basilisk scales the scene by `1/L0` before translating). A
+`fov` of 4–6 with these auto-centering formulas gives a tight, well-framed
+zoom on the singularity; `fov=24` (default) frames roughly the whole box.
+
 ## Files
 
 Drill (this work):
@@ -284,6 +313,7 @@ Drill (this work):
 - `src-local/params.h` — 7 new `drill*` knobs (struct, defaults, parse,
   validate, print).
 - `default.params` — documented `drill*` block.
+- `postProcess/getView2D.c` — mesh + interface PNG renderer (see above).
 - `DRILL-RESOLUTION.md` — this document.
 
 Probe + post-processing (bundled from the jet-base-tracking line):
