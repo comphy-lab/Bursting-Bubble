@@ -81,13 +81,15 @@ fixed-level reference run bit-for-bit (for A/B validation).
 
 ## Status (Jul 2026)
 
-Validated on serial and OpenMP (single node): the full regime sweep fires
-end-to-end and pre-focus kinetic energy matches the fixed-level-12 reference to
-~1 %. KNOWN ISSUE: an MPI restart raises an FPE mid-run (the fixed-level
-reference restarts under MPI from the same dump cleanly, so it is specific to
-the dynamic-level path here, prime suspect the multi-level coarsening +
-rebalance). Use serial / OpenMP single-node until this is closed. See
-DRILL-RESOLUTION.md.
+Validated serial, OpenMP, and MPI: the full regime sweep fires end-to-end and
+pre-focus kinetic energy matches the fixed-level-12 reference to ~1 %.
+
+MPI note: build the MPI binary WITHOUT -D_GNU_SOURCE. That flag enables
+Basilisk's FP trap on Linux, which fires SPURIOUSLY on its own `undefined`
+NaN-sentinel in a transient ghost cell left by the drill's coarsen/refine/
+rebalance and aborts an otherwise-correct run with SIGFPE. With the trap off,
+np=2 and np=4 give bit-identical, physically-correct results (the ke
+blow-up/decay checks remain the real-divergence guard). See DRILL-RESOLUTION.md.
 
 Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
 

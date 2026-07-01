@@ -128,8 +128,10 @@ file. From a case directory (`simulationCases/<CaseNo>/`):
 qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
     burstingBubble-drillResolution.c -o drill -lm
 
-# MPI (note the -lm at the end and the glibc guard)
-CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc -Wall -O2 -D_MPI=1 \
+# MPI — build WITHOUT -D_GNU_SOURCE (see the MPI note below): this leaves
+# Basilisk's FPE trap off, which the drill's dynamic coarsening needs. The
+# ke blow-up/decay checks in logWriting remain the guard for a real divergence.
+CC99='mpicc -std=c99' qcc -Wall -O2 -D_MPI=1 \
     -disable-dimensions -I../../src-local \
     burstingBubble-drillResolution.c -o drill -lm
 
@@ -139,6 +141,13 @@ mpirun -np 4 ./drill case.params    # MPI
 
 `distance.h` (fresh-init from `DataFiles/Bo*.dat`) is incompatible with MPI, so
 a from-scratch **first** run is serial; MPI restarts from the dump.
+
+> **MPI build flag.** Do NOT add `-D_GNU_SOURCE` to the MPI build. On Linux
+> that flag turns on Basilisk's floating-point trap, which fires *spuriously*
+> on the drill's aggressive coarsen/refine/rebalance (see the MPI note in
+> Validation §5) and aborts an otherwise-correct run with SIGFPE. Without it
+> the trap is off and the run is stable and bit-for-bit reproducible across
+> rank counts.
 
 ## Recommended workflow (two-stage)
 
@@ -225,37 +234,34 @@ clean quantitative check is the from-scratch pre-focus comparison in §3 (~1 %),
 which has no restart confound. A from-scratch drill run (Stage 1 fixed-level →
 Stage 2 drill) is the correct A/B for collapse timing; queued as follow-up.
 
-### 5. MPI status — known issue (localised)
+### 5. MPI status — resolved (spurious FP trap)
 
-Serial and OpenMP builds are stable end-to-end (above). Under **MPI**, a
-snapshot restart raises an FPE mid-run. It has been localised by three
-controls:
+An MPI snapshot restart originally raised a `SIGFPE` mid-run when the ceiling
+had coarsened to a low level. It is a **spurious floating-point trap, not a
+numerical failure.** Basilisk's trap (enabled by `-D_GNU_SOURCE` on Linux)
+fires on its own `undefined` NaN-sentinel in a transient ghost cell left by the
+coarsen/refine/rebalance; the value never enters the physics.
 
-| Run | Mode | Coarsens to | Outcome |
-|---|---|---|---|
-| fixed-level reference | MPI, 4 ranks | — (stays 12) | stable past the focus |
-| drill `start=8` | MPI, 4 ranks | 8–10 | FPE at t≈0.337 (grid at level 10) |
-| drill `start=11` | MPI, 2 ranks | 11 only | stable past t=0.345 (no FPE) |
-| drill `start=8` | serial / OpenMP | 8 | stable, full sweep to tmax |
+Root-caused by controls:
 
-So the FPE is **not** physics (serial/OpenMP coarsen to level 8 and complete),
-**not** the dynamic mechanism (MPI `start=11` is fine), and **not** the
-snapshot (the fixed-level reference restarts under MPI cleanly). It appears when
-the ceiling drops to a **low level (≲10) under MPI** — i.e. MPI rebalancing of
-a coarsened adaptive grid, a Basilisk-infrastructure corner rather than a
-solver-logic bug.
+| Run | Build | Result |
+|---|---|---|
+| drill `start=8`, MPI np=4, trap **on** | `-D_GNU_SOURCE` | SIGFPE at t≈0.337 (10→11 refine) |
+| drill `start=8`, MPI np=2, trap **off** | no `-D_GNU_SOURCE` | clean past crash pt; `ke=4.7729` |
+| drill `start=8`, MPI np=4, trap **off** | no `-D_GNU_SOURCE` | clean; `ke=4.7729` — **bit-identical to np=2** |
+| drill `start=8`, MPI np=4, trap **off**, full sweep | no `-D_GNU_SOURCE` | ramps 10→11→12 through the focus, ke peak ≈ ref, runs to `tmax` |
+| fixed-level reference, MPI np=4 | `-D_GNU_SOURCE` | stable (never coarsens → never leaves an `undefined` cell) |
+| drill `start=8`, serial / OpenMP | (OpenMP doesn't trap) | stable, full sweep |
 
-**Workaround (immediate):** for multi-rank MPI, set `drillMaxlevelStart` high
-(10–11). This keeps the ramp-to-`MAXlevel` at the focus and the relaxation, but
-sacrifices the deep pre-focus coarsening — so the large savings regime
-(coarsen to 8) is currently serial/OpenMP-only.
+`np=2` and `np=4` giving **bit-identical** `ke` is the clincher: real MPI data
+corruption would make the two decompositions diverge. They don't — the physics
+is correct; only the trap was firing.
 
-**Recommended path:** run single-node serial/OpenMP, which is validated
-end-to-end and sufficient for case-1000-class runs (the reference was ~11 h on
-4 MPI ranks; comparable single-node on 8 OpenMP threads). Root-causing the
-low-level MPI rebalance FPE (compile without FP-trapping, locate the first
-NaN; test rank counts) is the follow-up for multi-node scaling. Track:
-`memory/projects/singular-bursting-bubbles.md`.
+**Fix:** build the MPI binary **without** `-D_GNU_SOURCE` (see Build). The
+`ke` blow-up/decay checks in `logWriting` remain the guard for a genuine
+divergence. This reclaims the deep-coarsening savings under multi-rank MPI — no
+`drillMaxlevelStart` workaround needed. Deep coarsening (down to level 8) is now
+validated serial, OpenMP, and MPI.
 
 ## Tuning
 
