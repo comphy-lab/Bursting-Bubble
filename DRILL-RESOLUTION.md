@@ -115,7 +115,7 @@ the drill solver; the plain solvers parse and ignore them.
 `log` columns are now `i dt t ke maxlevel r_b z_b` (the reference solver had no
 `maxlevel` column). `maxlevel` is `maxlevelLocal`, the live ceiling — plot it
 against `t` to see the drill work. The probe and level are computed once per
-step in `drillAdapt(i++)` and reused in `logWriting`, so curvature/tagging is
+step in `drillProbe(i++)` and reused in `logWriting`, so curvature/tagging is
 evaluated as in the reference solver `burstingBubble.c`.
 
 ## Build
