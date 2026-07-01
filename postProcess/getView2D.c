@@ -38,7 +38,7 @@ char filename[80], Imagename[80];
 
 static void draw_scene()
 {
-  draw_vof ("f", lw = 2, lc = {0.85, 0.20, 0.10});
+  draw_vof ("f", lw = 3, lc = {0.0, 0.50, 0.0});   // green, matches the marker-view panel
   cells (lw = 1);
 }
 
@@ -81,18 +81,19 @@ int main (int a, char const * arguments[])
 
   double fov = 24.;   // degrees; smaller = more zoomed in
   double tx = 0., ty = 0.;
-  int width = 1000, height = 1000;
+  int width = 1000, height = 1000, label = 1;
   if (a > 3) fov    = atof (arguments[3]);
   if (a > 4) tx      = atof (arguments[4]);
   if (a > 5) ty      = atof (arguments[5]);
   if (a > 6) width   = atoi (arguments[6]);
   if (a > 7) height  = atoi (arguments[7]);
+  if (a > 8) label   = atoi (arguments[8]);   // 0 to suppress the t=... label
 
   view (fov = fov, tx = tx, ty = ty,
         width = width, height = height, samples = 4,
         bg = {1.0, 1.0, 1.0});
 
   draw_mirrored_scene();
-  draw_time_label();
+  if (label) draw_time_label();
   save (Imagename);
 }
