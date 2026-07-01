@@ -306,7 +306,8 @@ The function attempts to restore from a dump file first. If that fails:
 event init(t = 0) {
 #if _MPI // This is for supercomputers without OpenMP support
   if (!restore(file = dumpFile)) {
-    fprintf(ferr, "Cannot restored from a dump file!\n");
+    fprintf(ferr, "Cannot restore from dump file '%s': MPI runs must start from a restart dump (distance.h init is MPI-incompatible). Aborting.\n", dumpFile);
+    exit(1);
   }
 #else  // Note that distance.h is incompatible with OpenMPI. So, the below code should not be used with MPI
   if (!restore(file = dumpFile)) {
