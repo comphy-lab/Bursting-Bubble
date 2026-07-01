@@ -11,13 +11,20 @@ everywhere else. The refinement idea is taken from
 (`LiquidOutThinning.c`) and generalised from a single neck-radius scalar to the
 two-regime bursting-bubble probe.
 
-The solver is **self-contained**: the jet-base / cavity-focus probe is inlined
-(the same detection algorithm developed as a logging-only diagnostic in the
-`jet-base-tracking` line of work), and here it *drives* the mesh rather than
-just being logged. The A/B baseline is `burstingBubble.c` (fixed level) or this
-same solver with `drillAMR=0`. The separate logging-only probe solver and its
-flux post-processing (`getJetFoot.c`, `VideoFoot.py`, `footplots.py`,
-`conefit.py`) ship in the `jet-base-tracking` PR, not here.
+The drill solver is **self-contained**: the jet-base / cavity-focus probe is
+inlined (the same detection algorithm developed as a logging-only diagnostic in
+`burstingBubble-adaptiveResolution.c`), and here it *drives* the mesh rather
+than just being logged. The A/B baseline is `burstingBubble.c` (fixed level) or
+this same solver with `drillAMR=0`.
+
+This PR also bundles the logging-only probe solver
+(`burstingBubble-adaptiveResolution.c`) and the flux post-processing
+(`getJetFoot.c`, `VideoFoot.py`, `footplots.py`, `conefit.py`), so the base
+flux `q_jet`/`q_l`, cone-fit, and `R_j × Q_L` observable can be computed from a
+run. Note the drill's `log` adds a `maxlevel` column (`i dt t ke maxlevel r_b
+z_b`) vs the logging solver's `i dt t ke r_b z_b`; the post-processing parsers
+were written for the latter, so drill logs need a one-column offset (a small
+follow-up).
 
 ## Why the fixed-level run wastes work
 
@@ -265,12 +272,19 @@ NaN; test rank counts) is the follow-up for multi-node scaling. Track:
 
 ## Files
 
+Drill (this work):
 - `simulationCases/burstingBubble-drillResolution.c` — the drill solver.
 - `src-local/params.h` — 7 new `drill*` knobs (struct, defaults, parse,
   validate, print).
 - `default.params` — documented `drill*` block.
 - `DRILL-RESOLUTION.md` — this document.
 
+Probe + post-processing (bundled from the jet-base-tracking line):
+- `simulationCases/burstingBubble-adaptiveResolution.c` — logging-only probe
+  solver (fixed ceiling); the A/B reference and the origin of the inlined probe.
+- `postProcess/getJetFoot.c` — base-flux `q_jet`/`q_l` and jet-foot geometry.
+- `postProcess/VideoFoot.py`, `footplots.py`, `conefit.py` — overlay video,
+  PRL figures, cone fit.
+
 A/B baseline is `simulationCases/burstingBubble.c` (fixed level) or this solver
-with `drillAMR=0`. The logging-only probe solver and flux post-processing live
-in the separate `jet-base-tracking` PR.
+with `drillAMR=0`.
