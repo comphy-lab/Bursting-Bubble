@@ -470,8 +470,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
     fprintf(fp, "  drillAMR:               ON\n");
     fprintf(fp, "  maxlevel start/floor:   %d\n", p->drillMaxlevelStart);
     fprintf(fp, "  cells/feature (K/jet):  %g / %g\n", p->drillNcellsK, p->drillNcellsJet);
-    fprintf(fp, "  relax level (post-pinch): %s%d\n",
-            p->drillRelaxLevel > 0 ? "" : "disabled (", p->drillRelaxLevel);
+    if (p->drillRelaxLevel > 0)
+      fprintf(fp, "  relax level (post-pinch): %d\n", p->drillRelaxLevel);
+    else
+      fprintf(fp, "  relax level (post-pinch): disabled\n");
     fprintf(fp, "  staged tsnap:           %s (floor factor %g)\n",
             p->drillTsnapStages ? "ON" : "OFF", p->drillTsnapMinFactor);
   } else {
