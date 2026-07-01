@@ -11,7 +11,7 @@ Figure 2 (2 panels side by side, JET BASE ONLY, windowed inception -> max jet
 Run on machine-ts (has LaTeX + matplotlib):
   ~/miniconda3/envs/default/bin/python postProcess/footplots.py --dat simulationCases/1000/foot.dat --out simulationCases/1000
 """
-import os, argparse, math, subprocess as sp
+import os, glob, argparse, math, subprocess as sp
 import matplotlib
 matplotlib.rcParams['font.family'] = 'serif'
 matplotlib.rcParams['font.serif'] = ['Computer Modern Roman']
@@ -171,7 +171,13 @@ def main():
 
     # ---- cone fit at inception: beta, nu(beta), alpha; measured q_jet slope ----
     case_dir = os.path.abspath(a.out)
-    rel = "intermediate/snapshot-%.4f" % incept_t
+    # nearest actual snapshot: names may carry 4 or 6 decimals
+    _snaps = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
+    if not _snaps:
+        raise SystemExit("footplots: no snapshots in %s/intermediate" % case_dir)
+    rel = os.path.relpath(
+        min(_snaps, key=lambda f: abs(float(f.rsplit("snapshot-", 1)[-1]) - incept_t)),
+        case_dir)
     pts = facet_points(rel, case_dir)
     wall = [(z, r) for (z, r) in pts if -1.30 <= z <= -0.25 and 0.20 <= r <= 1.10]
     if len(wall) < 2:

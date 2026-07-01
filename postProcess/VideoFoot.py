@@ -16,7 +16,7 @@ Pipeline (case 1000):
 Usage:
   python VideoFoot.py --caseToProcess simulationCases/1000 [--CPUs 6] [--no-video]
 """
-import os, tempfile, argparse, subprocess as sp
+import os, glob, tempfile, argparse, subprocess as sp
 import multiprocessing as mp
 from functools import partial
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "mpl_foot"))
@@ -69,9 +69,11 @@ def get_candidates(rel, case_dir):
     return None
 
 
-def gather_one(idx, case_dir, tsnap):
-    t = tsnap * idx
-    rel = os.path.join("intermediate", "snapshot-%.4f" % t)
+def gather_one(item, case_dir):
+    # item = (idx, rel): enumerate the ACTUAL snapshot files rather than
+    # reconstructing names from tsnap*idx — snapshot names may carry 4 or 6
+    # decimals and the drill solver's staged tsnap is not a uniform grid.
+    idx, rel = item
     if not os.path.exists(os.path.join(case_dir, rel)):
         return None
     return (idx, get_candidates(rel, case_dir))
@@ -92,11 +94,11 @@ def latch_regimes(frames):
     return out, incept_t
 
 
-def render_one(item, case_dir, out_dir, bounds, tsnap):
-    idx, zb, rb, regime = item
-    t = tsnap * idx
-    rel = os.path.join("intermediate", "snapshot-%.4f" % t)
-    target = os.path.join(out_dir, "%08d.png" % int(round(t * 1000)))
+def render_one(item, case_dir, out_dir, bounds):
+    idx, rel, t, zb, rb, regime = item
+    # microsecond-resolution frame names: staged tsnap can go below 1e-3,
+    # where millisecond rounding would collide
+    target = os.path.join(out_dir, "%010d.png" % int(round(t * 1e6)))
     if not os.path.exists(os.path.join(case_dir, rel)):
         return
     zmin, zmax, rmax = bounds
@@ -117,8 +119,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--caseToProcess", default="simulationCases/1000")
     ap.add_argument("--CPUs", "--cpus", type=int, default=6, dest="cpus")
-    ap.add_argument("--nGFS", type=int, default=151)
-    ap.add_argument("--tsnap", type=float, default=0.01)
+    ap.add_argument("--nGFS", type=int, default=0,
+                    help="cap on snapshot count (0 = all found on disk)")
+    ap.add_argument("--tsnap", type=float, default=0.01,
+                    help="unused (kept for CLI compatibility); frames are discovered by glob")
     ap.add_argument("--ZMIN", type=float, default=-2.2)
     ap.add_argument("--ZMAX", type=float, default=2.0)
     ap.add_argument("--RMAX", type=float, default=1.5)
@@ -130,9 +134,15 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     bounds = (a.ZMIN, a.ZMAX, a.RMAX)
 
-    # 1. gather
+    # 1. gather — enumerate the actual snapshots on disk (any name precision,
+    # any cadence), time-ordered
+    snaps = sorted(glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*")),
+                   key=lambda f: float(f.rsplit("snapshot-", 1)[-1]))
+    if a.nGFS and a.nGFS > 0:
+        snaps = snaps[:a.nGFS]
+    items_g = [(i, os.path.relpath(f, case_dir)) for i, f in enumerate(snaps)]
     with mp.Pool(a.cpus) as pool:
-        got = pool.map(partial(gather_one, case_dir=case_dir, tsnap=a.tsnap), range(a.nGFS))
+        got = pool.map(partial(gather_one, case_dir=case_dir), items_g)
     frames = []
     for g in got:
         if g is None or g[1] is None:
@@ -216,9 +226,11 @@ def main():
         return
 
     # 4. render + encode
-    items = [(fr[0], chosen[fr[0]][0], chosen[fr[0]][1], chosen[fr[0]][4]) for fr in frames]
+    rel_by_idx = dict(items_g)
+    items = [(fr[0], rel_by_idx[fr[0]], fr[1],
+              chosen[fr[0]][0], chosen[fr[0]][1], chosen[fr[0]][4]) for fr in frames]
     with mp.Pool(a.cpus) as pool:
-        pool.map(partial(render_one, case_dir=case_dir, out_dir=out_dir, bounds=bounds, tsnap=a.tsnap), items)
+        pool.map(partial(render_one, case_dir=case_dir, out_dir=out_dir, bounds=bounds), items)
     print("[render] done")
     case_no = os.path.basename(os.path.normpath(a.caseToProcess))
     mp4 = os.path.join(a.caseToProcess, case_no + "_foot.mp4")

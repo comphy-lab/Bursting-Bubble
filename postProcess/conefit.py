@@ -8,7 +8,7 @@ beta : fit a line r = m z + c to the conical cavity wall at inception;
 nu   : solve P_nu(cos beta) = 0  via P_nu(x) = 2F1(-nu, nu+1; 1; (1-x)/2).
 alpha= 1/(2 - nu).  q_jet ~ r^((3a-1)/a),  q_l(paper)=r_jet v_jet ~ r^((2a-1)/a).
 """
-import os, math, subprocess as sp, argparse
+import os, glob, math, subprocess as sp, argparse
 
 def run(cmd, cwd):
     p = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, cwd=cwd)
@@ -87,7 +87,13 @@ def main():
         raise SystemExit("conefit: no jet-base rows (regime==1) in %s — inception never "
                          "latched, nothing to fit. Check the run / latch thresholds." % a.dat)
     incept_t = reg1[0][0]
-    rel = os.path.join("intermediate", "snapshot-%.4f" % incept_t)
+    # nearest actual snapshot: names may carry 4 or 6 decimals
+    snaps = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
+    if not snaps:
+        raise SystemExit("conefit: no snapshots in %s/intermediate" % case_dir)
+    rel = os.path.relpath(
+        min(snaps, key=lambda f: abs(float(f.rsplit("snapshot-", 1)[-1]) - incept_t)),
+        case_dir)
 
     # --- cone fit on the cavity wall at inception ---
     pts = facet_points(rel, case_dir)
