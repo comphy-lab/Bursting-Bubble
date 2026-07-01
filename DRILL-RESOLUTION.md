@@ -157,7 +157,9 @@ qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
 # MPI — build WITHOUT -D_GNU_SOURCE (see the MPI note below): this leaves
 # Basilisk's FPE trap off, which the drill's dynamic coarsening needs. The
 # ke blow-up/decay checks in logWriting remain the guard for a real divergence.
-CC99='mpicc -std=c99' qcc -Wall -O2 -D_MPI=1 \
+# -D_DEFAULT_SOURCE exposes madvise()/MADV_DONTNEED on glibc (a bare
+# -std=c99 hides them and the build fails) without re-arming the trap.
+CC99='mpicc -std=c99 -D_DEFAULT_SOURCE' qcc -Wall -O2 -D_MPI=1 \
     -disable-dimensions -I../../src-local \
     burstingBubble-drillResolution.c -o drill -lm
 
