@@ -64,6 +64,18 @@ struct SimulationParams {
   double tmax;           /**< Maximum simulation time (capillary units) */
   double tsnap;          /**< Snapshot/restart dump interval */
 
+  // Safety gates (kinetic-energy sanity checks in logWriting)
+  double keStopMax;      /**< Stop when ke exceeds this (blow-up guard). The
+                              historical 1e2 is ad hoc: a localised, transient
+                              spike (e.g. at a refinement release near the
+                              singular instant) can exceed it and still
+                              self-recover, while a genuine divergence also
+                              stalls dt. Relax deliberately (with a dt/progress
+                              watchdog) to force a run through the singularity;
+                              see the case-1005/1006 notes. */
+  double keStopMin;      /**< Stop when ke falls below this (dissipated /
+                              nothing left to compute) */
+
   // Drill adaptive-resolution trigger (feature-tracking AMR + time)
   // Only consumed by burstingBubble-drillResolution.c. The plain adaptive
   // solver ignores these. See that file's header for the mechanism.
@@ -140,6 +152,8 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->CFL = 0.1;
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
+  p->keStopMax = 1.0e2;    // historical blow-up gate (ad hoc; see struct note)
+  p->keStopMin = 1.0e-6;
 
   // Time control
   p->tmax = 1.0;
@@ -186,6 +200,8 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
+  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
+  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = atof(value);
   else if (strcmp(key, "tmax")            == 0) p->tmax = atof(value);
   else if (strcmp(key, "tsnap")           == 0) p->tsnap = atof(value);
   else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = atoi(value);
@@ -425,6 +441,11 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: TOLERANCE must be positive (TOLERANCE = %g)\n", p->TOLERANCE);
     valid = 0;
   }
+  if (p->keStopMax <= 0 || p->keStopMin < 0 || p->keStopMin >= p->keStopMax) {
+    fprintf(stderr, "ERROR: need 0 <= keStopMin < keStopMax (keStopMin = %g, keStopMax = %g)\n",
+            p->keStopMin, p->keStopMax);
+    valid = 0;
+  }
   if (p->tmax <= 0) {
     fprintf(stderr, "ERROR: tmax must be positive (tmax = %g)\n", p->tmax);
     valid = 0;
@@ -496,6 +517,7 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
   fprintf(fp, "  CFL:                    %g\n", p->CFL);
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);
   fprintf(fp, "  Solver TOLERANCE:       %g\n", p->TOLERANCE);
+  fprintf(fp, "  ke stop gates (min/max): %g / %g\n", p->keStopMin, p->keStopMax);
   fprintf(fp, "Time Control:\n");
   fprintf(fp, "  tmax:                   %g\n", p->tmax);
   fprintf(fp, "  tsnap:                  %g\n", p->tsnap);

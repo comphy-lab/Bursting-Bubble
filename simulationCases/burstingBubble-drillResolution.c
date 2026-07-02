@@ -751,19 +751,24 @@ event logWriting(i++) {
 
     assert(ke > -1e-10);
 
-    // Check for energy blowup (numerical instability)
-    if (ke > 1e2 && i > 1e1) {
-      fprintf(ferr, "The kinetic energy blew up. Stopping simulation\n");
+    // Blow-up gate, now a knob (params.keStopMax, historical default 1e2).
+    // The threshold is ad hoc: a localised transient spike can exceed it and
+    // still self-recover, while a genuine divergence also stalls dt — so a
+    // relaxed gate plus an external dt/progress watchdog is a legitimate way
+    // to force a run through the singular instant (case-1006 protocol).
+    if (ke > params.keStopMax && i > 1e1) {
+      fprintf(ferr, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
+              ke, params.keStopMax);
       fp = fopen("log", "a");
-      fprintf(fp, "The kinetic energy blew up. Stopping simulation\n");
+      fprintf(fp, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
+              ke, params.keStopMax);
       fclose(fp);
       dump(file = dumpFile);
       return 1;
     }
-    assert(ke < 1e2);
 
     // Check for energy dissipation below threshold
-    if (ke < 1e-6 && i > 1e1) {
+    if (ke < params.keStopMin && i > 1e1) {
       fprintf(ferr, "kinetic energy too small now! Stopping!\n");
       dump(file = dumpFile);
       fp = fopen("log", "a");

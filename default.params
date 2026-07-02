@@ -154,6 +154,15 @@ drillTsnapMinFactor=0.1
 # so deep refinement is safe and useful there). <=0 disables the cap.
 drillMaxlevelFocus=-1
 
+# Kinetic-energy safety gates (checked every step after the first 10). The
+# blow-up gate keStopMax is historical and AD HOC (1e2): a localised transient
+# spike — e.g. at the refinement release near the singular instant — can exceed
+# it and still self-recover, while a genuine divergence also stalls dt. Relax
+# it deliberately (e.g. 1e4) together with an external dt/progress watchdog to
+# force a run through the singularity; keStopMin stops a fully dissipated run.
+keStopMax=1e2
+keStopMin=1e-6
+
 # Remove gas fragments smaller than this side length in cells (components below
 # drillRemoveGasSize^2 cells in 2D axi are absorbed into the liquid), every
 # step, via tag.h's remove_droplets(bubbles=true). Kills the sub-grid gas wisps
