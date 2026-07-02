@@ -86,6 +86,25 @@ struct SimulationParams {
   double drillTsnapMinFactor;/**< Floor on the staged snapshot interval as a
                                   fraction of tsnap (guards against a snapshot
                                   storm when start is far below MAXlevel) */
+  int drillMaxlevelFocus;    /**< Pre-inception cap on the demanded level. The
+                                  cavity-focus collapse is a genuine singularity:
+                                  chasing it beyond the level that safely steps
+                                  over the topology change stalls dt (CFL chases
+                                  diverging u in ever-smaller cells) and blows up
+                                  ke at reconnection (case 1005, MAXlevel=14,
+                                  t=0.46887). Cap the focus regime here (12 is
+                                  validated) and let the full MAXlevel loose only
+                                  after the inception latch, where the slender
+                                  jet is fast but smooth. <=0 disables (cap =
+                                  MAXlevel, the pre-case-1006 behaviour). */
+  int drillRemoveGasSize;    /**< Remove gas fragments (bubbles=true) smaller
+                                  than this side length in cells each step:
+                                  components below drillRemoveGasSize^2 cells
+                                  (2D) are absorbed into the liquid. Kills the
+                                  sub-grid gas wisps shed by the cavity
+                                  reconnection that drive the CFL stall. Liquid
+                                  droplets are never touched (shed tip droplets
+                                  are physics). 0 disables. */
 };
 
 /**
@@ -135,6 +154,8 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillRelaxLevel = -1;      // relaxation disabled by default
   p->drillTsnapStages = 1;
   p->drillTsnapMinFactor = 0.1;
+  p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
+  p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
 }
 
 /**
@@ -174,6 +195,8 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
   else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
   else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
+  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
+  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
   else return 0;
   return 1;
 }
@@ -429,6 +452,17 @@ static inline int validate_params(const struct SimulationParams *p) {
               p->drillRelaxLevel);
       valid = 0;
     }
+    if (p->drillMaxlevelFocus > 0 &&
+        (p->drillMaxlevelFocus < p->drillMaxlevelStart || p->drillMaxlevelFocus > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillMaxlevelFocus (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
+              p->drillMaxlevelFocus, p->drillMaxlevelStart, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillRemoveGasSize < 0) {
+      fprintf(stderr, "ERROR: drillRemoveGasSize (%d) must be >= 0 (0 disables)\n",
+              p->drillRemoveGasSize);
+      valid = 0;
+    }
     if (p->drillTsnapMinFactor <= 0 || p->drillTsnapMinFactor > 1) {
       fprintf(stderr, "ERROR: drillTsnapMinFactor must be in (0, 1] (%g)\n", p->drillTsnapMinFactor);
       valid = 0;
@@ -476,6 +510,14 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  relax level (post-pinch): disabled\n");
     fprintf(fp, "  staged tsnap:           %s (floor factor %g)\n",
             p->drillTsnapStages ? "ON" : "OFF", p->drillTsnapMinFactor);
+    if (p->drillMaxlevelFocus > 0)
+      fprintf(fp, "  focus (pre-incept) cap: %d\n", p->drillMaxlevelFocus);
+    else
+      fprintf(fp, "  focus (pre-incept) cap: disabled\n");
+    if (p->drillRemoveGasSize > 0)
+      fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
+    else
+      fprintf(fp, "  gas-wisp removal:       OFF\n");
   } else {
     fprintf(fp, "  drillAMR:               OFF (pinned at MAXlevel = %d)\n", p->MAXlevel);
   }

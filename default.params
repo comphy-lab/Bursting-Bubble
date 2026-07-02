@@ -143,3 +143,22 @@ drillTsnapStages=1
 # drillMaxlevelStart cannot trigger a snapshot storm. tsnap never falls below
 # drillTsnapMinFactor * tsnap.
 drillTsnapMinFactor=0.1
+
+# Pre-inception cap on the demanded level. The cavity-focus collapse is a
+# genuine singularity: chasing it with the full MAXlevel stalls dt (CFL chases
+# the diverging focusing velocity in ever-smaller cells) and blows up ke at the
+# topology change — case 1005 (MAXlevel=14) died exactly this way at t=0.46887,
+# while the level-12 case 1004 stepped straight over the same instant. Cap the
+# focus regime at a level proven to cross (12), and the full MAXlevel is
+# released once the inception latch fires (the slender jet is fast but smooth,
+# so deep refinement is safe and useful there). <=0 disables the cap.
+drillMaxlevelFocus=-1
+
+# Remove gas fragments smaller than this side length in cells (components below
+# drillRemoveGasSize^2 cells in 2D axi are absorbed into the liquid), every
+# step, via tag.h's remove_droplets(bubbles=true). Kills the sub-grid gas wisps
+# shed by the cavity reconnection that drive the CFL stall at high MAXlevel.
+# Liquid droplets are never touched (shed tip droplets are physics). At
+# MAXlevel=14, size 3 removes gas structures below ~2e-3 R0 — smaller than
+# anything the validated level-12 run could even represent. 0 disables.
+drillRemoveGasSize=0

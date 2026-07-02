@@ -84,6 +84,19 @@ fixed-level reference run bit-for-bit (for A/B validation).
 Validated serial, OpenMP, and MPI: the full regime sweep fires end-to-end and
 pre-focus kinetic energy matches the fixed-level-12 reference to ~1 %.
 
+HIGH-MAXLEVEL WARNING (case 1005, Oh=0.029, MAXlevel=14): the cavity-focus
+collapse is a genuine singularity, and chasing it with the full MAXlevel is
+self-defeating — 1/|kappa|max -> 0 demands MAXlevel exactly at the singular
+instant, the CFL condition then chases the diverging focusing velocity in
+ever-smaller cells (dt 2e-6 -> 7e-10 while t froze at 0.46887), and the
+topology change finally blew ke up 5.3 -> 1100 in two steps (sub-grid gas
+wisps at reconnection). The level-12 run (case 1004) stepped straight over
+the same instant. Regularisation knobs (case 1006 onward): drillMaxlevelFocus
+caps the PRE-inception ramp (12 validated; full MAXlevel is released at the
+inception latch, where the jet is fast but smooth), and drillRemoveGasSize
+absorbs sub-grid gas wisps each step (bubbles only — liquid droplets are
+physics, never touched).
+
 MPI note: build the MPI binary WITHOUT -D_GNU_SOURCE. That flag enables
 Basilisk's FP trap on Linux, which fires SPURIOUSLY on its own `undefined`
 NaN-sentinel in a transient ghost cell left by the drill's coarsen/refine/
@@ -161,6 +174,7 @@ int MAXlevel, MINlevel;
 //   drill* mirrors of the params knobs, populated in main() for terse use.
 int maxlevelLocal;
 int drillAMR, drillMaxlevelStart, drillRelaxLevel, drillTsnapStages;
+int drillMaxlevelFocus, drillRemoveGasSize;
 double drillNcellsK, drillNcellsJet, drillTsnapMinFactor;
 
 // Probe state exported by drillProbe(i++) and consumed by logWriting(i++):
@@ -250,6 +264,8 @@ int main(int argc, char *argv[]) {
   drillRelaxLevel     = params.drillRelaxLevel;
   drillTsnapStages    = params.drillTsnapStages;
   drillTsnapMinFactor = params.drillTsnapMinFactor;
+  drillMaxlevelFocus  = params.drillMaxlevelFocus;
+  drillRemoveGasSize  = params.drillRemoveGasSize;
 
   // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
   // zWall = distance from bubble south pole to bottom wall
@@ -401,6 +417,21 @@ cadence. Probe state is exported to `logWriting` via the `g_*` globals.
 */
 event drillProbe(i++) {
   /**
+  ### Gas-wisp cleanup (regularisation, case-1006 lesson)
+
+  The cavity reconnection sheds sub-grid gas wisps; at high MAXlevel the CFL
+  condition chases the diverging velocity inside them and dt stalls (case
+  1005: dt 2e-6 -> 7e-10 at fixed t=0.46887, then ke 5.3 -> 1100 in two
+  steps). Absorb gas components smaller than drillRemoveGasSize^2 cells into
+  the liquid each step. bubbles=true touches ONLY gas; shed liquid droplets
+  (tip droplet, satellites) are physics and are never removed. This runs
+  BEFORE the probe/getBase tagging below, so the diagnostics never see the
+  wisps either.
+  */
+  if (drillRemoveGasSize > 0)
+    remove_droplets(f, minsize = drillRemoveGasSize, bubbles = true);
+
+  /**
   ### Curvature
 
   KAPPA is LOCAL to this event (computed, used, discarded each step), matching
@@ -500,6 +531,18 @@ event drillProbe(i++) {
         double need = nCell * Ldomain / s;    // 2^L must reach this
         while (L < MAXlevel && (double)(1 << L) < need) L++;
       }
+      /**
+      Pre-inception cap (case-1006 lesson): the cavity-focus collapse is a
+      genuine singularity — 1/kmax -> 0 demands MAXlevel exactly at the
+      singular instant, where deeper resolution is self-defeating (dt stalls,
+      reconnection blows up; see the file header Status note). Cap the focus
+      regime at drillMaxlevelFocus (12 is validated to step over the topology
+      change) and release the full MAXlevel only once the inception latch
+      fires: the erupting slender jet is fast but SMOOTH, so deep refinement
+      is safe there — and that is where the q_jet(r_jet) observable wants it.
+      */
+      if (!jetFormed && drillMaxlevelFocus > 0 && L > drillMaxlevelFocus)
+        L = drillMaxlevelFocus;
       Ltarget = L;
     }
 
