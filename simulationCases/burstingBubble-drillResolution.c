@@ -97,6 +97,16 @@ inception latch, where the jet is fast but smooth), and drillRemoveGasSize
 absorbs sub-grid gas wisps each step (bubbles only — liquid droplets are
 physics, never touched).
 
+POST-LATCH PINCH EVENTS (case 1009, MAXlevel=13): the released full-depth
+ceiling is GLOBAL, so the entrained satellite / retracting floor remnant
+BELOW the base gets resolved at full depth too — and its own pinch
+singularity reproduces the 1005 pathology (t frozen at 0.47421, dt -> 7.6e-10,
+ke through the relaxed gate) while the jet itself is fine. Post-inception the
+ceiling is therefore REGIONAL (adapt_wavelet_limited, vendored): full
+maxlevelLocal at/above z_base - DRILL_BASE_BUFFER, drillMaxlevelFocus below
+it. The latch state is also persisted across restarts via the `drillstate`
+file (see init); `drillAssumeJet=1` covers legacy post-inception dumps.
+
 MPI note: build the MPI binary WITHOUT -D_GNU_SOURCE. That flag enables
 Basilisk's FP trap on Linux, which fires SPURIOUSLY on its own `undefined`
 NaN-sentinel in a transient ghost cell left by the drill's coarsen/refine/
@@ -143,6 +153,13 @@ include guards; the explicit includes here just make the dependency obvious.)
 #include "tag.h"
 
 /**
+`adapt_wavelet_limited.h` (vendored from the Pairetti Basilisk sandbox, see
+its provenance block) provides adapt_wavelet with a POSITION-DEPENDENT max
+level — the regional ceiling used post-inception (case-1009 lesson).
+*/
+#include "adapt_wavelet_limited.h"
+
+/**
 ## Runtime Parameters
 
 All configuration is read at runtime from `case.params` via the C-side
@@ -182,6 +199,15 @@ double drillNcellsK, drillNcellsJet, drillTsnapMinFactor;
 //   g_jetFormed -> inception latch (0 before jet, 1 after)
 double g_rb = -1000., g_zb = -1000.;
 int    g_jetFormed = 0;
+
+// Drill latch state. File-scope (not event-local statics) so init() can
+// RESTORE it across restarts — statics used to reset on restore, and a
+// mid-jet restart with r_base in (AXIS_BAND, RBASE_JET) could never
+// re-latch. writingFiles mirrors these three to the "drillstate" file.
+int jetFormed = 0;    // inception latch (never clears during a run)
+int drillArmed = 0;   // arm/fire latch: armed in the final singular approach
+int baseOffAxis = 0;  // consecutive off-axis-base steps since arming
+int tipPinched = 0;   // first tip-droplet-shed latch (terminal relaxation)
 
 // Science observable exported by drillProbe(i++) (inlined getBase.c logic):
 //   g_rbase, g_zbase -> lowest OUTER-free-surface cell of the main liquid
@@ -228,6 +254,10 @@ Geometry-tuned for case 1000: origin(-6,0), L0=10, free surface near z=0.
 #define RBASE_JET   0.15   // unambiguous developed-jet base radius (self-heal
                            // for restarts that jump straight into the jet phase;
                            // the pre-reconnection dimple ring peaked at ~0.11)
+
+// Regional ceiling (case-1009 lesson; see drillMLFun/adapt):
+#define DRILL_BASE_BUFFER 0.05  // full-resolution zone starts this far BELOW
+                                // z_base, keeping the base + flux plane inside
 
 /**
 ## Main Function
@@ -334,13 +364,17 @@ The function attempts to restore from a dump file first. If that fails:
   creates a distance field, and initializes the volume fraction
 */
 event init(t = 0) {
+  bool restored = false;
 #if _MPI // This is for supercomputers without OpenMP support
   if (!restore(file = dumpFile)) {
     fprintf(ferr, "Cannot restore from dump file '%s': MPI runs must start from a restart dump (distance.h init is MPI-incompatible). Aborting.\n", dumpFile);
     exit(1);
   }
+  restored = true;
 #else  // Note that distance.h is incompatible with OpenMPI. So, the below code should not be used with MPI
-  if (!restore(file = dumpFile)) {
+  if (restore(file = dumpFile))
+    restored = true;
+  else {
     char filename[60];
     sprintf(filename, "DataFiles/Bo%5.4f.dat", Bond);
     FILE *fp = fopen(filename, "rb");
@@ -375,6 +409,34 @@ event init(t = 0) {
 #endif
 
   /**
+  Restore the drill latch state across restarts (case-1009 lesson): the
+  latches were event-local statics and reset on every restore, so a mid-jet
+  restart could never re-latch (r_base already off-axis => arming impossible)
+  and the focus cap silently re-bound the whole jet. `drillstate` is written
+  by writingFiles alongside each dump. Only read after a successful restore —
+  a fresh run in a dirty directory must not inherit stale latches. All ranks
+  read the same tiny file; no communication needed. `drillAssumeJet=1` covers
+  LEGACY post-inception snapshots that predate the drillstate file (it only
+  ever sets the latch, never clears it).
+  */
+  if (restored) {
+    FILE *fs = fopen("drillstate", "r");
+    if (fs) {
+      int jf, da, tp;
+      if (fscanf(fs, "%d %d %d", &jf, &da, &tp) == 3) {
+        jetFormed = jf; drillArmed = da; tipPinched = tp;
+        fprintf(ferr, "drillstate restored: jetFormed=%d drillArmed=%d tipPinched=%d\n",
+                jetFormed, drillArmed, tipPinched);
+      }
+      fclose(fs);
+    }
+    if (params.drillAssumeJet && !jetFormed) {
+      jetFormed = 1;
+      fprintf(ferr, "drillAssumeJet=1: forcing jetFormed=1 at restore\n");
+    }
+  }
+
+  /**
   Seed the local refinement ceiling. We adopt the grid's current depth so a
   restart from a genuinely-refined dump does not get coarsened on step 1;
   drillProbe then coarsens (at most one level per step) wherever the feature
@@ -404,13 +466,42 @@ adapt, in `drillProbe`, mirroring the reference (whose probe lives in
 the proven reference structure. (A separate MPI restart FPE on the dynamic
 level path is still open — see the file header Status note.)
 */
+/**
+### Regional ceiling function (case-1009 lesson)
+
+Below the jet base, satellites and the retracting floor remnant undergo
+REPEATED pinch singularities (the case-1009 crash: probe on-axis at
+z = -1.67 vs z_base = -1.31, dt 1e-5 -> 7.6e-10 with frozen t). Those must
+not be resolved at full depth — they are byproducts, not the observable.
+The jet at/above the base is smooth and carries q_jet(r_jet), so it keeps
+the drilled ceiling `maxlevelLocal`. The buffer keeps the base itself (and
+its flux plane) inside the full-resolution zone.
+*/
+int drillMLFun(double x, double y, double z) {
+  if (g_zbase > -900. && x < g_zbase - DRILL_BASE_BUFFER)
+    return drillMaxlevelFocus;
+  return maxlevelLocal;
+}
+
 event adapt(i++) {
   scalar KAPPA[];
   curvature(f, KAPPA);
 
-  adapt_wavelet((scalar *){f, u.x, u.y, KAPPA},
-    (double[]){fErr, VelErr, VelErr, KErr},
-    maxlevelLocal, MINlevel);
+  /**
+  Post-inception (and only when the focus cap + a valid base exist), the
+  ceiling is REGIONAL via adapt_wavelet_limited: full `maxlevelLocal` on the
+  jet, `drillMaxlevelFocus` below the base. Pre-inception the plain call is
+  byte-for-byte the reference adapt — the global focus cap in drillProbe
+  already regularises the collapse there.
+  */
+  if (drillAMR && jetFormed && drillMaxlevelFocus > 0 && g_zbase > -900.)
+    adapt_wavelet_limited((scalar *){f, u.x, u.y, KAPPA},
+      (double[]){fErr, VelErr, VelErr, KErr},
+      drillMLFun, MINlevel);
+  else
+    adapt_wavelet((scalar *){f, u.x, u.y, KAPPA},
+      (double[]){fErr, VelErr, VelErr, KErr},
+      maxlevelLocal, MINlevel);
 }
 
 /**
@@ -503,8 +594,9 @@ event drillProbe(i++) {
 
   /**
   ### Inception latch + probe selection (identical to the reference)
+
+  `jetFormed` is file-scope (restart-persistent via `drillstate`, see init).
   */
-  static int jetFormed = 0;
   if (!jetFormed && rk >= 0 && rk < R_AXIS_K && rlow > AXIS_BAND)
     jetFormed = 1;
 
@@ -525,7 +617,7 @@ event drillProbe(i++) {
   int Ltarget = maxlevelLocal;
   if (drillAMR) {
     // Terminal relaxation: latch on the first tip-droplet shed after inception.
-    static int tipPinched = 0;
+    // (tipPinched is file-scope, restart-persistent via drillstate.)
     if (!tipPinched && jetFormed && n > 1) tipPinched = 1;
 
     if (tipPinched && drillRelaxLevel > 0) {
@@ -565,9 +657,9 @@ event drillProbe(i++) {
       been crossed and the jet base is opening for good. Self-heal clause:
       a restart that jumps straight into the developed jet phase (base
       off-axis at restore, so arming can never trigger) latches directly
-      once r_base > RBASE_JET.
+      once r_base > RBASE_JET. (drillArmed/baseOffAxis are file-scope;
+      drillArmed is restart-persistent via drillstate.)
       */
-      static int drillArmed = 0, baseOffAxis = 0;
       if (!jetFormed) {
         if (!drillArmed && L >= MAXlevel && g_rbase > -900. && g_rbase < ARM_BAND)
           drillArmed = 1;
@@ -729,6 +821,15 @@ event writingFiles(t = 0; t += tsnap; t <= tmax) {
   // where 4-decimal names would collide and silently overwrite snapshots.
   sprintf(nameOut, "intermediate/snapshot-%8.6f", t);
   dump(file = nameOut);
+  // Persist the drill latch state alongside the dump so a restart resumes
+  // with the correct regime instead of resetting the latches (init reads it).
+  if (pid() == 0) {
+    FILE *fs = fopen("drillstate", "w");
+    if (fs) {
+      fprintf(fs, "%d %d %d\n", jetFormed, drillArmed, tipPinched);
+      fclose(fs);
+    }
+  }
 }
 
 /**

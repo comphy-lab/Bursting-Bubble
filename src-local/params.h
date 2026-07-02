@@ -117,6 +117,15 @@ struct SimulationParams {
                                   reconnection that drive the CFL stall. Liquid
                                   droplets are never touched (shed tip droplets
                                   are physics). 0 disables. */
+  int drillAssumeJet;        /**< 1 = force the inception latch (jetFormed) on
+                                  at init after a successful restore. For
+                                  restarts from LEGACY post-inception dumps
+                                  that predate the drillstate file — without
+                                  it such a restart can never re-latch and the
+                                  focus cap silently re-binds the whole jet.
+                                  Only ever sets the latch, never clears it;
+                                  a drillstate file, when present, is read
+                                  first. Default 0. */
 };
 
 /**
@@ -170,6 +179,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillTsnapMinFactor = 0.1;
   p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
   p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
+  p->drillAssumeJet = 0;        // don't assume a formed jet on restore
 }
 
 /**
@@ -213,6 +223,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
   else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
   else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
+  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
   else return 0;
   return 1;
 }
@@ -484,6 +495,11 @@ static inline int validate_params(const struct SimulationParams *p) {
               p->drillRemoveGasSize);
       valid = 0;
     }
+    if (p->drillAssumeJet != 0 && p->drillAssumeJet != 1) {
+      fprintf(stderr, "ERROR: drillAssumeJet (%d) must be 0 or 1\n",
+              p->drillAssumeJet);
+      valid = 0;
+    }
     if (p->drillTsnapMinFactor <= 0 || p->drillTsnapMinFactor > 1) {
       fprintf(stderr, "ERROR: drillTsnapMinFactor must be in (0, 1] (%g)\n", p->drillTsnapMinFactor);
       valid = 0;
@@ -540,6 +556,8 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
     else
       fprintf(fp, "  gas-wisp removal:       OFF\n");
+    if (p->drillAssumeJet)
+      fprintf(fp, "  assume jet on restore:  ON\n");
   } else {
     fprintf(fp, "  drillAMR:               OFF (pinned at MAXlevel = %d)\n", p->MAXlevel);
   }
