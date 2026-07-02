@@ -79,13 +79,20 @@ def gather_one(item, case_dir):
     return (idx, get_candidates(rel, case_dir))
 
 
-def latch_regimes(frames):
+def latch_regimes(frames, incept_t_override=None):
     """frames sorted: (idx,t,zlow,rlow,zmaxk,rmaxk,qlow,qllow,qmaxk,qlmaxk).
-    Returns dict idx->(zb,rb,q,ql,regime) and incept_t."""
+    Returns dict idx->(zb,rb,q,ql,regime) and incept_t.
+    incept_t_override: force regime 1 for t >= this value — the built-in latch
+    thresholds (AXIS_BAND/R_AXIS_K) are case-1000-tuned and may never fire at
+    other Oh; take the true inception from the drill solver log (q_jet onset)."""
     jet = False; incept_t = None; out = {}
     for fr in frames:
         idx, t, zlow, rlow, zmaxk, rmaxk, qlow, qllow, qmaxk, qlmaxk, zjet = fr
-        if not jet and (0.0 <= rmaxk < R_AXIS_K) and (rlow > AXIS_BAND):
+        if incept_t_override is not None:
+            jet = (t >= incept_t_override)
+            if jet and incept_t is None:
+                incept_t = t
+        elif not jet and (0.0 <= rmaxk < R_AXIS_K) and (rlow > AXIS_BAND):
             jet = True; incept_t = t
         if jet:
             out[idx] = (zlow, rlow, qlow, qllow, 1)
@@ -123,6 +130,10 @@ def main():
                     help="cap on snapshot count (0 = all found on disk)")
     ap.add_argument("--tsnap", type=float, default=0.01,
                     help="unused (kept for CLI compatibility); frames are discovered by glob")
+    ap.add_argument("--incept-t", type=float, default=None, dest="incept_t",
+                    help="override the inception latch: regime 1 (jet base) for t >= this. "
+                         "The built-in thresholds are case-1000-tuned and may never fire "
+                         "at other Oh; use the drill solver log's q_jet onset.")
     ap.add_argument("--ZMIN", type=float, default=-2.2)
     ap.add_argument("--ZMAX", type=float, default=2.0)
     ap.add_argument("--RMAX", type=float, default=1.5)
@@ -153,7 +164,7 @@ def main():
     print("[gather] %d frames" % len(frames))
 
     # 2. latch
-    chosen, incept_t = latch_regimes(frames)
+    chosen, incept_t = latch_regimes(frames, a.incept_t)
     print("[latch] inception t ~ %s" % (("%.3f" % incept_t) if incept_t is not None else "none"))
 
     # 3. foot.dat + observables plot

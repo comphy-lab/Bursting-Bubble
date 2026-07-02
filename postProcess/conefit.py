@@ -73,6 +73,11 @@ def main():
     ap.add_argument("--zhi", type=float, default=-0.25)
     ap.add_argument("--rlo", type=float, default=0.20)    # exclude near-axis jet column
     ap.add_argument("--rhi", type=float, default=1.10)    # exclude flat outer surface
+    ap.add_argument("--incept-t", type=float, default=None, dest="incept_t",
+                    help="override the inception time. The foot.dat regime latch is "
+                         "tuned for case-1000 geometry (Oh=0.01) and may never fire at "
+                         "other Oh; pass the true inception instead (e.g. where the "
+                         "drill solver's on-the-fly q_jet column first turns positive).")
     a = ap.parse_args()
     case_dir = os.path.abspath(a.case)
 
@@ -82,11 +87,15 @@ def main():
         for ln in fh:
             if ln.startswith('#') or not ln.strip(): continue
             rows.append([float(v) for v in ln.split()])
-    reg1 = [r for r in rows if int(r[5]) == 1]
-    if not reg1:
-        raise SystemExit("conefit: no jet-base rows (regime==1) in %s — inception never "
-                         "latched, nothing to fit. Check the run / latch thresholds." % a.dat)
-    incept_t = reg1[0][0]
+    if a.incept_t is not None:
+        incept_t = a.incept_t
+    else:
+        reg1 = [r for r in rows if int(r[5]) == 1]
+        if not reg1:
+            raise SystemExit("conefit: no jet-base rows (regime==1) in %s — inception never "
+                             "latched (the latch thresholds are case-1000-tuned); rerun with "
+                             "--incept-t <t> from the solver log's q_jet onset." % a.dat)
+        incept_t = reg1[0][0]
     # nearest actual snapshot: names may carry 4 or 6 decimals
     snaps = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
     if not snaps:

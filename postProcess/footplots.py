@@ -101,6 +101,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dat', default='simulationCases/1000/foot.dat')
     ap.add_argument('--out', default='simulationCases/1000')
+    ap.add_argument('--incept-t', type=float, default=None, dest='incept_t',
+                    help='override the inception time (jet phase = t >= incept_t). The '
+                         'foot.dat regime latch is case-1000-tuned and may never fire at '
+                         'other Oh; take the true inception from the drill solver log '
+                         '(first positive q_jet).')
     a = ap.parse_args()
     R = load(a.dat)
     t   = [r[0] for r in R]; zb = [r[1] for r in R]; rb = [r[2] for r in R]
@@ -139,17 +144,22 @@ def main():
     plt.close(fig)
 
     # ---------- window: inception (first rule 1) -> max jet height ----------
-    jet_i = [i for i in range(N) if reg[i] == 1]
-    incept_t = t[jet_i[0]] if jet_i else None
+    if a.incept_t is not None:
+        incept_t = a.incept_t          # user override (case-1000-tuned latch may never fire)
+    else:
+        jet_i = [i for i in range(N) if reg[i] == 1]
+        incept_t = t[jet_i[0]] if jet_i else None
     valid = [(zjet[i], t[i]) for i in range(N) if zjet[i] > SENT]
     tmax = max(valid)[1] if valid else None
     if incept_t is None or tmax is None:
         raise SystemExit("footplots: no jet-base phase (regime==1) or no valid z_jet in %s — "
                          "cannot build the jet-base scaling figure (the time-series figure was "
-                         "still written)." % a.dat)
+                         "still written). If the latch never fired, rerun with --incept-t <t> "
+                         "from the solver log's q_jet onset." % a.dat)
 
     def inwin(i):
-        return (reg[i] == 1 and rb[i] > SENT and incept_t is not None
+        injet = (t[i] >= incept_t) if a.incept_t is not None else (reg[i] == 1)
+        return (injet and rb[i] > SENT
                 and t[i] >= incept_t and tmax is not None and t[i] <= tmax)
     W_i = [i for i in range(N) if inwin(i)]
     xr  = [rb[i] for i in W_i]
