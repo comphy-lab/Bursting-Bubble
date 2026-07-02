@@ -222,6 +222,13 @@ Geometry-tuned for case 1000: origin(-6,0), L0=10, free surface near z=0.
 #define R_AXIS_K   0.05    // inception latch: max|k| point must be near the axis
 #define AXIS_BAND  0.04    // inception latch: lowest point must be off the axis
 
+// Robust arm/fire reconnection latch (case-1006 lesson; see drillProbe):
+#define ARM_BAND    0.005  // base pinned on-axis (final singular approach)
+#define LATCH_STEPS 25     // consecutive off-axis steps before firing
+#define RBASE_JET   0.15   // unambiguous developed-jet base radius (self-heal
+                           // for restarts that jump straight into the jet phase;
+                           // the pre-reconnection dimple ring peaked at ~0.11)
+
 /**
 ## Main Function
 
@@ -531,6 +538,46 @@ event drillProbe(i++) {
         double need = nCell * Ldomain / s;    // 2^L must reach this
         while (L < MAXlevel && (double)(1 << L) < need) L++;
       }
+
+      /**
+      ### Robust arm/fire reconnection latch (case-1006 lesson)
+
+      The classic latch above (max-|k| on axis AND lowest point off axis)
+      relies on a transient window between reconnection and the first
+      entrained satellite; in case 1006 that window had zero width — a
+      satellite pinned the lowest point on-axis from the first
+      post-reconnection step, jetFormed never fired, and the focus cap held
+      the whole jet phase at level 12 (the L14 release never happened).
+
+      The fix uses the ROBUST base observable (previous step's g_rbase,
+      satellite- and droplet-proof) with a two-stage arm/fire design,
+      because r_base alone is ambiguous: the pre-reconnection dimple ring
+      puts the outer-surface base off-axis (up to r ~ 0.11 around t ~ 0.456
+      in case 1006) long before the singular instant.
+
+      ARM in the final singular approach — uncapped demand has reached
+      MAXlevel (1/kmax collapsed; in case 1005 this first happened at
+      t = 0.46659, ~2e-3 before reconnection, and never during the dimple
+      wander) AND the base is pinned on-axis (r_base < ARM_BAND; the dimple
+      has r_base >= 0.018 whenever it is off-axis, so the two states are
+      well separated). FIRE when, after arming, the base stays off-axis
+      (> AXIS_BAND) for LATCH_STEPS consecutive steps — reconnection has
+      been crossed and the jet base is opening for good. Self-heal clause:
+      a restart that jumps straight into the developed jet phase (base
+      off-axis at restore, so arming can never trigger) latches directly
+      once r_base > RBASE_JET.
+      */
+      static int drillArmed = 0, baseOffAxis = 0;
+      if (!jetFormed) {
+        if (!drillArmed && L >= MAXlevel && g_rbase > -900. && g_rbase < ARM_BAND)
+          drillArmed = 1;
+        if (drillArmed) {
+          baseOffAxis = (g_rbase > AXIS_BAND) ? baseOffAxis + 1 : 0;
+          if (baseOffAxis >= LATCH_STEPS) jetFormed = 1;
+        }
+        if (g_rbase > RBASE_JET) jetFormed = 1;
+      }
+
       /**
       Pre-inception cap (case-1006 lesson): the cavity-focus collapse is a
       genuine singularity — 1/kmax -> 0 demands MAXlevel exactly at the
