@@ -208,6 +208,8 @@ int jetFormed = 0;    // inception latch (never clears during a run)
 int drillArmed = 0;   // arm/fire latch: armed in the final singular approach
 int baseOffAxis = 0;  // consecutive off-axis-base steps since arming
 int tipPinched = 0;   // first tip-droplet-shed latch (terminal relaxation)
+int tipPinchSteps = 0; // consecutive n>1 steps toward the tipPinched latch
+                       // (transient, not persisted — re-counts after restart)
 
 // Science observable exported by drillProbe(i++) (inlined getBase.c logic):
 //   g_rbase, g_zbase -> lowest OUTER-free-surface cell of the main liquid
@@ -479,7 +481,10 @@ its flux plane) inside the full-resolution zone.
 */
 int drillMLFun(double x, double y, double z) {
   if (g_zbase > -900. && x < g_zbase - DRILL_BASE_BUFFER)
-    return drillMaxlevelFocus;
+    // never exceed the global ceiling: after terminal relaxation
+    // maxlevelLocal can drop BELOW the focus cap, and the below-base zone
+    // must relax with it rather than stay pinned at drillMaxlevelFocus
+    return drillMaxlevelFocus < maxlevelLocal ? drillMaxlevelFocus : maxlevelLocal;
   return maxlevelLocal;
 }
 
@@ -616,9 +621,16 @@ event drillProbe(i++) {
   */
   int Ltarget = maxlevelLocal;
   if (drillAMR) {
-    // Terminal relaxation: latch on the first tip-droplet shed after inception.
-    // (tipPinched is file-scope, restart-persistent via drillstate.)
-    if (!tipPinched && jetFormed && n > 1) tipPinched = 1;
+    // Terminal relaxation: latch once the jet is FULLY formed — the first tip
+    // droplet has shed and STAYED shed. Persistence (LATCH_STEPS consecutive
+    // steps with more than one liquid component) guards against a transient
+    // liquid fragment near reconnection faking n > 1 for a step or two and
+    // relaxing the mesh mid-jet. (tipPinched is file-scope, restart-persistent
+    // via drillstate; the counter is transient and re-counts after restart.)
+    if (!tipPinched && jetFormed) {
+      tipPinchSteps = (n > 1) ? tipPinchSteps + 1 : 0;
+      if (tipPinchSteps >= LATCH_STEPS) tipPinched = 1;
+    }
 
     if (tipPinched && drillRelaxLevel > 0) {
       Ltarget = drillRelaxLevel;              // run the post-pinch tail cheaply
