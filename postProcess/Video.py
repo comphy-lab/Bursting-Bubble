@@ -108,6 +108,7 @@ class RuntimeConfig:
     d2_vmax: float
     vel_vmin: float
     vel_vmax: float
+    output_video: Optional[str] = None  # final mp4 path; None = <case_dir>/<caseno>.mp4
 
     @property
     def rmin(self) -> float:
@@ -253,6 +254,11 @@ def parse_arguments() -> RuntimeConfig:
         "--vel-vmax", type=float, default=1.0,
         help="Max value for velocity colorbar (default: 1.0)"
     )
+    parser.add_argument(
+        "--output-video", type=str, default=None,
+        help="Path for the final mp4 (default: <case_dir>/<caseno>.mp4). "
+             "Note --folderToSave only controls the FRAME directory."
+    )
     args = parser.parse_args()
 
     if args.cpus <= 0:
@@ -276,6 +282,7 @@ def parse_arguments() -> RuntimeConfig:
         case_dir=args.caseToProcess,
         output_dir=output_dir,
         skip_video_encode=args.skip_video_encode,
+        output_video=args.output_video,
         framerate=args.framerate,
         output_fps=args.output_fps,
         d2_vmin=args.d2_vmin,
@@ -615,8 +622,11 @@ def encode_video(config: RuntimeConfig) -> None:
     The output video is saved in the case directory with the case number
     as filename (e.g., simulationCases/1000/1000.mp4).
     """
-    case_no = os.path.basename(config.case_dir)  # extract case number from path
-    output_path = os.path.join(config.case_dir, f"{case_no}.mp4")
+    if config.output_video:
+        output_path = config.output_video
+    else:
+        case_no = os.path.basename(config.case_dir)  # extract case number from path
+        output_path = os.path.join(config.case_dir, f"{case_no}.mp4")
     input_pattern = os.path.join(config.output_dir, "*.png")
 
     cmd = [
