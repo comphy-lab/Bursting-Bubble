@@ -109,6 +109,8 @@ the drill solver; the plain solvers parse and ignore them.
 | `drillRelaxLevel` | `-1` | relax level after first tip pinch; `≤0` = hold resolution (safe) |
 | `drillTsnapStages` | `1` | stage snapshot cadence with the mesh |
 | `drillTsnapMinFactor` | `0.1` | floor on the staged `tsnap` as a fraction of base |
+| `drillMaxlevelFocus` | `-1` | pre-inception cap on the demanded level, released at the inception latch; `≤0` = no cap (see the case-1005 postmortem below) |
+| `drillRemoveGasSize` | `0` | absorb gas components smaller than this side length in cells (`< size^2` cells in 2D axi) each step; liquid is never touched; `0` = off |
 
 ## Log format
 
@@ -143,6 +145,51 @@ The staged `tsnap` can drop below `1e-4` near inception, where 4-decimal
 names would collide and silently overwrite dumps. The postProcess tools
 discover snapshots by glob and parse `t` from the filename, so both old
 (4-dp) and new (6-dp) cases remain readable.
+
+## Singularity regularisation at high MAXlevel (case-1005 postmortem)
+
+Case 1005 (Oh = 0.029, MAXlevel = 14, otherwise the validated case-1004
+protocol) died at the cavity-focus instant. Crash anatomy: over the final ~10
+steps `t` froze at 0.46886757 while `dt` collapsed 2.0e-6 → 7.3e-10 — four
+decades below the level-14 capillary limit (~8e-6) — and then `ke` spiked
+5.31 → 19.7 → 1100 in two steps, tripping the blow-up guard. 3875 steps, 163
+snapshots (pre-inception data intact), 3.1 h wall. The level-12 case 1004
+stepped straight over the same instant (dt dipped only to ~3e-5).
+
+Mechanism, not bug: the pre-inception tracked length is the focus
+curvature radius `1/|kappa|max`, and it genuinely goes to zero — so the drill
+demands MAXlevel *exactly at the singular instant*. Resolving deeper into a
+genuine singularity is self-defeating: the CFL condition chases the diverging
+focusing velocity in ever-smaller cells (`dt ~ Delta/u` with `u` growing as
+the collapse proceeds), so the run stalls *at* the singularity instead of
+crossing it. The topology change then sheds sub-grid gas wisps whose
+`rho_gas = 1e-3` cells pick up enormous accelerations — that is the terminal
+`ke` spike. A coarser mesh regularises the collapse at scale `Delta` and
+steps over the reconnection; level 12 is validated to cross.
+
+Two knobs (both off by default; existing behaviour unchanged):
+
+- `drillMaxlevelFocus` — caps the *pre-inception* demanded level. The cap is
+  released the moment the inception latch fires: the erupting slender jet is
+  fast but *smooth*, so deep refinement is safe there — and the post-latch
+  regime is exactly where `q_jet(r_jet)` wants the resolution (extending the
+  power law to smaller `r_jet`).
+- `drillRemoveGasSize` — per-step `remove_droplets(f, minsize = size,
+  bubbles = true)` (tag.h): gas components below `size^2` cells are absorbed
+  into the liquid, killing the reconnection wisps that drive the CFL stall.
+  Runs before the probe/getBase tagging, so diagnostics never see the wisps.
+  Liquid droplets (shed tip drop, satellites) are physics and are never
+  touched; a resolved satellite gas bubble spans far more cells and survives.
+
+Recommended production settings at MAXlevel = 14 (case 1006 onward):
+`drillMaxlevelFocus=12`, `drillRemoveGasSize=3`. Size 3 at level 14 removes
+gas structures below ~3 Delta_14 ≈ 2e-3 R0 — smaller than anything the
+validated level-12 run could even represent, so nothing physical is lost.
+
+Validation: restarting from case-1005's last pre-crash snapshot
+(`snapshot-0.468750`, level-14 mesh, right at the focus) with these settings
+crossed the fatal instant within seconds of wall time — `dt ~ 8.5e-6`, `ke`
+flat at 5.31, ceiling coarsened 14 → 12 by the cap.
 
 ## Build
 
