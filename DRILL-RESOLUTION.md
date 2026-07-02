@@ -251,6 +251,66 @@ Alternatively, restart the drill from any existing case-1000 snapshot
 (`intermediate/snapshot-*`) — dumps carry only `f` and `u`, so they are
 solver-agnostic.
 
+## Production recipe — deep-MAXlevel jet runs (July 2026, cases 1010/1011)
+
+The configuration that produced the Oh = 0.029 q_jet(r_jet) / q_l(r_jet)
+resolution ladder (L12/L13/L14). This is the complete `case.params` for the
+MAXlevel-14 run; for L13 change `MAXlevel=13` and `drillTsnapMinFactor=0.03125`
+(= 2^(start−MAXlevel), so the staged snapshot cadence is never floored):
+
+```ini
+CaseNo=1011
+Oh=0.029
+Bond=1e-3
+OhRatio=2e-2
+MAXlevel=14
+MINlevel=4
+init_grid_level=5
+fErr=1e-3
+VelErr=1e-3
+KErr=1e-6
+CFL=0.1
+dtmax=1e-2
+TOLERANCE=1e-4
+tsnap=1e-2
+tmax=1.5
+zWall=4.0
+drillAMR=1
+drillMaxlevelStart=8
+drillNcellsK=5
+drillNcellsJet=5
+drillRelaxLevel=-1
+drillTsnapStages=1
+drillTsnapMinFactor=0.015625
+drillMaxlevelFocus=12
+drillRemoveGasSize=3
+keStopMax=1e4
+```
+
+The three regularisation knobs are what make MAXlevel > 12 survivable — see
+the postmortem section above. Run with `OMP_NUM_THREADS=8 ./drill case.params`.
+From scratch, the run crosses the focus capped at `drillMaxlevelFocus`, the
+arm/fire latch releases the full `MAXlevel` at inception (t ≈ 0.471 for this
+Oh), and the regional ceiling keeps satellites below the base at the capped
+level while the jet gets full depth. To restart mid-run, the `drillstate`
+sidecar carries the latches; for dumps that predate it, add `drillAssumeJet=1`
+(post-inception dumps only).
+
+Provenance note: the published L13/L14 datasets were produced as restart
+chains while the regularisation was being developed (1008/1009 from their
+parents' final-approach snapshots with the arm/fire latch; 1010/1011 from
+1009/1008 with the regional ceiling), with every stage validated in
+production. A single from-scratch run with the final solver exercises the
+identical code paths but has not itself been run end-to-end at MAXlevel=14;
+each ingredient has (from-scratch focus crossing: case 1006; latch release:
+1008/1009; regional ceiling through the jet + satellite pinches and past the
+tip-pinch window: 1010).
+
+Post-processing at this Oh: the classic inception latch in
+`VideoFoot.py`/`conefit.py`/`footplots.py` is case-1000-tuned and does not
+fire — pass `--incept-t <t>` (read the inception off the solver log: first
+row where the on-the-fly `q_jet` column turns positive).
+
 ## Validation
 
 Environment: `machine-ts`, Basilisk `v2026-01-13`, case 1000
