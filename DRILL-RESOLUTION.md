@@ -191,6 +191,16 @@ Validation: restarting from case-1005's last pre-crash snapshot
 crossed the fatal instant within seconds of wall time — `dt ~ 8.5e-6`, `ke`
 flat at 5.31, ceiling coarsened 14 → 12 by the cap.
 
+A third, complementary knob targets the *gate* rather than the mechanism: the
+blow-up stop is now runtime-configurable (`keStopMax`, historical default
+`1e2`; `keStopMin` for the dissipation stop). The 1e2 threshold is ad hoc — a
+localised, transient `ke` spike (e.g. at the post-latch refinement release)
+can exceed it and still self-recover, while a genuine divergence also stalls
+`dt`. To deliberately force a run through the singular instant, relax the gate
+(e.g. `keStopMax=1e4`) *and* watch `dt`/progress externally: a healthy
+crossing keeps `dt` near the capillary limit; a real blow-up shows the
+case-1005 signature (frozen `t`, collapsing `dt`) regardless of the gate.
+
 ## Build
 
 Same as the other solvers (see `runSimulation.sh`), just a different source
