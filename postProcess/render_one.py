@@ -17,9 +17,10 @@ case_dir = os.path.abspath(CASE)
 snaps = sorted(glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*")))
 if not snaps:
     sys.exit("no snapshots found in %s/intermediate" % case_dir)
-latest = snaps[-1]
+latest = max(snaps, key=lambda f: float(os.path.basename(f).replace("snapshot-", "")))
 t = float(os.path.basename(latest).replace("snapshot-", ""))
-rel = os.path.join("intermediate", "snapshot-%.4f" % t)
+# use the actual filename — snapshot names may carry 4 or 6 decimals
+rel = os.path.relpath(latest, case_dir)
 
 # Focused view on the collapsing cavity / jet region.
 zmin, zmax, rmax = -2.5, 1.5, 1.5

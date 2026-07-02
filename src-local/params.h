@@ -63,6 +63,69 @@ struct SimulationParams {
   // Time control
   double tmax;           /**< Maximum simulation time (capillary units) */
   double tsnap;          /**< Snapshot/restart dump interval */
+
+  // Safety gates (kinetic-energy sanity checks in logWriting)
+  double keStopMax;      /**< Stop when ke exceeds this (blow-up guard). The
+                              historical 1e2 is ad hoc: a localised, transient
+                              spike (e.g. at a refinement release near the
+                              singular instant) can exceed it and still
+                              self-recover, while a genuine divergence also
+                              stalls dt. Relax deliberately (with a dt/progress
+                              watchdog) to force a run through the singularity;
+                              see the case-1005/1006 notes. */
+  double keStopMin;      /**< Stop when ke falls below this (dissipated /
+                              nothing left to compute) */
+
+  // Drill adaptive-resolution trigger (feature-tracking AMR + time)
+  // Only consumed by burstingBubble-drillResolution.c. The plain adaptive
+  // solver ignores these. See that file's header for the mechanism.
+  int drillAMR;              /**< Master switch: 1 = feature-tracking ramp of the
+                                  local ceiling maxlevelLocal; 0 = pin at MAXlevel
+                                  (reproduces the fixed-level reference run) */
+  int drillMaxlevelStart;    /**< Coarsest level the ramp is allowed to fall to
+                                  (ramp floor); the far field still coarsens to
+                                  MINlevel via the wavelet criterion */
+  double drillNcellsK;       /**< Cells the tracked length must span before the
+                                  current level is deemed sufficient — cavity-focus
+                                  (curvature-radius) regime, pre-inception */
+  double drillNcellsJet;     /**< Same, jet-base-radius regime, post-inception */
+  int drillRelaxLevel;       /**< Level to relax to after the first tip droplet
+                                  sheds; <=0 disables relaxation (hold resolution
+                                  on the receding base — the safe default) */
+  int drillTsnapStages;      /**< 1 = tighten the snapshot interval as the mesh
+                                  refines (adaptive time-resolution of output);
+                                  0 = uniform tsnap */
+  double drillTsnapMinFactor;/**< Floor on the staged snapshot interval as a
+                                  fraction of tsnap (guards against a snapshot
+                                  storm when start is far below MAXlevel) */
+  int drillMaxlevelFocus;    /**< Pre-inception cap on the demanded level. The
+                                  cavity-focus collapse is a genuine singularity:
+                                  chasing it beyond the level that safely steps
+                                  over the topology change stalls dt (CFL chases
+                                  diverging u in ever-smaller cells) and blows up
+                                  ke at reconnection (case 1005, MAXlevel=14,
+                                  t=0.46887). Cap the focus regime here (12 is
+                                  validated) and let the full MAXlevel loose only
+                                  after the inception latch, where the slender
+                                  jet is fast but smooth. <=0 disables (cap =
+                                  MAXlevel, the pre-case-1006 behaviour). */
+  int drillRemoveGasSize;    /**< Remove gas fragments (bubbles=true) smaller
+                                  than this side length in cells each step:
+                                  components below drillRemoveGasSize^2 cells
+                                  (2D) are absorbed into the liquid. Kills the
+                                  sub-grid gas wisps shed by the cavity
+                                  reconnection that drive the CFL stall. Liquid
+                                  droplets are never touched (shed tip droplets
+                                  are physics). 0 disables. */
+  int drillAssumeJet;        /**< 1 = force the inception latch (jetFormed) on
+                                  at init after a successful restore. For
+                                  restarts from LEGACY post-inception dumps
+                                  that predate the drillstate file — without
+                                  it such a restart can never re-latch and the
+                                  focus cap silently re-binds the whole jet.
+                                  Only ever sets the latch, never clears it;
+                                  a drillstate file, when present, is read
+                                  first. Default 0. */
 };
 
 /**
@@ -98,10 +161,25 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->CFL = 0.1;
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
+  p->keStopMax = 1.0e2;    // historical blow-up gate (ad hoc; see struct note)
+  p->keStopMin = 1.0e-6;
 
   // Time control
   p->tmax = 1.0;
   p->tsnap = 1.0e-2;
+
+  // Drill adaptive-resolution trigger (safe defaults: track the singularity,
+  // never relax, mildly stage the output cadence)
+  p->drillAMR = 1;
+  p->drillMaxlevelStart = 8;
+  p->drillNcellsK = 5.0;
+  p->drillNcellsJet = 5.0;
+  p->drillRelaxLevel = -1;      // relaxation disabled by default
+  p->drillTsnapStages = 1;
+  p->drillTsnapMinFactor = 0.1;
+  p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
+  p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
+  p->drillAssumeJet = 0;        // don't assume a formed jet on restore
 }
 
 /**
@@ -132,8 +210,20 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
+  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
+  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = atof(value);
   else if (strcmp(key, "tmax")            == 0) p->tmax = atof(value);
   else if (strcmp(key, "tsnap")           == 0) p->tsnap = atof(value);
+  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = atoi(value);
+  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = atoi(value);
+  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = atof(value);
+  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = atof(value);
+  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
+  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
+  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
+  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
+  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
+  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
   else return 0;
   return 1;
 }
@@ -362,6 +452,11 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: TOLERANCE must be positive (TOLERANCE = %g)\n", p->TOLERANCE);
     valid = 0;
   }
+  if (p->keStopMax <= 0 || p->keStopMin < 0 || p->keStopMin >= p->keStopMax) {
+    fprintf(stderr, "ERROR: need 0 <= keStopMin < keStopMax (keStopMin = %g, keStopMax = %g)\n",
+            p->keStopMin, p->keStopMax);
+    valid = 0;
+  }
   if (p->tmax <= 0) {
     fprintf(stderr, "ERROR: tmax must be positive (tmax = %g)\n", p->tmax);
     valid = 0;
@@ -369,6 +464,46 @@ static inline int validate_params(const struct SimulationParams *p) {
   if (p->tsnap <= 0 || p->tsnap > p->tmax) {
     fprintf(stderr, "ERROR: Invalid tsnap (tsnap = %g, tmax = %g)\n", p->tsnap, p->tmax);
     valid = 0;
+  }
+  // Drill trigger consistency (only meaningful for the drill solver, but a
+  // malformed value should still fail fast rather than silently mis-refine).
+  if (p->drillAMR) {
+    if (p->drillMaxlevelStart < p->MINlevel || p->drillMaxlevelStart > p->MAXlevel) {
+      fprintf(stderr, "ERROR: drillMaxlevelStart (%d) must be in [MINlevel, MAXlevel] = [%d, %d]\n",
+              p->drillMaxlevelStart, p->MINlevel, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillNcellsK <= 0 || p->drillNcellsJet <= 0) {
+      fprintf(stderr, "ERROR: drillNcellsK/drillNcellsJet must be positive (%g / %g)\n",
+              p->drillNcellsK, p->drillNcellsJet);
+      valid = 0;
+    }
+    if (p->drillRelaxLevel > 0 &&
+        (p->drillRelaxLevel < p->MINlevel || p->drillRelaxLevel > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillRelaxLevel (%d) must be <=0 (disabled) or in [MINlevel, MAXlevel]\n",
+              p->drillRelaxLevel);
+      valid = 0;
+    }
+    if (p->drillMaxlevelFocus > 0 &&
+        (p->drillMaxlevelFocus < p->drillMaxlevelStart || p->drillMaxlevelFocus > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillMaxlevelFocus (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
+              p->drillMaxlevelFocus, p->drillMaxlevelStart, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillRemoveGasSize < 0) {
+      fprintf(stderr, "ERROR: drillRemoveGasSize (%d) must be >= 0 (0 disables)\n",
+              p->drillRemoveGasSize);
+      valid = 0;
+    }
+    if (p->drillAssumeJet != 0 && p->drillAssumeJet != 1) {
+      fprintf(stderr, "ERROR: drillAssumeJet (%d) must be 0 or 1\n",
+              p->drillAssumeJet);
+      valid = 0;
+    }
+    if (p->drillTsnapMinFactor <= 0 || p->drillTsnapMinFactor > 1) {
+      fprintf(stderr, "ERROR: drillTsnapMinFactor must be in (0, 1] (%g)\n", p->drillTsnapMinFactor);
+      valid = 0;
+    }
   }
   return valid;
 }
@@ -398,9 +533,34 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
   fprintf(fp, "  CFL:                    %g\n", p->CFL);
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);
   fprintf(fp, "  Solver TOLERANCE:       %g\n", p->TOLERANCE);
+  fprintf(fp, "  ke stop gates (min/max): %g / %g\n", p->keStopMin, p->keStopMax);
   fprintf(fp, "Time Control:\n");
   fprintf(fp, "  tmax:                   %g\n", p->tmax);
   fprintf(fp, "  tsnap:                  %g\n", p->tsnap);
+  fprintf(fp, "Drill Trigger (drill solver only):\n");
+  if (p->drillAMR) {
+    fprintf(fp, "  drillAMR:               ON\n");
+    fprintf(fp, "  maxlevel start/floor:   %d\n", p->drillMaxlevelStart);
+    fprintf(fp, "  cells/feature (K/jet):  %g / %g\n", p->drillNcellsK, p->drillNcellsJet);
+    if (p->drillRelaxLevel > 0)
+      fprintf(fp, "  relax level (post-pinch): %d\n", p->drillRelaxLevel);
+    else
+      fprintf(fp, "  relax level (post-pinch): disabled\n");
+    fprintf(fp, "  staged tsnap:           %s (floor factor %g)\n",
+            p->drillTsnapStages ? "ON" : "OFF", p->drillTsnapMinFactor);
+    if (p->drillMaxlevelFocus > 0)
+      fprintf(fp, "  focus (pre-incept) cap: %d\n", p->drillMaxlevelFocus);
+    else
+      fprintf(fp, "  focus (pre-incept) cap: disabled\n");
+    if (p->drillRemoveGasSize > 0)
+      fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
+    else
+      fprintf(fp, "  gas-wisp removal:       OFF\n");
+    if (p->drillAssumeJet)
+      fprintf(fp, "  assume jet on restore:  ON\n");
+  } else {
+    fprintf(fp, "  drillAMR:               OFF (pinned at MAXlevel = %d)\n", p->MAXlevel);
+  }
   fprintf(fp, "========================================\n\n");
   fflush(fp);
 }

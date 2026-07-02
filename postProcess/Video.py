@@ -27,6 +27,7 @@ Last updated: Jan 2025
 """
 
 import os
+import glob
 import tempfile
 
 # Best-effort worker isolation: per-process matplotlib cache dir and single-thread
@@ -107,6 +108,7 @@ class RuntimeConfig:
     d2_vmax: float
     vel_vmin: float
     vel_vmax: float
+    output_video: Optional[str] = None  # final mp4 path; None = <case_dir>/<caseno>.mp4
 
     @property
     def rmin(self) -> float:
@@ -199,7 +201,8 @@ def parse_arguments() -> RuntimeConfig:
         help="Number of CPUs to use"
     )
     parser.add_argument(
-        "--nGFS", type=int, default=500, help="Number of restart files to process"
+        "--nGFS", type=int, default=0,
+        help="Cap on snapshots to process (0 = all snapshots found on disk)"
     )
     parser.add_argument(
         "--GridsPerR", type=int, default=256, help="Number of grids per R"
@@ -251,6 +254,11 @@ def parse_arguments() -> RuntimeConfig:
         "--vel-vmax", type=float, default=1.0,
         help="Max value for velocity colorbar (default: 1.0)"
     )
+    parser.add_argument(
+        "--output-video", type=str, default=None,
+        help="Path for the final mp4 (default: <case_dir>/<caseno>.mp4). "
+             "Note --folderToSave only controls the FRAME directory."
+    )
     args = parser.parse_args()
 
     if args.cpus <= 0:
@@ -259,9 +267,13 @@ def parse_arguments() -> RuntimeConfig:
     output_dir = (args.folderToSave if args.folderToSave
                   else os.path.join(args.caseToProcess, "Video"))
 
+    # nGFS caps the frame count; 0 (the default) = all snapshots found on disk
+    n_found = len(discover_snapshots(args.caseToProcess))
+    n_snapshots = args.nGFS if args.nGFS > 0 else n_found
+
     return RuntimeConfig(
         cpus=args.cpus,
-        n_snapshots=args.nGFS,
+        n_snapshots=n_snapshots,
         grids_per_r=args.GridsPerR,
         tsnap=args.tsnap,
         zmin=args.ZMIN,
@@ -270,6 +282,7 @@ def parse_arguments() -> RuntimeConfig:
         case_dir=args.caseToProcess,
         output_dir=output_dir,
         skip_video_encode=args.skip_video_encode,
+        output_video=args.output_video,
         framerate=args.framerate,
         output_fps=args.output_fps,
         d2_vmin=args.d2_vmin,
@@ -395,11 +408,39 @@ def get_field(filename: str, case_dir: str, zmin: float, zmax: float, rmax: floa
     return FieldData(R=R, Z=Z, strain_rate=D2, velocity=vel, nz=nz)
 
 
+_SNAPSHOT_CACHE: dict = {}
+
+
+def discover_snapshots(case_dir: str):
+    """Sorted (time, path) list of the ACTUAL snapshot files on disk.
+
+    Snapshot names may carry 4 or 6 decimals, and the drill solver's staged
+    tsnap is not a uniform grid — reconstructing names from tsnap*index
+    silently misses every file on such cases. Discover by glob instead.
+    """
+    key = os.path.abspath(case_dir)
+    if key not in _SNAPSHOT_CACHE:
+        paths = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
+        _SNAPSHOT_CACHE[key] = sorted(
+            (float(p.rsplit("snapshot-", 1)[-1]), p) for p in paths
+        )
+    return _SNAPSHOT_CACHE[key]
+
+
 def build_snapshot_info(index: int, config: RuntimeConfig) -> SnapshotInfo:
-    """Construct file paths for a given timestep index."""
-    time = config.tsnap * index
-    source = os.path.join(config.case_dir, "intermediate", f"snapshot-{time:.4f}")
-    target = os.path.join(config.output_dir, f"{int(time * 1000):08d}.png")
+    """File paths for the index-th snapshot found on disk (time-ordered).
+
+    Frame targets use microsecond resolution: the staged cadence can go below
+    1 ms, where the old millisecond rounding collided. The encoder ingests via
+    an ffmpeg glob, so the digit count is free to change.
+    """
+    snaps = discover_snapshots(config.case_dir)
+    if index < len(snaps):
+        time, source = snaps[index]
+    else:  # legacy fallback: uniform grid reconstruction (pre-drill cases)
+        time = config.tsnap * index
+        source = os.path.join(config.case_dir, "intermediate", f"snapshot-{time:.4f}")
+    target = os.path.join(config.output_dir, f"{int(round(time * 1e6)):010d}.png")
     return SnapshotInfo(index=index, time=time, source=source, target=target)
 
 
@@ -552,7 +593,7 @@ def process_timestep(index: int, config: RuntimeConfig, style: PlotStyle) -> Non
     src_rel = os.sep.join(src_parts[-3:]) if len(src_parts) >= 3 else snapshot.source
     log_status(f"Processing {src_rel}")
 
-    rel_snapshot = os.path.join("intermediate", f"snapshot-{snapshot.time:.4f}")  # relative path for Basilisk helpers
+    rel_snapshot = os.path.join("intermediate", os.path.basename(snapshot.source))  # actual filename (4- or 6-dp)
     case_dir = os.path.abspath(config.case_dir)
 
     try:
@@ -581,8 +622,11 @@ def encode_video(config: RuntimeConfig) -> None:
     The output video is saved in the case directory with the case number
     as filename (e.g., simulationCases/1000/1000.mp4).
     """
-    case_no = os.path.basename(config.case_dir)  # extract case number from path
-    output_path = os.path.join(config.case_dir, f"{case_no}.mp4")
+    if config.output_video:
+        output_path = config.output_video
+    else:
+        case_no = os.path.basename(config.case_dir)  # extract case number from path
+        output_path = os.path.join(config.case_dir, f"{case_no}.mp4")
     input_pattern = os.path.join(config.output_dir, "*.png")
 
     cmd = [
