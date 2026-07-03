@@ -506,13 +506,18 @@ def main():
     ax_a.add_artist(leg1)
 
     cone_lbl = (r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"
-    # q-panel line legend (power-law inertio-capillary, alpha=2/3): on (a) and (c)
-    for ax in (ax_a, ax_c):
-        ax.legend(handles=[
-            Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
-            Line2D([0], [0], color="0.3", ls="--", lw=2.0,
-                   label=r"inertio-capillary ($\alpha=2/3$)"),
-        ], fontsize=11, loc="upper left", frameon=False, handletextpad=0.6, labelspacing=0.3)
+    # q-panel line legend (power-law inertio-capillary, alpha=2/3).
+    # (a) q_j is small at small r_j -> upper-left is clear.
+    # (c) q_l is O(1) even at small r_j (non-monotonic) -> lower-left is clear.
+    q_line_handles = [
+        Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
+        Line2D([0], [0], color="0.3", ls="--", lw=2.0,
+               label=r"inertio-capillary ($\alpha=2/3$)"),
+    ]
+    ax_a.legend(handles=q_line_handles, fontsize=11, loc="upper left",
+                frameon=False, handletextpad=0.6, labelspacing=0.3)
+    ax_c.legend(handles=q_line_handles, fontsize=11, loc="lower left",
+                frameon=False, handletextpad=0.6, labelspacing=0.3)
     # We-panel line legend (inertio-capillary We_j = O(1)): on (b) and (d)
     for ax in (ax_b, ax_d):
         ax.legend(handles=[
