@@ -383,6 +383,10 @@ def main():
     ap.add_argument("--cone-window", nargs=4, type=float,
                      default=[-1.60, -0.40, 0.10, 1.00], dest="cone_window",
                      metavar=("ZLO", "ZHI", "RLO", "RHI"))
+    ap.add_argument("--bond", type=float, default=1e-3,
+                     help="Bond number for the legend label (0 -> 'Bo = 0'). "
+                          "The solver has no gravity term; Bo only selects the "
+                          "initial-shape file, so this is purely a label.")
     ap.add_argument("--out", required=True, help="Output stem (.png and .pdf).")
     args = ap.parse_args()
 
@@ -573,7 +577,14 @@ def main():
     grids = sorted({s["grid"] for s in series})
     grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
                            mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
-    bo_handle = [Line2D([0], [0], ls="", label=r"$Bo = 10^{-3}$")]
+    def bo_label_txt(b):
+        if b == 0:
+            return r"$Bo = 0$"
+        e = math.log10(b)
+        if abs(e - round(e)) < 1e-9:
+            return r"$Bo = 10^{%d}$" % round(e)
+        return r"$Bo = %.2g$" % b
+    bo_handle = [Line2D([0], [0], ls="", label=bo_label_txt(args.bond))]
     leg1 = ax_a.legend(handles=bo_handle + oh_handles + grid_handles, fontsize=11.5,
                        loc="lower right", frameon=False, handletextpad=0.4,
                        labelspacing=0.32)
