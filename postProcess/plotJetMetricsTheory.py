@@ -494,8 +494,13 @@ def main():
     # ---- legends -----------------------------------------------------------
     # (a): Oh colours + grid markers + Bo (Bo is a legend entry so the
     # forthcoming Bo=0 runs can be distinguished from Bo=1e-3).
+    def oh_label(oh):
+        cone = alpha_by_oh[oh]
+        if cone is not None:
+            return r"$Oh = %.4g,\ \beta = %.1f^\circ$" % (oh, cone["beta"])
+        return r"$Oh = %.4g$" % oh
     oh_handles = [Line2D([0], [0], marker="o", ls="", mfc=oh_colour[oh], mec="k",
-                          mew=0.3, ms=8, label=r"$Oh = %.4g$" % oh) for oh in ohs]
+                          mew=0.3, ms=8, label=oh_label(oh)) for oh in ohs]
     grids = sorted({s["grid"] for s in series})
     grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
                            mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
