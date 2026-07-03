@@ -43,7 +43,22 @@ distinguishes the two.
 
 Theory-line SLOPES are fixed by the two alphas; PREFACTORS are least-squares
 fit in log space to the pooled jet-phase data of each Oh over the r_j -> 0
-asymptotic window (never the full range).
+asymptotic window (never the full range). For the We_j panels the inertio-
+capillary prediction is r_j-INDEPENDENT and order unity, so it is drawn as a
+horizontal line at We_j = O(1) = 1 (NOT fit to the data) — the physical claim
+the data refutes.
+
+## Note on the two We_j definitions
+
+We_j is shown two ways (rows of the 2x2 figure): We_j = q_l^2/r_j (from
+q_l = INT v_z dr) and We_j = q_j^2/r_j^3 (from q_j = INT v_z r dr). They come
+out with identical SHAPE, offset only by a constant ~4x (q_l^2/r_j ~=
+4 q_j^2/r_j^3). That factor is exactly what a self-similar velocity profile
+gives (INT v dr = v_j r_j, INT v r dr = v_j r_j^2/2, so the ratio is fixed):
+the jet profile IS self-similar and the choice of definition is cosmetic — it
+only shifts where the data crosses the We_j = O(1) line. q_l^2/r_j keeps We_j
+further above unity (a more dramatic refutation of the inertio-capillary
+prediction) and is the paper-consistent form (their q_j = INT v_z dr).
 
 ## Grouping
 
@@ -372,7 +387,7 @@ def main():
         We_ql = q_l ** 2 / r_j
         We_qj = q_jet ** 2 / r_j ** 3
         series.append(dict(oh=oh, grid=grid, case_dir=case_dir, incept_t=incept_t,
-                           r_j=r_j, q_j=q_jet, We_ql=We_ql, We_qj=We_qj))
+                           r_j=r_j, q_j=q_jet, q_l=q_l, We_ql=We_ql, We_qj=We_qj))
 
     ohs = sorted({s["oh"] for s in series})
     oh_colour = {oh: OH_COLOURS[i % len(OH_COLOURS)] for i, oh in enumerate(ohs)}
@@ -394,23 +409,28 @@ def main():
         else:
             print("Oh=%.4g: CONE FIT FAILED (no facet data) — theory line skipped" % oh)
 
-    # ---- exponents (q_j and both We_j estimators share the We_j exponent) ----
+    # ---- exponents. Both We_j estimators share the same We_j exponent. ------
     def exps(alpha):
         e_we = (3 * alpha - 2) / alpha
-        return {"q_j": (3 * alpha - 1) / alpha, "We_ql": e_we, "We_qj": e_we}
-    ic_exp = exps(ALPHA_IC)   # q_j -> 1.5 ; We -> 0 (constant)
-    print("inertio-capillary (alpha=2/3): q_j~r^%.3f  We_j~r^%.3f (constant)"
-          % (ic_exp["q_j"], ic_exp["We_ql"]))
+        return {"q_j": (3 * alpha - 1) / alpha,
+                "q_l": (2 * alpha - 1) / alpha,
+                "We_qj": e_we, "We_ql": e_we}
+    ic_exp = exps(ALPHA_IC)   # q_j->1.5, q_l->0.5, We->0 (constant)
+    print("inertio-capillary (alpha=2/3): q_j~r^%.3f  q_l~r^%.3f  We_j~r^%.3f (constant)"
+          % (ic_exp["q_j"], ic_exp["q_l"], ic_exp["We_ql"]))
 
     # ============================ figure =====================================
-    fig, (ax_q, ax_b, ax_c) = plt.subplots(1, 3, figsize=(19.5, 6.3))
-    # We_j is drawn TWO ways so the choice of velocity-profile moment can be
-    # judged from the data (panels b and c should agree up to a constant if the
-    # jet profile is self-similar).
+    # 2x2. Row 1: q_j (INT v_z r dr) and its We_j = q_j^2/r_j^3.
+    #      Row 2: q_l (INT v_z dr)   and its We_j = q_l^2/r_j.
+    # The two We_j columns estimate the SAME physical We_j = v_j^2 r_j from two
+    # velocity-profile moments; agreement up to a constant confirms a
+    # self-similar jet profile.
+    fig, axes = plt.subplots(2, 2, figsize=(13.8, 11.4))
     panels = [
-        (ax_q, "q_j",  r"$q_j = \int v_z\, r\, \mathrm{d}r$", "(a)", False),
-        (ax_b, "We_ql", r"$We_j = q_\ell^2/r_j,\ \ q_\ell=\int v_z\,\mathrm{d}r$", "(b)", True),
-        (ax_c, "We_qj", r"$We_j = q_j^2/r_j^3,\ \ q_j=\int v_z r\,\mathrm{d}r$", "(c)", True),
+        (axes[0][0], "q_j",  r"$q_j = \int v_z\, r\, \mathrm{d}r$", "(a)", False),
+        (axes[0][1], "We_qj", r"$We_j = q_j^2 / r_j^3$", "(b)", True),
+        (axes[1][0], "q_l",  r"$q_\ell = \int v_z\, \mathrm{d}r$", "(c)", False),
+        (axes[1][1], "We_ql", r"$We_j = q_\ell^2 / r_j$", "(d)", True),
     ]
 
     for ax, key, ylabel, tag, is_we in panels:
@@ -463,41 +483,45 @@ def main():
             yhi = q_all.max() * 1.4
 
         style_log_axis(ax, (r_all.min() * 0.85, r_all.max() * 1.2), (ylo, yhi))
-        ax.set_xlabel(r"$r_j$", fontsize=19, labelpad=6)
-        ax.set_ylabel(ylabel, fontsize=17, labelpad=8)
-        ax.set_title(tag, loc="left", fontsize=18, pad=10)
+        ax.set_xlabel(r"$r_j$", fontsize=19, labelpad=5)
+        ax.set_ylabel(ylabel, fontsize=18, labelpad=7)
+        ax.set_title(tag, loc="left", fontsize=17, pad=8)
+
+    ax_a, ax_b = axes[0][0], axes[0][1]
+    ax_c, ax_d = axes[1][0], axes[1][1]
+    a_ref = next((alpha_by_oh[o]["alpha"] for o in ohs if alpha_by_oh[o]), None)
 
     # ---- legends -----------------------------------------------------------
-    # (a): Oh colours + grid markers + Bo. Bo is a legend entry now because
-    # forthcoming Bo=0 runs will add a second Bo to distinguish.
+    # (a): Oh colours + grid markers + Bo (Bo is a legend entry so the
+    # forthcoming Bo=0 runs can be distinguished from Bo=1e-3).
     oh_handles = [Line2D([0], [0], marker="o", ls="", mfc=oh_colour[oh], mec="k",
                           mew=0.3, ms=8, label=r"$Oh = %.4g$" % oh) for oh in ohs]
     grids = sorted({s["grid"] for s in series})
     grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
                            mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
     bo_handle = [Line2D([0], [0], ls="", label=r"$Bo = 10^{-3}$")]
-    leg1 = ax_q.legend(handles=bo_handle + oh_handles + grid_handles, fontsize=12,
+    leg1 = ax_a.legend(handles=bo_handle + oh_handles + grid_handles, fontsize=11.5,
                        loc="lower right", frameon=False, handletextpad=0.4,
-                       labelspacing=0.35)
-    ax_q.add_artist(leg1)
+                       labelspacing=0.32)
+    ax_a.add_artist(leg1)
 
-    a_ref = next((alpha_by_oh[o]["alpha"] for o in ohs if alpha_by_oh[o]), None)
-    ax_q.legend(handles=[
-        Line2D([0], [0], color="0.3", ls="-", lw=2.0,
-               label=(r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"),
-        Line2D([0], [0], color="0.3", ls="--", lw=2.0,
-               label=r"inertio-capillary ($\alpha=2/3$)"),
-    ], fontsize=11, loc="upper left", frameon=False, handletextpad=0.6, labelspacing=0.3)
-
-    for ax in (ax_b, ax_c):
+    cone_lbl = (r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"
+    # q-panel line legend (power-law inertio-capillary, alpha=2/3): on (a) and (c)
+    for ax in (ax_a, ax_c):
         ax.legend(handles=[
-            Line2D([0], [0], color="0.3", ls="-", lw=2.0,
-                   label=(r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"),
+            Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
+            Line2D([0], [0], color="0.3", ls="--", lw=2.0,
+                   label=r"inertio-capillary ($\alpha=2/3$)"),
+        ], fontsize=11, loc="upper left", frameon=False, handletextpad=0.6, labelspacing=0.3)
+    # We-panel line legend (inertio-capillary We_j = O(1)): on (b) and (d)
+    for ax in (ax_b, ax_d):
+        ax.legend(handles=[
+            Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
             Line2D([0], [0], color="0.35", ls="--", lw=2.0,
                    label=r"inertio-capillary ($We_j=O(1)$)"),
         ], fontsize=11, loc="lower left", frameon=False, handletextpad=0.6, labelspacing=0.3)
 
-    plt.tight_layout(w_pad=2.4)
+    plt.tight_layout(w_pad=2.4, h_pad=2.2)
     plt.savefig(args.out + ".png", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.savefig(args.out + ".pdf", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
