@@ -1,73 +1,86 @@
 #!/usr/bin/env python3
 """
-plotJetMetricsTheory.py — publication-grade jet-observable figure comparing
-the drill solver's on-the-fly log to the purely-inertial self-similar cone
-theory (Gordillo, Rodriguez-Rodriguez & Sanjay, "Self-similar Worthington
-jets"). Generalises the case-by-case scratch figures built earlier in this
-project to an arbitrary number of cases/Oh values, reading directly from
-solver `log` files (no pre-extracted CSVs needed).
+plotJetMetricsTheory.py — jet-observable scaling figure for the self-similar
+Worthington-jet study (CoMPhy Lab). Self-contained: all quantities are defined
+here in terms of what the drill solver logs, independent of any particular
+paper's notation (which is still in flux).
+
+## Definitions (our own)
+
+The drill solver's `log` (simulationCases/<case>/log), after two header lines,
+carries whitespace-separated rows:
+    i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l
+with, at the jet-base plane,
+    q_jet = INT v_z r dr          (flow rate feeding the jet)
+    q_l   = INT v_z dr            (flow rate per unit length ~ v_j r_j)
+    r_base = r_j                  (robust getBase jet-base radius; NOT r_b, the
+                                   AMR-tracking probe which can latch onto
+                                   satellites late in the jet phase)
+
+From these we plot two observables vs the jet radius r_j:
+
+  (a)  q_j  = INT v_z r dr = q_jet
+  (b)  We_j = v_j^2 r_j = q_l^2 / r_j        (with v_j := q_l / r_j)
 
 ## Theory
 
-A conical cavity of semiangle beta collapses purely inertially. nu(beta) is
-the smallest positive root of the Legendre condition P_nu(-cos(beta)) = 0
-(this sign convention reproduces the paper's own Taylor-cone anchor
-beta=49.3deg -> nu=0.5 — confirmed, do not flip the sign). alpha(beta) =
-1/(2 - nu(beta)). Four local observables as functions of the instantaneous
-jet-base radius r_j:
+A conical cavity of semiangle beta collapses purely inertially; nu(beta) is the
+smallest positive root of the Legendre condition P_nu(-cos beta) = 0 (this sign
+convention reproduces the Taylor-cone anchor beta=49.3deg -> nu=0.5), and
+alpha(beta) = 1/(2 - nu(beta)). The self-similar scalings are
 
-    q_j (r_j)  = v_j r_j            ~ r_j ^ ((2a-1)/a)   [flow rate / length]
-    Q_j (r_j)  = pi r_j q_j         ~ r_j ^ ((3a-1)/a)   [flow rate feeding the jet]
-    We_j(r_j)  = q_j^2 / r_j        ~ r_j ^ ((3a-2)/a)   [local Weber number]
-    M_j (r_j)  = pi q_j^2           ~ r_j ^ ((4a-2)/a)   [momentum flux]
+    q_j (r_j) ~ r_j ^ ((3 alpha - 1) / alpha)
+    We_j(r_j) ~ r_j ^ ((3 alpha - 2) / alpha)
 
-We_j is the paper's central result: it diverges as r_j -> 0 (purely
-inertial), which rules out the classical inertio-capillary balance
-(We_j = O(1) constant) once and for all — the We_j panel therefore also
-draws that constant-value comparison.
+**Our theory line** uses alpha from a cone fit at inception (per Oh).
 
-## Mapping onto our simulation's raw solver log
+**The inertio-capillary line** is *the same formula with alpha forced to 2/3*
+(the classical inertio-capillary balance r_j ~ tau^{2/3}). That gives
+    q_j  ~ r_j ^ 1.5      and      We_j ~ r_j ^ 0  (i.e. We_j = constant).
+The purely-inertial cone theory has alpha < 2/3, so its q_j is shallower and
+its We_j *decreases* with r_j rather than staying constant — the data
+distinguishes the two.
 
-The drill solver's `log` (simulationCases/<case>/log) carries, after two
-header lines, whitespace-separated rows:
-    i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l
-  - r_base is the jet-base radius r_j (the robust getBase probe; NOT r_b,
-    which is the AMR-tracking probe and can latch onto satellites late in
-    the jet phase).
-  - q_jet = our INT u_z r dr is Q_j up to a constant prefactor (absorbed by
-    the least-squares fit below — theory only fixes the SLOPE).
-  - q_l   = our INT u_z dr   is q_j up to a constant prefactor, same story.
-  - We_j and M_j are not logged directly: We_j = q_l^2 / r_base,
-    M_j = q_l^2 (the pi is a constant, absorbed into the fitted prefactor).
+Theory-line SLOPES are fixed by the two alphas; PREFACTORS are least-squares
+fit in log space to the pooled jet-phase data of each Oh over the r_j -> 0
+asymptotic window (never the full range).
+
+## Grouping
+
+Data are grouped by (Oh, grid=MAXlevel): colour encodes Oh, marker encodes the
+grid level. Theory lines are drawn per Oh in the matching colour (our theory
+solid, inertio-capillary dashed).
 
 ## Usage
 
     python3 plotJetMetricsTheory.py \\
-        --cases simulationCases/2001 simulationCases/2004 \\
-        --out figures/oh_sweep_metrics
+        --series 0.029 12 simulationCases/1007/log \\
+        --series 0.029 13 simulationCases/1006/log \\
+        --series 0.03  12 simulationCases/1012/log \\
+        --facet  0.029 facets_oh029_inception.txt \\
+        --facet  0.03  facets_oh030_inception.txt \\
+        --out figures/jet_metrics
 
-Each --cases entry is either a case DIRECTORY (containing `log` and,
-optionally, `intermediate/` for the cone fit) or a bare `log` FILE. Facets
-for the cone fit are auto-generated by shelling out to the compiled
-`postProcess/getFacet` binary against the snapshot nearest each case's
-inception time; pass --facets to supply pre-extracted "z r" dumps instead
-(useful when getFacet isn't available locally, e.g. previewing on macOS).
+Each --series is (Oh, grid, log-path). A cone fit needs the inception facet
+cloud per Oh: pass --facet OH FILE (a "z r" dump from postProcess/getFacet), or
+let the script run getFacet itself against a case directory's intermediate/
+snapshots (requires a case dir, not a bare log, and a local getFacet binary).
 
 @author Vatsal Sanjay (vatsal.sanjay@comphy-lab.org) / CoMPhy Lab
 """
 import os
 import re
-import sys
-import glob
 import math
 import argparse
 import subprocess as sp
+from collections import defaultdict
 
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FuncFormatter
+from matplotlib.lines import Line2D
 
 matplotlib.rcParams["font.family"] = "serif"
 matplotlib.rcParams["font.serif"] = ["Computer Modern Roman"]
@@ -77,22 +90,21 @@ matplotlib.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 GETFACET = os.path.join(SCRIPT_DIR, "getFacet")
 
-# Okabe-Ito colourblind-safe categorical palette (used for <=4 cases; a
-# continuous colormap keyed by Oh is used for larger sweeps).
-CAT_PALETTE = ["#0072B2", "#E69F00", "#D55E00", "#009E73",
-               "#CC79A7", "#56B4E9", "#F0E442", "#000000"]
+ALPHA_IC = 2.0 / 3.0                     # inertio-capillary balance
+
+# Okabe-Ito colourblind-safe, keyed by Oh in sorted order.
+OH_COLOURS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9"]
+# marker per grid level
+GRID_MARKERS = {12: "o", 13: "s", 14: "^", 15: "D", 11: "v", 16: "P"}
 
 
 # ============================== Legendre / cone-fit math ====================
-# Copied verbatim from postProcess/conefit.py (same file, validated multiple
-# times against the paper's Taylor-cone anchor beta=49.3 -> nu=0.5). Kept
-# duplicated rather than imported so this script has no import-path
-# dependency on being run from a specific working directory.
+# Identical to postProcess/conefit.py (validated against the Taylor-cone anchor
+# beta=49.3 -> nu=0.5). Duplicated so this script has no import-path dependency.
 
 def _linfit(xs, ys):
     n = len(xs)
-    sx = sum(xs)
-    sy = sum(ys)
+    sx, sy = sum(xs), sum(ys)
     sxx = sum(x * x for x in xs)
     sxy = sum(x * y for x, y in zip(xs, ys))
     m = (n * sxy - sx * sy) / (n * sxx - sx * sx)
@@ -105,7 +117,6 @@ def _linfit(xs, ys):
 
 
 def _P_nu(nu, x):
-    """Legendre P_nu(x) via the Gauss hypergeometric series 2F1(-nu,nu+1;1;(1-x)/2)."""
     z = (1.0 - x) / 2.0
     a, b, c = -nu, nu + 1.0, 1.0
     term = 1.0
@@ -119,7 +130,6 @@ def _P_nu(nu, x):
 
 
 def _solve_nu(beta_deg):
-    """Smallest positive root of P_nu(-cos(beta)) = 0 (cone surface condition)."""
     x = -math.cos(math.radians(beta_deg))
     step = 0.005
     nu = step
@@ -147,20 +157,25 @@ def _solve_nu(beta_deg):
 # ============================== log / facet parsing ==========================
 
 def parse_log(path):
-    """Parse a drill-solver `log` file into a structured array + the header Oh.
+    """Parse a drill-solver `log` into (rows, oh, maxlevel_hdr).
 
-    Returns (rows, oh) where rows is an (N,7) float array of columns
-    [t, r_base, z_base, q_jet, q_l, maxlevel, r_b], time-ordered, with
-    sentinel (-1000) and restart-overlap duplicate rows removed.
+    rows: (N,6) float array [t, r_base, q_jet, q_l, maxlevel, z_base], time-
+    ordered, sentinels dropped, and restart-overlap duplicates removed (a
+    mid-run restart re-writes rows for an already-present t range; keep the
+    last row seen per t).
     """
     oh = None
-    raw = []
+    ml_hdr = None
+    keyed = {}
     with open(path) as fh:
         for ln in fh:
             if oh is None:
                 m = re.search(r"Oh\s+([0-9.eE+-]+)", ln)
                 if m:
                     oh = float(m.group(1))
+                m2 = re.search(r"MAXlevel\s+(\d+)", ln)
+                if m2:
+                    ml_hdr = int(m2.group(1))
             p = ln.split()
             if not p:
                 continue
@@ -172,36 +187,22 @@ def parse_log(path):
                 continue
             try:
                 t, ml = float(p[2]), int(p[4])
-                r_b, z_b = float(p[5]), float(p[6])
                 r_base, z_base = float(p[7]), float(p[8])
                 q_jet, q_l = float(p[9]), float(p[10])
             except ValueError:
                 continue
             if r_base <= -900 or z_base <= -900:
                 continue
-            raw.append((t, r_base, z_base, q_jet, q_l, ml, r_b))
-
-    if not raw:
+            keyed[round(t, 8)] = (t, r_base, q_jet, q_l, ml, z_base)
+    if not keyed:
         raise SystemExit("plotJetMetricsTheory: no numeric rows parsed from %s" % path)
-
-    # Restart-overlap de-dup: a mid-run restart re-writes rows for t ranges
-    # already present earlier in the file. Sort by t, then for repeated t
-    # values keep the LAST occurrence found in file order (the most recent
-    # restart's data), by simply overwriting a dict keyed on rounded t.
-    keyed = {}
-    for i, row in enumerate(raw):
-        keyed[round(row[0], 8)] = row
     rows = np.array(sorted(keyed.values(), key=lambda r: r[0]))
-    return rows, oh
+    return rows, oh, ml_hdr
 
 
 def reconnection_time(rows, pin_r=0.005, t_min=0.40):
-    """Last t where the base is still pinned on-axis, t > t_min.
-
-    This marks the end of the singular focusing approach; the jet exists
-    only for t beyond this point. More robust than a fixed constant since
-    reconnection time shifts with Oh.
-    """
+    """Last t > t_min with the base still pinned on-axis — end of the singular
+    focusing approach; the jet exists only beyond this point."""
     t, r_base = rows[:, 0], rows[:, 1]
     mask = (t > t_min) & (r_base < pin_r)
     if not mask.any():
@@ -209,10 +210,10 @@ def reconnection_time(rows, pin_r=0.005, t_min=0.40):
     return float(t[mask].max())
 
 
-def jet_phase_rows(rows, incept_t, rmin=0.04):
-    t, r_base, q_jet, q_l = rows[:, 0], rows[:, 1], rows[:, 3], rows[:, 4]
-    mask = (t > incept_t) & (r_base > rmin) & (q_jet > 0) & (q_l > 0)
-    return rows[mask]
+def jet_phase(rows, incept_t, rmin=0.04):
+    t, r_base, q_jet, q_l = rows[:, 0], rows[:, 1], rows[:, 2], rows[:, 3]
+    m = (t > incept_t) & (r_base > rmin) & (q_jet > 0) & (q_l > 0)
+    return r_base[m], q_jet[m], q_l[m]
 
 
 def facet_points_from_file(path):
@@ -231,16 +232,15 @@ def facet_points_from_file(path):
 
 
 def facet_points_from_case(case_dir, snap_t):
+    import glob
     snaps = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
-    if not snaps:
+    if not snaps or not os.path.exists(GETFACET):
         return None
     rel = os.path.relpath(
         min(snaps, key=lambda f: abs(float(f.rsplit("snapshot-", 1)[-1]) - snap_t)),
         case_dir)
-    if not os.path.exists(GETFACET):
-        return None
-    p = sp.Popen([GETFACET, rel], cwd=case_dir, stdout=sp.PIPE, stderr=sp.PIPE)
-    out, _ = p.communicate()
+    out, _ = sp.Popen([GETFACET, rel], cwd=case_dir,
+                       stdout=sp.PIPE, stderr=sp.PIPE).communicate()
     pts = []
     for ln in out.decode(errors="ignore").split("\n"):
         s = ln.split()
@@ -258,46 +258,37 @@ def cone_fit(pts, zlo, zhi, rlo, rhi):
     wall = [(z, r) for (z, r) in pts if zlo <= z <= zhi and rlo <= r <= rhi]
     if len(wall) < 2:
         return None
-    zs = [z for z, r in wall]
-    rs = [r for z, r in wall]
-    m, c, r2 = _linfit(zs, rs)
+    m, c, r2 = _linfit([z for z, r in wall], [r for z, r in wall])
     beta = math.degrees(math.atan(m))
     nu = _solve_nu(beta)
     if nu is None:
         return None
-    alpha = 1.0 / (2.0 - nu)
-    z_apex = -c / m
-    return dict(beta=beta, nu=nu, alpha=alpha, slope=m, z_apex=z_apex,
-                r2=r2, n=len(wall), pts=pts)
+    return dict(beta=beta, nu=nu, alpha=1.0 / (2.0 - nu), r2=r2, n=len(wall))
 
 
 # ============================== fitting / plotting helpers ===================
 
-def powerfit_fixed_slope(r, q, slope, rlo, rhi):
-    """Least-squares log-space prefactor for q = K * r^slope over [rlo,rhi]."""
+def powerfit_prefactor(r, q, slope, rlo, rhi):
     m = (r >= rlo) & (r <= rhi) & (q > 0)
     if m.sum() < 2:
-        return None, int(m.sum())
-    logK = np.mean(np.log(q[m]) - slope * np.log(r[m]))
-    return math.exp(logK), int(m.sum())
+        return None, 0
+    return math.exp(np.mean(np.log(q[m]) - slope * np.log(r[m]))), int(m.sum())
 
 
-def thin_logspace(r, *arrs, n=250):
+def thin_logspace(r, q, n=250):
     idx = np.argsort(r)
-    r = r[idx]
-    arrs = [a[idx] for a in arrs]
+    r, q = r[idx], q[idx]
     if len(r) <= n:
-        return (r,) + tuple(arrs)
-    lo, hi = np.log10(r.min()), np.log10(r.max())
-    targets = np.logspace(lo, hi, n)
+        return r, q
+    targets = np.logspace(np.log10(r.min()), np.log10(r.max()), n)
     keep = np.unique(np.searchsorted(r, targets).clip(0, len(r) - 1))
-    return (r[keep],) + tuple(a[keep] for a in arrs)
+    return r[keep], q[keep]
 
 
 def nice_ticks(vmin, vmax):
-    candidates = [1e-3, 2e-3, 3e-3, 5e-3, 1e-2, 2e-2, 3e-2, 5e-2,
-                  0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 500, 1000]
-    ticks = [c for c in candidates if vmin * 0.9 <= c <= vmax * 1.1]
+    cand = [1e-3, 2e-3, 3e-3, 5e-3, 1e-2, 2e-2, 3e-2, 5e-2, 0.1, 0.2, 0.3, 0.5,
+            1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 300, 500, 1000]
+    ticks = [c for c in cand if vmin * 0.9 <= c <= vmax * 1.1]
     if len(ticks) < 3:
         ticks = list(np.geomspace(vmin, vmax, 4))
     return ticks
@@ -309,18 +300,16 @@ def style_log_axis(ax, xlim, ylim):
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     fmt = FuncFormatter(lambda v, _: f"{v:g}")
-    xt = nice_ticks(*xlim)
-    yt = nice_ticks(*ylim)
-    ax.xaxis.set_major_locator(FixedLocator(xt))
+    ax.xaxis.set_major_locator(FixedLocator(nice_ticks(*xlim)))
+    ax.yaxis.set_major_locator(FixedLocator(nice_ticks(*ylim)))
     ax.xaxis.set_minor_locator(FixedLocator([]))
-    ax.yaxis.set_major_locator(FixedLocator(yt))
     ax.yaxis.set_minor_locator(FixedLocator([]))
     ax.xaxis.set_major_formatter(fmt)
     ax.yaxis.set_major_formatter(fmt)
-    ax.tick_params(which="major", direction="out", width=1.6, length=7, labelsize=13, pad=5)
+    ax.tick_params(which="major", direction="out", width=1.7, length=8, labelsize=15, pad=5)
     ax.tick_params(which="minor", length=0)
-    for sp_ in ax.spines.values():
-        sp_.set_linewidth(1.6)
+    for s in ax.spines.values():
+        s.set_linewidth(1.7)
 
 
 # ==================================== main ====================================
@@ -328,211 +317,153 @@ def style_log_axis(ax, xlim, ylim):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cases", nargs="+", required=True,
-                     help="Case directories (containing `log`) or bare log files.")
-    ap.add_argument("--labels", nargs="+", default=None,
-                     help="Legend labels, one per --cases entry (default: Oh=<value> "
-                          "parsed from each log's header line).")
-    ap.add_argument("--facets", nargs="+", default=None,
-                     help="Pre-extracted 'z r' facet dump files for the cone fit, one "
-                          "per --cases entry (overrides auto-running getFacet).")
-    ap.add_argument("--incept-t", nargs="+", type=float, default=None, dest="incept_t",
-                     help="Override reconnection/inception time per case (else "
-                          "auto-detected: last t>0.40 with r_base<0.005).")
+    ap.add_argument("--series", nargs=3, action="append", required=True,
+                     metavar=("OH", "GRID", "LOG"),
+                     help="One data series: Oh value, grid (MAXlevel), and log path "
+                          "(or a case directory containing `log`). Repeatable.")
+    ap.add_argument("--facet", nargs=2, action="append", default=[],
+                     metavar=("OH", "FILE"),
+                     help="Inception facet 'z r' dump for the cone fit of a given Oh. "
+                          "Repeatable (one per Oh). If omitted for an Oh, getFacet is "
+                          "run against that Oh's first series case dir.")
+    ap.add_argument("--incept-t", nargs=2, action="append", default=[],
+                     metavar=("OH", "T"), dest="incept_t",
+                     help="Override reconnection/inception time for an Oh (else "
+                          "auto-detected per series: last t>0.40 with r_base<0.005).")
     ap.add_argument("--fit-window", nargs=2, type=float, default=[0.042, 0.08],
                      dest="fit_window",
-                     help="r_j window for the theory prefactor least-squares fit "
-                          "(the tau->0 asymptote; excludes the startup transient).")
+                     help="r_j window for the theory prefactor fit (tau->0 asymptote).")
     ap.add_argument("--cone-window", nargs=4, type=float,
                      default=[-1.60, -0.40, 0.10, 1.00], dest="cone_window",
-                     metavar=("ZLO", "ZHI", "RLO", "RHI"),
-                     help="Facet-cloud window for the cone linear fit.")
-    ap.add_argument("--out", required=True, help="Output path stem (writes .png and .pdf).")
+                     metavar=("ZLO", "ZHI", "RLO", "RHI"))
+    ap.add_argument("--out", required=True, help="Output stem (.png and .pdf).")
     args = ap.parse_args()
 
-    n_cases = len(args.cases)
-    labels = args.labels if args.labels else [None] * n_cases
-    facets_in = args.facets if args.facets else [None] * n_cases
-    incepts_in = args.incept_t if args.incept_t else [None] * n_cases
-    if len(labels) != n_cases or len(facets_in) != n_cases or len(incepts_in) != n_cases:
-        raise SystemExit("plotJetMetricsTheory: --labels/--facets/--incept-t must each "
-                          "have the same length as --cases (or be omitted).")
-
-    zlo, zhi, rlo_c, rhi_c = args.cone_window
+    facet_by_oh = {float(o): f for o, f in args.facet}
+    incept_by_oh = {float(o): float(t) for o, t in args.incept_t}
     fit_rlo, fit_rhi = args.fit_window
+    zlo, zhi, rlo_c, rhi_c = args.cone_window
 
-    cases = []
-    for i, c in enumerate(args.cases):
-        case_dir = c if os.path.isdir(c) else os.path.dirname(os.path.abspath(c))
-        log_path = c if os.path.isfile(c) else os.path.join(c, "log")
+    # ---- load series ----
+    series = []
+    for oh_s, grid_s, log_s in args.series:
+        oh = float(oh_s)
+        grid = int(grid_s)
+        case_dir = log_s if os.path.isdir(log_s) else os.path.dirname(os.path.abspath(log_s))
+        log_path = log_s if os.path.isfile(log_s) else os.path.join(log_s, "log")
         if not os.path.exists(log_path):
-            raise SystemExit("plotJetMetricsTheory: no log file found for --cases entry %r" % c)
-
-        rows, oh = parse_log(log_path)
-        incept_t = incepts_in[i] if incepts_in[i] is not None else reconnection_time(rows)
+            raise SystemExit("plotJetMetricsTheory: no log for --series entry %r" % log_s)
+        rows, oh_hdr, _ = parse_log(log_path)
+        incept_t = incept_by_oh.get(oh, reconnection_time(rows))
         if incept_t is None:
-            raise SystemExit("plotJetMetricsTheory: could not detect reconnection time for "
-                              "%s — pass --incept-t explicitly." % c)
-        jet = jet_phase_rows(rows, incept_t)
-        if jet.shape[0] < 5:
-            raise SystemExit("plotJetMetricsTheory: only %d jet-phase rows found for %s "
-                              "(incept_t=%.4f) — check the case ran past inception."
-                              % (jet.shape[0], c, incept_t))
+            raise SystemExit("plotJetMetricsTheory: no reconnection time for %s — pass "
+                              "--incept-t %g <t>." % (log_s, oh))
+        r_j, q_jet, q_l = jet_phase(rows, incept_t)
+        if r_j.size < 5:
+            raise SystemExit("plotJetMetricsTheory: only %d jet rows for %s (incept_t=%.4f)."
+                              % (r_j.size, log_s, incept_t))
+        We_j = q_l ** 2 / r_j
+        series.append(dict(oh=oh, grid=grid, case_dir=case_dir, incept_t=incept_t,
+                           r_j=r_j, q_j=q_jet, We_j=We_j))
 
-        r_j = jet[:, 1]
-        q_j = jet[:, 4]        # our q_l
-        Q_j = jet[:, 3]        # our q_jet
-        We_j = q_j ** 2 / r_j
-        M_j = q_j ** 2
+    ohs = sorted({s["oh"] for s in series})
+    oh_colour = {oh: OH_COLOURS[i % len(OH_COLOURS)] for i, oh in enumerate(ohs)}
 
-        # cone fit
-        if facets_in[i] is not None:
-            pts = facet_points_from_file(facets_in[i])
+    # ---- cone fit + alpha per Oh ----
+    alpha_by_oh = {}
+    for oh in ohs:
+        oh_series = [s for s in series if s["oh"] == oh]
+        pts = None
+        if oh in facet_by_oh:
+            pts = facet_points_from_file(facet_by_oh[oh])
         else:
-            pts = facet_points_from_case(case_dir, incept_t)
+            pts = facet_points_from_case(oh_series[0]["case_dir"], oh_series[0]["incept_t"])
         cone = cone_fit(pts, zlo, zhi, rlo_c, rhi_c) if pts else None
+        alpha_by_oh[oh] = cone
+        if cone:
+            print("Oh=%.4g: cone fit beta=%.2fdeg nu=%.4f alpha=%.4f (R^2=%.4f, n=%d)"
+                  % (oh, cone["beta"], cone["nu"], cone["alpha"], cone["r2"], cone["n"]))
+        else:
+            print("Oh=%.4g: CONE FIT FAILED (no facet data) — theory line skipped" % oh)
 
-        label = labels[i] if labels[i] else (r"$Oh=%.4g$" % oh if oh is not None else c)
+    # ---- exponents ----
+    def exps(alpha):
+        return {"q_j": (3 * alpha - 1) / alpha, "We_j": (3 * alpha - 2) / alpha}
+    ic_exp = exps(ALPHA_IC)   # {'q_j': 1.5, 'We_j': 0.0}
+    print("inertio-capillary (alpha=2/3): q_j~r^%.3f  We_j~r^%.3f"
+          % (ic_exp["q_j"], ic_exp["We_j"]))
 
-        cases.append(dict(name=c, oh=oh, label=label, incept_t=incept_t,
-                           r_j=r_j, q_j=q_j, Q_j=Q_j, We_j=We_j, M_j=M_j, cone=cone))
+    # ============================ figure =====================================
+    fig, (ax_q, ax_we) = plt.subplots(1, 2, figsize=(14.5, 6.4))
+    panels = [(ax_q, "q_j", r"$q_j = \int v_z\, r\, \mathrm{d}r$"),
+              (ax_we, "We_j", r"$We_j = v_j^2 r_j = q_\ell^2 / r_j$")]
 
-    # --- colours: categorical for small N, colour-by-Oh continuous for large sweeps
-    ohs = [c["oh"] if c["oh"] is not None else i for i, c in enumerate(cases)]
-    if n_cases <= len(CAT_PALETTE):
-        colours = CAT_PALETTE[:n_cases]
-    else:
-        order = np.argsort(ohs)
-        cmap = plt.get_cmap("viridis")
-        colours = [None] * n_cases
-        for rank, idx in enumerate(order):
-            colours[idx] = cmap(rank / max(1, n_cases - 1))
+    for ax, key, ylabel in panels:
+        # data
+        for s in series:
+            rt, qt = thin_logspace(s["r_j"], s[key], n=220)
+            ax.plot(rt, qt, GRID_MARKERS.get(s["grid"], "o"), ms=5.5,
+                    mfc=oh_colour[s["oh"]], mec="k", mew=0.3, lw=0, zorder=3)
 
-    # --- console diagnostics ---------------------------------------------------
-    print("=== plotJetMetricsTheory: per-case cone fit + theory exponents ===")
-    for c in cases:
-        cone = c["cone"]
-        if cone is None:
-            print("  %-28s incept_t=%.4f  n_jet=%d  CONE FIT FAILED (no facet data)"
-                  % (c["label"], c["incept_t"], c["r_j"].size))
-            continue
-        a = cone["alpha"]
-        e_qj = (2 * a - 1) / a
-        e_Qj = (3 * a - 1) / a
-        e_We = (3 * a - 2) / a
-        e_Mj = (4 * a - 2) / a
-        c["exponents"] = dict(q_j=e_qj, Q_j=e_Qj, We_j=e_We, M_j=e_Mj)
-        print("  %-28s incept_t=%.4f  n_jet=%d" % (c["label"], c["incept_t"], c["r_j"].size))
-        print("      beta=%.2fdeg  nu=%.4f  alpha=%.4f  (cone fit R^2=%.4f, n=%d pts)"
-              % (cone["beta"], cone["nu"], a, cone["r2"], cone["n"]))
-        print("      theory: q_j~r^%.3f  Q_j~r^%.3f  We_j~r^%.3f  M_j~r^%.3f"
-              % (e_qj, e_Qj, e_We, e_Mj))
+        # theory lines, per Oh
+        for oh in ohs:
+            cone = alpha_by_oh[oh]
+            if cone is None:
+                continue
+            col = oh_colour[oh]
+            r_all = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
+            q_all = np.concatenate([s[key] for s in series if s["oh"] == oh])
+            rline = np.geomspace(r_all.min() * 0.9, r_all.max() * 1.05, 40)
 
-    # --- figure ------------------------------------------------------------
-    fig, axes = plt.subplots(2, 2, figsize=(12.5, 10.5))
-    (ax_qj, ax_Qj), (ax_We, ax_Mj) = axes
+            s_our = exps(cone["alpha"])[key]
+            K_our, _ = powerfit_prefactor(r_all, q_all, s_our, fit_rlo, fit_rhi)
+            if K_our is not None:
+                ax.plot(rline, K_our * rline ** s_our, "-", color=col, lw=2.0,
+                        alpha=0.9, zorder=2)
 
-    panels = [
-        (ax_qj, "q_j", r"$q_j = v_j r_j$", "a"),
-        (ax_Qj, "Q_j", r"$Q_j = \pi r_j q_j$", "b"),
-        (ax_We, "We_j", r"$We_j = q_j^2/r_j$", "c"),
-        (ax_Mj, "M_j", r"$M_j = \pi q_j^2$", "d"),
+            s_ic = ic_exp[key]
+            K_ic, _ = powerfit_prefactor(r_all, q_all, s_ic, fit_rlo, fit_rhi)
+            if K_ic is not None:
+                ax.plot(rline, K_ic * rline ** s_ic, "--", color=col, lw=2.0,
+                        alpha=0.9, zorder=2)
+
+        r_all = np.concatenate([s["r_j"] for s in series])
+        q_all = np.concatenate([s[key] for s in series])
+        style_log_axis(ax, (r_all.min() * 0.85, r_all.max() * 1.2),
+                       (q_all.min() * 0.7, q_all.max() * 1.4))
+        ax.set_xlabel(r"$r_j$", fontsize=20, labelpad=6)
+        ax.set_ylabel(ylabel, fontsize=20, labelpad=8)
+
+    ax_q.text(-0.02, 1.05, r"(a)", transform=ax_q.transAxes, fontsize=19, va="top", ha="right")
+    ax_we.text(-0.02, 1.05, r"(b)", transform=ax_we.transAxes, fontsize=19, va="top", ha="right")
+
+    # ---- legends: Oh (colour) + grid (marker) on (a); line style on (b) ----
+    oh_handles = [Line2D([0], [0], marker="o", ls="", mfc=oh_colour[oh], mec="k",
+                          mew=0.3, ms=8, label=r"$Oh = %.4g$" % oh) for oh in ohs]
+    grids = sorted({s["grid"] for s in series})
+    grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
+                           mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
+    leg1 = ax_q.legend(handles=oh_handles + grid_handles, fontsize=12,
+                       loc="lower right", frameon=False, handletextpad=0.4,
+                       labelspacing=0.35, ncol=1)
+    ax_q.add_artist(leg1)
+
+    a_ref = next((alpha_by_oh[o]["alpha"] for o in ohs if alpha_by_oh[o]), None)
+    style_handles = [
+        Line2D([0], [0], color="0.3", ls="-", lw=2.0,
+               label=(r"cone theory ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone theory"),
+        Line2D([0], [0], color="0.3", ls="--", lw=2.0,
+               label=r"inertio-capillary ($\alpha=2/3$)"),
     ]
+    ax_we.legend(handles=style_handles, fontsize=12, loc="lower left",
+                 frameon=False, handletextpad=0.6, labelspacing=0.35)
 
-    legend_handles = []
-    legend_labels = []
-    for ax, key, ylabel, tag in panels:
-        for c, colour in zip(cases, colours):
-            r_j = c["r_j"]
-            q = c[key]
-            rt, qt = thin_logspace(r_j, q, n=250)
-            h, = ax.plot(rt, qt, "o", ms=4.0 if n_cases > 4 else 5.5, mfc=colour, mec="k",
-                          mew=0.3, lw=0, zorder=3)
-            if ax is ax_qj:
-                legend_handles.append(h)
-                legend_labels.append(c["label"])
-
-            if c.get("exponents") is None:
-                continue
-            slope = c["exponents"][key]
-            K, nfit = powerfit_fixed_slope(r_j, q, slope, fit_rlo, fit_rhi)
-            if K is None:
-                continue
-            rline = np.geomspace(r_j.min() * 0.9, r_j.max() * 1.05, 40)
-            ax.plot(rline, K * rline ** slope, "-", color=colour, lw=1.6, alpha=0.85, zorder=2)
-
-        # inertio-capillary comparison on the We_j panel: classical balance
-        # predicts We_j = O(1) constant, independent of r_j.
-        if key == "We_j":
-            all_r = np.concatenate([c["r_j"] for c in cases])
-            rline = np.geomspace(all_r.min() * 0.9, all_r.max() * 1.05, 10)
-            hic, = ax.plot(rline, np.ones_like(rline), "--", color="0.35", lw=1.8, zorder=1)
-            legend_handles.append(hic)
-            legend_labels.append(r"inertio-capillary ($We_j=O(1)$)")
-
-        all_r = np.concatenate([c["r_j"] for c in cases])
-        all_q = np.concatenate([c[key] for c in cases])
-        style_log_axis(ax, (all_r.min() * 0.85, all_r.max() * 1.2),
-                        (all_q.min() * 0.7, all_q.max() * 1.4))
-        ax.set_xlabel(r"$r_j$", fontsize=17, labelpad=6)
-        ax.set_ylabel(ylabel, fontsize=17, labelpad=8)
-        ax.text(-0.02, 1.05, r"(%s)" % tag, transform=ax.transAxes, fontsize=17,
-                va="top", ha="right")
-
-    ax_We.legend(legend_handles, legend_labels, fontsize=10.5, loc="lower left",
-                 frameon=False, handletextpad=0.4)
-
-    # --- inset: only meaningful for a small number of cases -------------------
-    cone_cases = [c for c in cases if c["cone"] is not None]
-    if n_cases <= 2 and cone_cases:
-        c0 = cone_cases[0]
-        cone = c0["cone"]
-        pts = np.array(cone["pts"])
-        fz, fr = pts[:, 0], pts[:, 1]
-        axin = ax_qj.inset_axes([0.06, 0.55, 0.34, 0.32])
-        # cavity+jet region only — the raw facet dump also carries the flat
-        # outer free surface out to the domain radius (r up to ~10), which
-        # would swamp autoscaling; cap explicitly and set limits by hand.
-        z_lo = fz.min() - 0.05
-        z_hi = min(float(fz.max()), 0.30)
-        r_hi = min(float(fr.max()), 1.30)
-        zwin = (fz >= z_lo) & (fz <= z_hi) & (fr <= r_hi)
-        axin.plot(fr[zwin], fz[zwin], ".", color="green", ms=1.4, lw=0, zorder=2)
-        axin.plot(-fr[zwin], fz[zwin], ".", color="green", ms=1.4, lw=0, zorder=2)
-        zl = np.array([cone["z_apex"], zhi])
-        rl = cone["slope"] * zl + (-cone["slope"] * cone["z_apex"])
-        axin.plot(rl, zl, "--", color="#C81E1E", lw=1.4, zorder=3)
-        axin.plot(-rl, zl, "--", color="#C81E1E", lw=1.4, zorder=3)
-        axin.plot([0, 0], [z_lo, z_hi], "-.", color="grey", lw=0.9, zorder=1)
-        axin.set_xlim(-r_hi, r_hi)
-        axin.set_ylim(z_lo, z_hi)
-        axin.set_aspect("equal")
-        axin.set_xticks([])
-        axin.set_yticks([])
-        for sp_ in axin.spines.values():
-            sp_.set_linewidth(1.0)
-        ax_qj.text(0.045, 0.975,
-                    r"$\beta=%.1f^\circ,\ \nu=%.2f,\ \alpha=%.2f$"
-                    % (cone["beta"], cone["nu"], cone["alpha"]),
-                    transform=ax_qj.transAxes, fontsize=12.5, va="top", ha="left")
-    elif cone_cases:
-        # many cases: a compact beta/alpha summary instead of a single inset
-        lines = [r"$\beta,\alpha$ per case:"]
-        for c in cone_cases[:8]:
-            lines.append(r"%s: $\beta{=}%.1f^\circ,\alpha{=}%.2f$"
-                          % (c["label"], c["cone"]["beta"], c["cone"]["alpha"]))
-        ax_qj.text(0.045, 0.975, "\n".join(lines), transform=ax_qj.transAxes,
-                    fontsize=8.5, va="top", ha="left")
-
-    fig.suptitle(r"$Bo = 10^{-3}$" +
-                  (r"$,\ Oh = %.4g$" % cases[0]["oh"] if n_cases == 1 and cases[0]["oh"] else ""),
-                  fontsize=14, y=0.995)
-    plt.tight_layout(w_pad=2.6, h_pad=2.4, rect=(0, 0, 1, 0.97))
+    fig.suptitle(r"$Bo = 10^{-3}$", fontsize=15, y=0.995)
+    plt.tight_layout(w_pad=2.6, rect=(0, 0, 1, 0.97))
     plt.savefig(args.out + ".png", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.savefig(args.out + ".pdf", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
-    print("\nWROTE: %s.png" % args.out)
-    print("WROTE: %s.pdf" % args.out)
+    print("\nWROTE: %s.png\nWROTE: %s.pdf" % (args.out, args.out))
 
 
 if __name__ == "__main__":
