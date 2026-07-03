@@ -362,9 +362,17 @@ def main():
         if r_j.size < 5:
             raise SystemExit("plotJetMetricsTheory: only %d jet rows for %s (incept_t=%.4f)."
                               % (r_j.size, log_s, incept_t))
-        We_j = q_l ** 2 / r_j
+        # Two estimators of the local Weber number We_j = v_j^2 r_j, using the
+        # two velocity-profile moments the solver logs:
+        #   We_ql = q_l^2 / r_j       with v_j := q_l / r_j    (0th moment INT v dr)
+        #   We_qj = q_jet^2 / r_j^3   with v_j := q_jet / r_j^2 (1st moment INT v r dr)
+        # They estimate the SAME physical We_j and differ only by a
+        # velocity-profile-shape constant, so comparing them tests whether the
+        # profile is self-similar.
+        We_ql = q_l ** 2 / r_j
+        We_qj = q_jet ** 2 / r_j ** 3
         series.append(dict(oh=oh, grid=grid, case_dir=case_dir, incept_t=incept_t,
-                           r_j=r_j, q_j=q_jet, We_j=We_j))
+                           r_j=r_j, q_j=q_jet, We_ql=We_ql, We_qj=We_qj))
 
     ohs = sorted({s["oh"] for s in series})
     oh_colour = {oh: OH_COLOURS[i % len(OH_COLOURS)] for i, oh in enumerate(ohs)}
@@ -386,26 +394,33 @@ def main():
         else:
             print("Oh=%.4g: CONE FIT FAILED (no facet data) — theory line skipped" % oh)
 
-    # ---- exponents ----
+    # ---- exponents (q_j and both We_j estimators share the We_j exponent) ----
     def exps(alpha):
-        return {"q_j": (3 * alpha - 1) / alpha, "We_j": (3 * alpha - 2) / alpha}
-    ic_exp = exps(ALPHA_IC)   # {'q_j': 1.5, 'We_j': 0.0}
-    print("inertio-capillary (alpha=2/3): q_j~r^%.3f  We_j~r^%.3f"
-          % (ic_exp["q_j"], ic_exp["We_j"]))
+        e_we = (3 * alpha - 2) / alpha
+        return {"q_j": (3 * alpha - 1) / alpha, "We_ql": e_we, "We_qj": e_we}
+    ic_exp = exps(ALPHA_IC)   # q_j -> 1.5 ; We -> 0 (constant)
+    print("inertio-capillary (alpha=2/3): q_j~r^%.3f  We_j~r^%.3f (constant)"
+          % (ic_exp["q_j"], ic_exp["We_ql"]))
 
     # ============================ figure =====================================
-    fig, (ax_q, ax_we) = plt.subplots(1, 2, figsize=(14.5, 6.4))
-    panels = [(ax_q, "q_j", r"$q_j = \int v_z\, r\, \mathrm{d}r$"),
-              (ax_we, "We_j", r"$We_j = v_j^2 r_j = q_\ell^2 / r_j$")]
+    fig, (ax_q, ax_b, ax_c) = plt.subplots(1, 3, figsize=(19.5, 6.3))
+    # We_j is drawn TWO ways so the choice of velocity-profile moment can be
+    # judged from the data (panels b and c should agree up to a constant if the
+    # jet profile is self-similar).
+    panels = [
+        (ax_q, "q_j",  r"$q_j = \int v_z\, r\, \mathrm{d}r$", "(a)", False),
+        (ax_b, "We_ql", r"$We_j = q_\ell^2/r_j,\ \ q_\ell=\int v_z\,\mathrm{d}r$", "(b)", True),
+        (ax_c, "We_qj", r"$We_j = q_j^2/r_j^3,\ \ q_j=\int v_z r\,\mathrm{d}r$", "(c)", True),
+    ]
 
-    for ax, key, ylabel in panels:
-        # data
+    for ax, key, ylabel, tag, is_we in panels:
         for s in series:
             rt, qt = thin_logspace(s["r_j"], s[key], n=220)
-            ax.plot(rt, qt, GRID_MARKERS.get(s["grid"], "o"), ms=5.5,
+            ax.plot(rt, qt, GRID_MARKERS.get(s["grid"], "o"), ms=5.2,
                     mfc=oh_colour[s["oh"]], mec="k", mew=0.3, lw=0, zorder=3)
 
-        # theory lines, per Oh
+        # cone-theory lines, per Oh (slope fixed by the fitted alpha; prefactor
+        # least-squares over the r_j->0 window)
         for oh in ohs:
             cone = alpha_by_oh[oh]
             if cone is None:
@@ -414,52 +429,75 @@ def main():
             r_all = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
             q_all = np.concatenate([s[key] for s in series if s["oh"] == oh])
             rline = np.geomspace(r_all.min() * 0.9, r_all.max() * 1.05, 40)
-
             s_our = exps(cone["alpha"])[key]
             K_our, _ = powerfit_prefactor(r_all, q_all, s_our, fit_rlo, fit_rhi)
             if K_our is not None:
                 ax.plot(rline, K_our * rline ** s_our, "-", color=col, lw=2.0,
                         alpha=0.9, zorder=2)
 
-            s_ic = ic_exp[key]
-            K_ic, _ = powerfit_prefactor(r_all, q_all, s_ic, fit_rlo, fit_rhi)
-            if K_ic is not None:
-                ax.plot(rline, K_ic * rline ** s_ic, "--", color=col, lw=2.0,
-                        alpha=0.9, zorder=2)
-
         r_all = np.concatenate([s["r_j"] for s in series])
         q_all = np.concatenate([s[key] for s in series])
-        style_log_axis(ax, (r_all.min() * 0.85, r_all.max() * 1.2),
-                       (q_all.min() * 0.7, q_all.max() * 1.4))
-        ax.set_xlabel(r"$r_j$", fontsize=20, labelpad=6)
-        ax.set_ylabel(ylabel, fontsize=20, labelpad=8)
 
-    ax_q.text(-0.02, 1.05, r"(a)", transform=ax_q.transAxes, fontsize=19, va="top", ha="right")
-    ax_we.text(-0.02, 1.05, r"(b)", transform=ax_we.transAxes, fontsize=19, va="top", ha="right")
+        if is_we:
+            # inertio-capillary: We_j = O(1), i.e. r_j-independent AND order
+            # unity (NOT fit to the data). Drawn as a single horizontal line at
+            # We_j = 1 — the physical claim the data is meant to refute.
+            ax.axhline(1.0, ls="--", color="0.35", lw=2.0, zorder=1)
+            ylo = min(q_all.min() * 0.7, 0.6)
+            yhi = q_all.max() * 1.5
+        else:
+            # q_j inertio-capillary: still a power law (alpha=2/3 -> r^1.5),
+            # prefactor fit to the window like the cone line, per Oh.
+            for oh in ohs:
+                if alpha_by_oh[oh] is None:
+                    continue
+                col = oh_colour[oh]
+                r_all_oh = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
+                q_all_oh = np.concatenate([s[key] for s in series if s["oh"] == oh])
+                rline = np.geomspace(r_all_oh.min() * 0.9, r_all_oh.max() * 1.05, 40)
+                K_ic, _ = powerfit_prefactor(r_all_oh, q_all_oh, ic_exp[key], fit_rlo, fit_rhi)
+                if K_ic is not None:
+                    ax.plot(rline, K_ic * rline ** ic_exp[key], "--", color=col,
+                            lw=2.0, alpha=0.9, zorder=2)
+            ylo = q_all.min() * 0.7
+            yhi = q_all.max() * 1.4
 
-    # ---- legends: Oh (colour) + grid (marker) on (a); line style on (b) ----
+        style_log_axis(ax, (r_all.min() * 0.85, r_all.max() * 1.2), (ylo, yhi))
+        ax.set_xlabel(r"$r_j$", fontsize=19, labelpad=6)
+        ax.set_ylabel(ylabel, fontsize=17, labelpad=8)
+        ax.set_title(tag, loc="left", fontsize=18, pad=10)
+
+    # ---- legends -----------------------------------------------------------
+    # (a): Oh colours + grid markers + Bo. Bo is a legend entry now because
+    # forthcoming Bo=0 runs will add a second Bo to distinguish.
     oh_handles = [Line2D([0], [0], marker="o", ls="", mfc=oh_colour[oh], mec="k",
                           mew=0.3, ms=8, label=r"$Oh = %.4g$" % oh) for oh in ohs]
     grids = sorted({s["grid"] for s in series})
     grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
                            mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
-    leg1 = ax_q.legend(handles=oh_handles + grid_handles, fontsize=12,
+    bo_handle = [Line2D([0], [0], ls="", label=r"$Bo = 10^{-3}$")]
+    leg1 = ax_q.legend(handles=bo_handle + oh_handles + grid_handles, fontsize=12,
                        loc="lower right", frameon=False, handletextpad=0.4,
-                       labelspacing=0.35, ncol=1)
+                       labelspacing=0.35)
     ax_q.add_artist(leg1)
 
     a_ref = next((alpha_by_oh[o]["alpha"] for o in ohs if alpha_by_oh[o]), None)
-    style_handles = [
+    ax_q.legend(handles=[
         Line2D([0], [0], color="0.3", ls="-", lw=2.0,
-               label=(r"cone theory ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone theory"),
+               label=(r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"),
         Line2D([0], [0], color="0.3", ls="--", lw=2.0,
                label=r"inertio-capillary ($\alpha=2/3$)"),
-    ]
-    ax_we.legend(handles=style_handles, fontsize=12, loc="lower left",
-                 frameon=False, handletextpad=0.6, labelspacing=0.35)
+    ], fontsize=11, loc="upper left", frameon=False, handletextpad=0.6, labelspacing=0.3)
 
-    fig.suptitle(r"$Bo = 10^{-3}$", fontsize=15, y=0.995)
-    plt.tight_layout(w_pad=2.6, rect=(0, 0, 1, 0.97))
+    for ax in (ax_b, ax_c):
+        ax.legend(handles=[
+            Line2D([0], [0], color="0.3", ls="-", lw=2.0,
+                   label=(r"cone ($\alpha\!\approx\!%.2f$)" % a_ref) if a_ref else "cone"),
+            Line2D([0], [0], color="0.35", ls="--", lw=2.0,
+                   label=r"inertio-capillary ($We_j=O(1)$)"),
+        ], fontsize=11, loc="lower left", frameon=False, handletextpad=0.6, labelspacing=0.3)
+
+    plt.tight_layout(w_pad=2.4)
     plt.savefig(args.out + ".png", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.savefig(args.out + ".pdf", dpi=300, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
