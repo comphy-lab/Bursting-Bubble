@@ -480,8 +480,13 @@ def main():
         # the pooled data), and its prefactor is least-squares fit over that
         # same band. The cone self-similar solution is the r_j->0 asymptote near
         # inception; the PRF 2023 scalings are a finite intermediate band.
-        cone_draw = (fit_rlo / 1.3, fit_rhi * 2.0)    # near-inception, extended
-        prf_draw = (prf_rlo / 1.5, prf_rhi * 1.6)     # finite PRF band, extended
+        # Drawn spans are extended well past each fit window so the SLOPE is
+        # legible (a scaling line needs length to read); the prefactor is still
+        # fit only within the window. The PRF line in particular must reach far
+        # enough on both sides of its crossing to separate from the data cloud
+        # and show the r_j^-1 (or const) slope.
+        cone_draw = (fit_rlo / 1.4, fit_rhi * 3.5)    # near-inception, extended
+        prf_draw = (prf_rlo / 2.1, prf_rhi * 3.1)     # finite PRF band, extended
 
         # cone-theory lines, per Oh (slope fixed by the fitted alpha; prefactor
         # least-squares over the near-inception window [fit_rlo, fit_rhi])
@@ -515,8 +520,8 @@ def main():
             K_prf, _ = powerfit_prefactor(r_all_oh, q_all_oh, prf_exp[key],
                                           prf_rlo, prf_rhi)
             if K_prf is not None:
-                ax.plot(rline, K_prf * rline ** prf_exp[key], ":", color=col,
-                        lw=2.3, alpha=0.9, zorder=4)
+                ax.plot(rline, K_prf * rline ** prf_exp[key], ls=(0, (1, 1.1)),
+                        color=col, lw=2.8, alpha=0.95, zorder=5)
 
         r_all = np.concatenate([s["r_j"] for s in series])
         q_all = np.concatenate([s[key] for s in series])
