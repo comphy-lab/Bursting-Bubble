@@ -41,7 +41,19 @@ The purely-inertial cone theory has alpha < 2/3, so its q_j is shallower and
 its We_j *decreases* with r_j rather than staying constant — the data
 distinguishes the two.
 
-Theory-line SLOPES are fixed by the two alphas; PREFACTORS are least-squares
+**The PRF 2023 line** (Gordillo & Rodriguez-Rodriguez, Phys. Rev. Fluids 2023)
+is *the same formula with alpha forced to 1/2* — the purely-inertial cone with
+a CONSTANT far-field volume flux (their high-Laplace, La>2500 branch). That
+gives, in the notation JR uses (Q_j the full flow rate ~ volume/time; q_l the
+flow rate per unit outer perimeter, [q_l] = L^2/T):
+    q_l  ~ r_j ^ 0   (i.e. q_l = const)   and   We_j ~ r_j ^ -1.
+It is the constant that JR flagged: q_l is what is constant at short times, not
+Q_j (= our q_j = INT v_z r dr). Drawn dotted, per Oh, prefactor fit to the same
+r_j -> 0 window as the cone line. The data plateau of q_l in panel (c) sits
+right on this line in the regime PRF 2023 describes; at smaller r_j the entrapped-
+bubble cone (alpha ~ 0.64) takes over, which is this paper's regime.
+
+Theory-line SLOPES are fixed by the three alphas; PREFACTORS are least-squares
 fit in log space to the pooled jet-phase data of each Oh over the r_j -> 0
 asymptotic window (never the full range). For the We_j panels the inertio-
 capillary prediction is r_j-INDEPENDENT and order unity, so it is drawn as a
@@ -63,8 +75,8 @@ prediction) and is the paper-consistent form (their q_j = INT v_z dr).
 ## Grouping
 
 Data are grouped by (Oh, grid=MAXlevel): colour encodes Oh, marker encodes the
-grid level. Theory lines are drawn per Oh in the matching colour (our theory
-solid, inertio-capillary dashed).
+grid level. Theory lines are drawn per Oh in the matching colour (cone theory
+solid, inertio-capillary alpha=2/3 dashed, PRF 2023 alpha=1/2 dotted).
 
 ## Usage
 
@@ -106,6 +118,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 GETFACET = os.path.join(SCRIPT_DIR, "getFacet")
 
 ALPHA_IC = 2.0 / 3.0                     # inertio-capillary balance
+ALPHA_PRF = 0.5                          # Gordillo & Rodriguez-Rodriguez, PRF 2023
+                                         # (La>2500 constant-far-field-flux branch)
 
 # Okabe-Ito colourblind-safe, keyed by Oh in sorted order.
 OH_COLOURS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9"]
@@ -418,6 +432,9 @@ def main():
     ic_exp = exps(ALPHA_IC)   # q_j->1.5, q_l->0.5, We->0 (constant)
     print("inertio-capillary (alpha=2/3): q_j~r^%.3f  q_l~r^%.3f  We_j~r^%.3f (constant)"
           % (ic_exp["q_j"], ic_exp["q_l"], ic_exp["We_ql"]))
+    prf_exp = exps(ALPHA_PRF)  # q_j->1, q_l->0 (const), We->-1
+    print("PRF 2023 (alpha=1/2):          q_j~r^%.3f  q_l~r^%.3f (const)  We_j~r^%.3f"
+          % (prf_exp["q_j"], prf_exp["q_l"], prf_exp["We_ql"]))
 
     # ============================ figure =====================================
     # 2x2. Row 1: q_j (INT v_z r dr) and its We_j = q_j^2/r_j^3.
@@ -454,6 +471,24 @@ def main():
             if K_our is not None:
                 ax.plot(rline, K_our * rline ** s_our, "-", color=col, lw=2.0,
                         alpha=0.9, zorder=2)
+
+        # PRF 2023 (Gordillo & Rodriguez-Rodriguez, La>2500 constant-far-field-
+        # flux branch) = the same formula with alpha=1/2: q_l = const (r_j^0),
+        # We_j ~ r_j^-1, q_j ~ r_j. Dotted, per Oh, prefactor fit to the same
+        # r_j->0 window as the cone line. The two Jose asked for are panels (c)
+        # (q_l = const, a flat dotted line) and (b),(d) (We_j ~ r_j^-1).
+        for oh in ohs:
+            if alpha_by_oh[oh] is None:
+                continue
+            col = oh_colour[oh]
+            r_all_oh = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
+            q_all_oh = np.concatenate([s[key] for s in series if s["oh"] == oh])
+            rline = np.geomspace(r_all_oh.min() * 0.9, r_all_oh.max() * 1.05, 40)
+            K_prf, _ = powerfit_prefactor(r_all_oh, q_all_oh, prf_exp[key],
+                                          fit_rlo, fit_rhi)
+            if K_prf is not None:
+                ax.plot(rline, K_prf * rline ** prf_exp[key], ":", color=col,
+                        lw=2.3, alpha=0.9, zorder=2)
 
         r_all = np.concatenate([s["r_j"] for s in series])
         q_all = np.concatenate([s[key] for s in series])
@@ -514,21 +549,28 @@ def main():
     # q-panel line legend (power-law inertio-capillary, alpha=2/3).
     # (a) q_j is small at small r_j -> upper-left is clear.
     # (c) q_l is O(1) even at small r_j (non-monotonic) -> lower-left is clear.
-    q_line_handles = [
-        Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
-        Line2D([0], [0], color="0.3", ls="--", lw=2.0,
-               label=r"inertio-capillary ($\alpha=2/3$)"),
-    ]
-    ax_a.legend(handles=q_line_handles, fontsize=11, loc="upper left",
-                frameon=False, handletextpad=0.6, labelspacing=0.3)
-    ax_c.legend(handles=q_line_handles, fontsize=11, loc="lower left",
-                frameon=False, handletextpad=0.6, labelspacing=0.3)
-    # We-panel line legend (inertio-capillary We_j = O(1)): on (b) and (d)
+    def q_handles(prf_lbl):
+        return [
+            Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
+            Line2D([0], [0], color="0.3", ls="--", lw=2.0,
+                   label=r"inertio-capillary ($\alpha=2/3$)"),
+            Line2D([0], [0], color="0.3", ls=":", lw=2.3, label=prf_lbl),
+        ]
+    # PRF 2023 = alpha=1/2. On (a) [q_j] that is q_j ~ r_j; on (c) [q_l] it is
+    # the q_l = const claim Jose asked for (the flat dotted line).
+    ax_a.legend(handles=q_handles(r"PRF 2023 ($\alpha=1/2$)"), fontsize=11,
+                loc="upper left", frameon=False, handletextpad=0.6, labelspacing=0.3)
+    ax_c.legend(handles=q_handles(r"PRF 2023 ($q_\ell=$ const)"), fontsize=11,
+                loc="lower left", frameon=False, handletextpad=0.6, labelspacing=0.3)
+    # We-panel line legend (inertio-capillary We_j = O(1); PRF 2023 We_j ~
+    # r_j^-1): on (b) and (d)
     for ax in (ax_b, ax_d):
         ax.legend(handles=[
             Line2D([0], [0], color="0.3", ls="-", lw=2.0, label=cone_lbl),
             Line2D([0], [0], color="0.35", ls="--", lw=2.0,
                    label=r"inertio-capillary ($We_j=O(1)$)"),
+            Line2D([0], [0], color="0.3", ls=":", lw=2.3,
+                   label=r"PRF 2023 ($We_j \propto r_j^{-1}$)"),
         ], fontsize=11, loc="lower left", frameon=False, handletextpad=0.6, labelspacing=0.3)
 
     plt.tight_layout(w_pad=2.4, h_pad=2.2)
