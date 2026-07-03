@@ -48,17 +48,28 @@ gives, in the notation JR uses (Q_j the full flow rate ~ volume/time; q_l the
 flow rate per unit outer perimeter, [q_l] = L^2/T):
     q_l  ~ r_j ^ 0   (i.e. q_l = const)   and   We_j ~ r_j ^ -1.
 It is the constant that JR flagged: q_l is what is constant at short times, not
-Q_j (= our q_j = INT v_z r dr). Drawn dotted, per Oh, prefactor fit to the same
-r_j -> 0 window as the cone line. The data plateau of q_l in panel (c) sits
-right on this line in the regime PRF 2023 describes; at smaller r_j the entrapped-
-bubble cone (alpha ~ 0.64) takes over, which is this paper's regime.
+Q_j (= our q_j = INT v_z r dr).
+
+## Fit windows (each scaling holds over a different r_j band)
+
+The running logarithmic slope d ln q / d ln r_j of the pooled data is a smooth,
+MONOTONIC crossover, not a set of clean plateaus: it starts near the cone
+exponent at the deepest r_j (approaching inception) and decreases through the
+PRF exponent at intermediate r_j. So each theory line is fit — and drawn — only
+over the r_j band where its own scaling actually holds:
+
+  * cone + inertio-capillary  -> near-inception window --fit-window (default
+    [0.040, 0.054]), the r_j -> 0 self-similar asymptote where the data slope
+    matches alpha(beta);
+  * PRF 2023 (q_l = const / We_j ~ r_j^-1) -> finite window --prf-window
+    (default [0.11, 0.19]), the q_l plateau / We_j ~ r_j^-1 crossing away from
+    inception.
 
 Theory-line SLOPES are fixed by the three alphas; PREFACTORS are least-squares
-fit in log space to the pooled jet-phase data of each Oh over the r_j -> 0
-asymptotic window (never the full range). For the We_j panels the inertio-
-capillary prediction is r_j-INDEPENDENT and order unity, so it is drawn as a
-horizontal line at We_j = O(1) = 1 (NOT fit to the data) — the physical claim
-the data refutes.
+fit in log space over the matching window (never the full range). For the We_j
+panels the inertio-capillary prediction is r_j-INDEPENDENT and order unity, so
+it is drawn as a horizontal line at We_j = O(1) = 1 (NOT fit to the data) — the
+physical claim the data refutes.
 
 ## Note on the two We_j definitions
 
@@ -359,9 +370,16 @@ def main():
                      metavar=("OH", "T"), dest="incept_t",
                      help="Override reconnection/inception time for an Oh (else "
                           "auto-detected per series: last t>0.40 with r_base<0.005).")
-    ap.add_argument("--fit-window", nargs=2, type=float, default=[0.042, 0.08],
+    ap.add_argument("--fit-window", nargs=2, type=float, default=[0.040, 0.054],
                      dest="fit_window",
-                     help="r_j window for the theory prefactor fit (tau->0 asymptote).")
+                     help="r_j window for the cone / inertio-capillary prefactor "
+                          "fit — the near-inception (r_j->0) self-similar asymptote "
+                          "where the data slope matches alpha(beta).")
+    ap.add_argument("--prf-window", nargs=2, type=float, default=[0.11, 0.19],
+                     dest="prf_window",
+                     help="r_j window for the PRF 2023 (alpha=1/2) prefactor fit — "
+                          "the FINITE intermediate band where q_l=const / We_j~r_j^-1 "
+                          "hold (the q_l plateau), away from inception.")
     ap.add_argument("--cone-window", nargs=4, type=float,
                      default=[-1.60, -0.40, 0.10, 1.00], dest="cone_window",
                      metavar=("ZLO", "ZHI", "RLO", "RHI"))
@@ -371,6 +389,7 @@ def main():
     facet_by_oh = {float(o): f for o, f in args.facet}
     incept_by_oh = {float(o): float(t) for o, t in args.incept_t}
     fit_rlo, fit_rhi = args.fit_window
+    prf_rlo, prf_rhi = args.prf_window
     zlo, zhi, rlo_c, rhi_c = args.cone_window
 
     # ---- load series ----
@@ -456,8 +475,16 @@ def main():
             ax.plot(rt, qt, GRID_MARKERS.get(s["grid"], "o"), ms=5.2,
                     mfc=oh_colour[s["oh"]], mec="k", mew=0.3, lw=0, zorder=3)
 
+        # Each theory line is drawn ONLY over the r_j band where its scaling
+        # actually holds (established from the running d ln q/d ln r_j slope of
+        # the pooled data), and its prefactor is least-squares fit over that
+        # same band. The cone self-similar solution is the r_j->0 asymptote near
+        # inception; the PRF 2023 scalings are a finite intermediate band.
+        cone_draw = (fit_rlo / 1.3, fit_rhi * 2.0)    # near-inception, extended
+        prf_draw = (prf_rlo / 1.5, prf_rhi * 1.6)     # finite PRF band, extended
+
         # cone-theory lines, per Oh (slope fixed by the fitted alpha; prefactor
-        # least-squares over the r_j->0 window)
+        # least-squares over the near-inception window [fit_rlo, fit_rhi])
         for oh in ohs:
             cone = alpha_by_oh[oh]
             if cone is None:
@@ -465,30 +492,31 @@ def main():
             col = oh_colour[oh]
             r_all = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
             q_all = np.concatenate([s[key] for s in series if s["oh"] == oh])
-            rline = np.geomspace(r_all.min() * 0.9, r_all.max() * 1.05, 40)
+            rline = np.geomspace(*cone_draw, 40)
             s_our = exps(cone["alpha"])[key]
             K_our, _ = powerfit_prefactor(r_all, q_all, s_our, fit_rlo, fit_rhi)
             if K_our is not None:
                 ax.plot(rline, K_our * rline ** s_our, "-", color=col, lw=2.0,
-                        alpha=0.9, zorder=2)
+                        alpha=0.9, zorder=4)
 
         # PRF 2023 (Gordillo & Rodriguez-Rodriguez, La>2500 constant-far-field-
         # flux branch) = the same formula with alpha=1/2: q_l = const (r_j^0),
-        # We_j ~ r_j^-1, q_j ~ r_j. Dotted, per Oh, prefactor fit to the same
-        # r_j->0 window as the cone line. The two Jose asked for are panels (c)
-        # (q_l = const, a flat dotted line) and (b),(d) (We_j ~ r_j^-1).
+        # We_j ~ r_j^-1, q_j ~ r_j. Dotted, per Oh, prefactor fit over the FINITE
+        # PRF window [prf_rlo, prf_rhi] where those scalings hold (the q_l
+        # plateau / We_j ~ r_j^-1 crossing), NOT the r_j->0 cone window. The two
+        # Jose asked for are (c) [q_l = const] and (b),(d) [We_j ~ r_j^-1].
         for oh in ohs:
             if alpha_by_oh[oh] is None:
                 continue
             col = oh_colour[oh]
             r_all_oh = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
             q_all_oh = np.concatenate([s[key] for s in series if s["oh"] == oh])
-            rline = np.geomspace(r_all_oh.min() * 0.9, r_all_oh.max() * 1.05, 40)
+            rline = np.geomspace(*prf_draw, 40)
             K_prf, _ = powerfit_prefactor(r_all_oh, q_all_oh, prf_exp[key],
-                                          fit_rlo, fit_rhi)
+                                          prf_rlo, prf_rhi)
             if K_prf is not None:
                 ax.plot(rline, K_prf * rline ** prf_exp[key], ":", color=col,
-                        lw=2.3, alpha=0.9, zorder=2)
+                        lw=2.3, alpha=0.9, zorder=4)
 
         r_all = np.concatenate([s["r_j"] for s in series])
         q_all = np.concatenate([s[key] for s in series])
@@ -502,18 +530,19 @@ def main():
             yhi = q_all.max() * 1.5
         else:
             # q_j inertio-capillary: still a power law (alpha=2/3 -> r^1.5),
-            # prefactor fit to the window like the cone line, per Oh.
+            # a near-inception competitor to the cone, so fit + drawn over the
+            # same near-inception window, per Oh.
             for oh in ohs:
                 if alpha_by_oh[oh] is None:
                     continue
                 col = oh_colour[oh]
                 r_all_oh = np.concatenate([s["r_j"] for s in series if s["oh"] == oh])
                 q_all_oh = np.concatenate([s[key] for s in series if s["oh"] == oh])
-                rline = np.geomspace(r_all_oh.min() * 0.9, r_all_oh.max() * 1.05, 40)
+                rline = np.geomspace(*cone_draw, 40)
                 K_ic, _ = powerfit_prefactor(r_all_oh, q_all_oh, ic_exp[key], fit_rlo, fit_rhi)
                 if K_ic is not None:
                     ax.plot(rline, K_ic * rline ** ic_exp[key], "--", color=col,
-                            lw=2.0, alpha=0.9, zorder=2)
+                            lw=2.0, alpha=0.9, zorder=4)
             ylo = q_all.min() * 0.7
             yhi = q_all.max() * 1.4
 
