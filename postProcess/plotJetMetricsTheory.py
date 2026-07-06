@@ -387,8 +387,19 @@ def main():
                      help="Bond number for the legend label (0 -> 'Bo = 0'). "
                           "The solver has no gravity term; Bo only selects the "
                           "initial-shape file, so this is purely a label.")
+    ap.add_argument("--rmin", type=float, default=0.04,
+                     help="Lower r_j clip for the jet phase (default 0.04). The "
+                          "getBase probe resolves the jet base down to ~0.005; set "
+                          "--rmin small (e.g. 0.003) to plot the full r_j->0 range.")
+    ap.add_argument("--grid-name", nargs=2, action="append", default=[],
+                     dest="grid_name", metavar=("GRID", "LABEL"),
+                     help="Override the marker-legend label for a grid level "
+                          "(repeatable), e.g. --grid-name 15 'L15 (5001)'. Lets two "
+                          "runs at the same MAXlevel be distinguished by giving one a "
+                          "pseudo-grid (16 -> pentagon) and relabelling both.")
     ap.add_argument("--out", required=True, help="Output stem (.png and .pdf).")
     args = ap.parse_args()
+    grid_name_map = {int(g): lbl for g, lbl in args.grid_name}
 
     facet_by_oh = {float(o): f for o, f in args.facet}
     incept_by_oh = {float(o): float(t) for o, t in args.incept_t}
@@ -410,7 +421,7 @@ def main():
         if incept_t is None:
             raise SystemExit("plotJetMetricsTheory: no reconnection time for %s — pass "
                               "--incept-t %g <t>." % (log_s, oh))
-        r_j, q_jet, q_l = jet_phase(rows, incept_t)
+        r_j, q_jet, q_l = jet_phase(rows, incept_t, rmin=args.rmin)
         if r_j.size < 5:
             raise SystemExit("plotJetMetricsTheory: only %d jet rows for %s (incept_t=%.4f)."
                               % (r_j.size, log_s, incept_t))
@@ -576,7 +587,8 @@ def main():
                           mew=0.3, ms=8, label=oh_label(oh)) for oh in ohs]
     grids = sorted({s["grid"] for s in series})
     grid_handles = [Line2D([0], [0], marker=GRID_MARKERS.get(g, "o"), ls="", mfc="0.6",
-                           mec="k", mew=0.3, ms=8, label=r"L%d" % g) for g in grids]
+                           mec="k", mew=0.3, ms=8,
+                           label=grid_name_map.get(g, r"L%d" % g)) for g in grids]
     def bo_label_txt(b):
         if b == 0:
             return r"$Bo = 0$"
