@@ -75,7 +75,8 @@ the solver has no gravity term).
 - `--rmin 0.003` shows the full resolved range; the jet base resolves to
   r_j ≈ 0.005, so the historical 0.04 clip is cosmetic, not a resolution limit.
 - Theory lines: cone (this work, α=1/(2−ν(β)), β fit from the inception facet),
-  inertio-capillary (α=2/3), PRF 2023 (α=1/2). Fit prefactors over the r_j→0
-  window `--fit-window 0.008 0.025`.
+  inertio-capillary (α=2/3), PRF 2023 (α=1/2). Fit the cone and
+  inertio-capillary prefactors over the r_j→0 window
+  `--cone-fit-window 0.005 0.023952`.
 - If matplotlib complains about LaTeX, set `text.usetex = False` at the top of
   `plotJetMetricsTheory.py`.

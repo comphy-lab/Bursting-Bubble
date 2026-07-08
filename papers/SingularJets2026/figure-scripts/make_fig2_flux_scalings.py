@@ -35,9 +35,9 @@ DEFAULT_DATA_DIR = ROOT / "data-Oh-0.03"
 APS_DOUBLE_COL = 6.75
 ALPHA = 0.629
 MAX_RJ = 1.0
-CONE_FIT_WINDOW = (0.008, 0.025)
+CONE_FIT_WINDOW = (0.005, 0.023952)
 PRF_FIT_WINDOW = (0.11, 0.19)
-CONE_DRAW_WINDOW = (0.006, 0.085)
+CONE_DRAW_WINDOW = (0.005, 0.10)
 PRF_DRAW_WINDOW = (0.052, 0.60)
 
 APS = {
@@ -49,13 +49,13 @@ APS = {
 
 LINE = {
     "linewidth": 1.35,
-    "theory_linewidth": 1.15,
+    "theory_linewidth": 1.45,
     "spine_width": 0.9,
     "tick_width": 0.75,
     "tick_length_major": 4.2,
     "tick_length_minor": 2.1,
-    "markersize": 3.2,
-    "markeredgewidth": 0.45,
+    "markersize": 2.65,
+    "markeredgewidth": 0.28,
 }
 
 LEVEL_COLOURS = {
@@ -181,11 +181,23 @@ def processed_series(data: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     }
 
 
-def log_sample_indices(x: np.ndarray, target: int = 120) -> np.ndarray:
+def log_bin_indices(x: np.ndarray, y: np.ndarray, target: int = 75) -> np.ndarray:
     if len(x) <= target:
         return np.arange(len(x), dtype=int)
-    raw = np.geomspace(1, len(x), target).astype(int) - 1
-    return np.unique(np.clip(raw, 0, len(x) - 1))
+    valid = np.isfinite(x) & np.isfinite(y) & (x > 0.0) & (y > 0.0)
+    if not np.any(valid):
+        return np.array([], dtype=int)
+
+    valid_idx = np.flatnonzero(valid)
+    edges = np.geomspace(np.min(x[valid]), np.max(x[valid]), target + 1)
+    chosen: list[int] = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        in_bin = valid_idx[(x[valid_idx] >= lo) & (x[valid_idx] < hi)]
+        if len(in_bin) == 0:
+            continue
+        centre = np.sqrt(lo * hi)
+        chosen.append(int(in_bin[np.argmin(np.abs(np.log(x[in_bin] / centre)))]))
+    return np.asarray(sorted(set(chosen)), dtype=int)
 
 
 def style_axes(ax: plt.Axes) -> None:
@@ -242,18 +254,68 @@ def normalisation(
     )
 
 
+def run_weighted_normalisation(
+    series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]],
+    quantity: str,
+    slope: float,
+    window: tuple[float, float],
+) -> float:
+    prefactors = []
+    for _, series in series_by_run:
+        fit = (series["r_j"] >= window[0]) & (series["r_j"] <= window[1])
+        if not np.any(fit):
+            continue
+        prefactors.append(
+            np.mean(np.log(series[quantity][fit]) - slope * np.log(series["r_j"][fit]))
+        )
+    if not prefactors:
+        raise ValueError(f"No runs have points in the fit window for {quantity}")
+    return float(np.exp(np.median(prefactors)))
+
+
+def reference_run_normalisation(
+    series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]],
+    quantity: str,
+    slope: float,
+    window: tuple[float, float],
+    level: int = 15,
+    focus: int = 15,
+) -> float:
+    for run, series in series_by_run:
+        if run.level != level or run.focus != focus:
+            continue
+        fit = (series["r_j"] >= window[0]) & (series["r_j"] <= window[1])
+        if not np.any(fit):
+            raise ValueError(f"No {run.label} points in the fit window for {quantity}")
+        return float(
+            np.exp(np.mean(np.log(series[quantity][fit]) - slope * np.log(series["r_j"][fit])))
+        )
+    raise ValueError(f"No L{level}, focus {focus} run found for {quantity}")
+
+
+def marker_alpha(run: RunSpec) -> float:
+    if run.level == 15 and run.focus == 15:
+        return 0.94
+    if run.level == 15:
+        return 0.74
+    return 0.48
+
+
 def draw_theory(
     ax: plt.Axes,
-    reference: dict[str, np.ndarray],
+    series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]],
     quantity: str,
     slopes: tuple[float, float, float],
     show_labels: bool,
+    cone_fit_window: tuple[float, float],
 ) -> None:
     cone_slope, ic_slope, prf_slope = slopes
     r_cone = np.geomspace(*CONE_DRAW_WINDOW, 120)
     r_prf = np.geomspace(*PRF_DRAW_WINDOW, 120)
 
-    cone_prefactor = normalisation(reference, quantity, cone_slope, CONE_FIT_WINDOW)
+    cone_prefactor = reference_run_normalisation(
+        series_by_run, quantity, cone_slope, cone_fit_window
+    )
     ax.plot(
         r_cone,
         cone_prefactor * r_cone**cone_slope,
@@ -274,7 +336,9 @@ def draw_theory(
             label=r"inertio-capillary" if show_labels else None,
         )
     else:
-        ic_prefactor = normalisation(reference, quantity, ic_slope, CONE_FIT_WINDOW)
+        ic_prefactor = reference_run_normalisation(
+            series_by_run, quantity, ic_slope, cone_fit_window
+        )
         ax.plot(
             r_cone,
             ic_prefactor * r_cone**ic_slope,
@@ -285,7 +349,9 @@ def draw_theory(
             label=r"inertio-capillary" if show_labels else None,
         )
 
-    prf_prefactor = normalisation(reference, quantity, prf_slope, PRF_FIT_WINDOW)
+    prf_prefactor = run_weighted_normalisation(
+        series_by_run, quantity, prf_slope, PRF_FIT_WINDOW
+    )
     ax.plot(
         r_prf,
         prf_prefactor * r_prf**prf_slope,
@@ -297,38 +363,42 @@ def draw_theory(
     )
 
 
-def build_figure(data_dir: Path, output: Path, use_tex: bool = True) -> None:
+def build_figure(
+    data_dir: Path,
+    output: Path,
+    use_tex: bool = True,
+    cone_fit_window: tuple[float, float] = CONE_FIT_WINDOW,
+) -> None:
     configure_matplotlib(use_tex=use_tex)
 
     series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]] = []
     for run in RUNS:
         series_by_run.append((run, processed_series(read_log(data_dir / run.filename))))
 
-    reference = pool_series(series_by_run)
-
-    fig, axes = plt.subplots(1, 3, figsize=(APS_DOUBLE_COL, 2.55))
+    fig, axes = plt.subplots(1, 3, figsize=(APS_DOUBLE_COL, 2.46))
     fig.set_facecolor("white")
 
     panels = (
         ("Q_j", r"$Q_j$", (3.0 * ALPHA - 1.0) / ALPHA, 1.5, 1.0),
         ("q_j", r"$q_j$", (2.0 * ALPHA - 1.0) / ALPHA, 0.5, 0.0),
-        ("We_j", r"$We_j=q_j^2/r_j$", (3.0 * ALPHA - 2.0) / ALPHA, 0.0, -1.0),
+        ("We_j", r"$We_j$", (3.0 * ALPHA - 2.0) / ALPHA, 0.0, -1.0),
     )
 
     for ax, (quantity, ylabel, cone_slope, ic_slope, prf_slope), panel_label in zip(
         axes, panels, (r"(a)", r"(b)", r"(c)")
     ):
-        ax.axvspan(*CONE_FIT_WINDOW, color=LIGHT_GREY, alpha=0.35, lw=0, zorder=0)
+        ax.axvspan(*cone_fit_window, color=LIGHT_GREY, alpha=0.22, lw=0, zorder=0)
         draw_theory(
             ax,
-            reference=reference,
+            series_by_run=series_by_run,
             quantity=quantity,
             slopes=(cone_slope, ic_slope, prf_slope),
             show_labels=(quantity == "Q_j"),
+            cone_fit_window=cone_fit_window,
         )
 
         for run, series in series_by_run:
-            idx = log_sample_indices(series["r_j"], target=95)
+            idx = log_bin_indices(series["r_j"], series[quantity], target=68)
             ax.plot(
                 series["r_j"][idx],
                 series[quantity][idx],
@@ -338,7 +408,7 @@ def build_figure(data_dir: Path, output: Path, use_tex: bool = True) -> None:
                 mfc=run.colour,
                 mec="black",
                 mew=LINE["markeredgewidth"],
-                alpha=0.86,
+                alpha=marker_alpha(run),
                 label=run.label if quantity == "Q_j" else None,
                 zorder=3,
             )
@@ -366,11 +436,11 @@ def build_figure(data_dir: Path, output: Path, use_tex: bool = True) -> None:
         frameon=False,
         fontsize=APS["LegendFont"],
         handlelength=1.5,
-        columnspacing=0.9,
+        columnspacing=0.75,
         handletextpad=0.35,
     )
 
-    fig.subplots_adjust(left=0.07, right=0.99, bottom=0.18, top=0.78, wspace=0.54)
+    fig.subplots_adjust(left=0.07, right=0.99, bottom=0.18, top=0.76, wspace=0.50)
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, bbox_inches="tight", pad_inches=0.035, dpi=300)
     plt.close(fig)
@@ -381,12 +451,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--output", type=Path, default=ROOT / "fig2_flux_scalings.pdf")
     parser.add_argument("--no-tex", action="store_true", help="Use mathtext instead of LaTeX.")
+    parser.add_argument(
+        "--cone-fit-window",
+        type=float,
+        nargs=2,
+        metavar=("RMIN", "RMAX"),
+        default=CONE_FIT_WINDOW,
+        help="Near-inception fit window used for the cone and inertio-capillary prefactors.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    build_figure(args.data_dir, args.output, use_tex=not args.no_tex)
+    build_figure(
+        args.data_dir,
+        args.output,
+        use_tex=not args.no_tex,
+        cone_fit_window=tuple(args.cone_fit_window),
+    )
     print(f"Wrote {args.output}")
 
 
