@@ -11,12 +11,13 @@ plots need.
 - `plotJetMetricsTheory.py` — the (self-contained) plotting tool, shared by all
   cases. Also on the CoMPhy Lab repo, merged into `main` (PR #6).
 - **`figure-scripts/`** — scripts and small CSV inputs for manuscript figures
-  that are not produced from the jet-base logs: the Fig. 1 schematic
-  (`make_sketch_paper_worthington.py`) and the End Matter natural-numbered
-  Fig. 4 diagnostic (`make_nu_vs_beta.py`, `beta_alpha_Oh.csv`).
-- **`data-Oh-0.03/`** — the case we focus on (Bo=0, Oh=0.03). L13, L14, and two
-  L15 runs (pre-inception focus 13 and 14). `bash reproduce-Oh0.03.sh` →
-  `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{png,pdf}`.
+  that are not produced by the shared jet-metrics diagnostic script: the Fig. 1
+  schematic (`make_sketch_paper_worthington.py`), the approved manuscript Fig. 2
+  (`make_fig2_flux_scalings.py`), and the End Matter natural-numbered Fig. 4
+  diagnostic (`make_nu_vs_beta.py`, `beta_alpha_Oh.csv`).
+- **`data-Oh-0.03/`** — the case we focus on (Bo=0, Oh=0.03). L13, L14, and
+  three L15 runs (pre-inception focus 13, 14, and 15). `bash reproduce-Oh0.03.sh`
+  → `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{png,pdf}`.
 - **`facet-collapse-figure3/`** — Figure 3: the self-similar interface-collapse figure (pre/post inception, raw + rescaled by |t-t0|^alpha). `bash reproduce_facets.sh` -> `facet-collapse-figure3/fig3_Oh0.03_collapse.{png,pdf}`. See that folder's README.
 - **`data-Oh-0.02297/`** — Bo=0, Oh=0.02297. L13 + L14. `bash reproduce-Oh0.02297.sh` →
   `data-Oh-0.02297/gridconv_Oh0.02297_L13-L14.{png,pdf}`.
@@ -29,8 +30,11 @@ inception, for the cone fit), the generated figure (the `reproduce-Oh*.sh` runne
 
 - **Fig. 1:** `sketch_paper_worthington.{pdf,png}`; regenerate with
   `python3 figure-scripts/make_sketch_paper_worthington.py`.
-- **Fig. 2:** `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{pdf,png}`;
-  regenerate with `bash reproduce-Oh0.03.sh`.
+- **Fig. 2:** `fig2_flux_scalings.{pdf,png}`; regenerate with
+  `python3 figure-scripts/make_fig2_flux_scalings.py`.
+  The supporting raw grid-convergence diagnostic is
+  `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{pdf,png}`, regenerated with
+  `bash reproduce-Oh0.03.sh`.
 - **Fig. 3:** `facet-collapse-figure3/fig3_Oh0.03_collapse.{pdf,png}`;
   regenerate with `bash reproduce_facets.sh`.
 - **Fig. 4 / End Matter diagnostic:** `nu_vs_beta.pdf`; regenerate with
