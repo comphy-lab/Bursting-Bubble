@@ -2,9 +2,9 @@
 """Build the Fig. 2 scaffold from the Oh=0.03 grid-convergence logs.
 
 Paper notation differs from the solver-column names:
-  q_j  = q_l
-  Q_j  = 2*pi*q_jet = pi*r_j*q_j for the plug-like jet profile
-  We_j = q_l**2/r_j
+  Q_j  = 2*pi*q_jet
+  q_j  = Q_j/(pi*r_j) = 2*q_jet/r_j
+  We_j = q_j**2/r_j
 
 The cone and inertio-capillary prefactors are fit in the near-inception
 inertial window. The PRF 2023 prefactor is fit in the finite-radius plateau
@@ -35,7 +35,8 @@ DEFAULT_DATA_DIR = ROOT / "data-Oh-0.03"
 APS_DOUBLE_COL = 6.75
 ALPHA = 0.629
 MAX_RJ = 1.0
-CONE_FIT_WINDOW = (0.005, 0.023952)
+CONE_FIT_WINDOW = (0.005, 0.015)
+CONE_FIT_RMAX_LIMIT = 0.030
 PRF_FIT_WINDOW = (0.11, 0.19)
 CONE_DRAW_WINDOW = (0.005, 0.10)
 PRF_DRAW_WINDOW = (0.052, 0.60)
@@ -150,8 +151,10 @@ def reconnection_time(data: dict[str, np.ndarray], pin_r: float = 0.005) -> floa
 
 def processed_series(data: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     r_j = data["r_base"]
-    q_j = data["q_l"]
     Q_j = 2.0 * np.pi * data["q_jet"]
+    # Derive the line flux from the grid-converged volume flux using
+    # the paper identity Q_j = pi*r_j*q_j.
+    q_j = Q_j / (np.pi * r_j)
     We_j = q_j**2 / r_j
     incept_t = reconnection_time(data)
 
@@ -293,6 +296,56 @@ def reference_run_normalisation(
     raise ValueError(f"No L{level}, focus {focus} run found for {quantity}")
 
 
+def cone_window_score(
+    series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]],
+    panels: tuple[tuple[str, str, float, float, float], ...],
+    window: tuple[float, float],
+) -> float:
+    """RMS log-residual for fixed cone slopes over the deep focused runs."""
+    residuals: list[float] = []
+    for quantity, _, cone_slope, _, _ in panels:
+        quantity_residuals: list[float] = []
+        for run, series in series_by_run:
+            if run.level != 15 or run.focus not in (14, 15):
+                continue
+            fit = (series["r_j"] >= window[0]) & (series["r_j"] <= window[1])
+            if np.count_nonzero(fit) < 20:
+                continue
+            log_r = np.log(series["r_j"][fit])
+            log_y = np.log(series[quantity][fit])
+            prefactor = np.mean(log_y - cone_slope * log_r)
+            quantity_residuals.extend(log_y - (prefactor + cone_slope * log_r))
+        if not quantity_residuals:
+            return np.inf
+        residuals.append(float(np.sqrt(np.mean(np.asarray(quantity_residuals) ** 2))))
+    return float(np.mean(residuals))
+
+
+def optimise_cone_fit_window(
+    series_by_run: list[tuple[RunSpec, dict[str, np.ndarray]]],
+    panels: tuple[tuple[str, str, float, float, float], ...],
+    base_window: tuple[float, float] = CONE_FIT_WINDOW,
+    rmax_limit: float = CONE_FIT_RMAX_LIMIT,
+) -> tuple[float, float]:
+    r_min, r_max_floor = base_window
+    candidates = np.unique(
+        np.concatenate(
+            [
+                np.linspace(r_max_floor, rmax_limit, 401),
+                np.asarray([r_max_floor], dtype=float),
+            ]
+        )
+    )
+    best_rmax = r_max_floor
+    best_score = np.inf
+    for r_max in candidates:
+        score = cone_window_score(series_by_run, panels, (r_min, float(r_max)))
+        if score < best_score:
+            best_rmax = float(r_max)
+            best_score = score
+    return (r_min, best_rmax)
+
+
 def marker_alpha(run: RunSpec) -> float:
     if run.level == 15 and run.focus == 15:
         return 0.94
@@ -359,7 +412,7 @@ def draw_theory(
         ls=":",
         lw=LINE["theory_linewidth"] + 0.25,
         zorder=8,
-        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [25]" if show_labels else None,
+        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [26]" if show_labels else None,
     )
 
 
@@ -368,6 +421,7 @@ def build_figure(
     output: Path,
     use_tex: bool = True,
     cone_fit_window: tuple[float, float] = CONE_FIT_WINDOW,
+    optimise_cone_window: bool = False,
 ) -> None:
     configure_matplotlib(use_tex=use_tex)
 
@@ -383,6 +437,12 @@ def build_figure(
         ("q_j", r"$q_j$", (2.0 * ALPHA - 1.0) / ALPHA, 0.5, 0.0),
         ("We_j", r"$We_j$", (3.0 * ALPHA - 2.0) / ALPHA, 0.0, -1.0),
     )
+    if optimise_cone_window:
+        cone_fit_window = optimise_cone_fit_window(series_by_run, panels, cone_fit_window)
+        print(
+            "Optimised cone fit window: "
+            f"{cone_fit_window[0]:.5g} <= r_j <= {cone_fit_window[1]:.5g}"
+        )
 
     for ax, (quantity, ylabel, cone_slope, ic_slope, prf_slope), panel_label in zip(
         axes, panels, (r"(a)", r"(b)", r"(c)")
@@ -424,7 +484,7 @@ def build_figure(
     axes[0].set_ylim(0.01, 4.0)
     axes[1].set_ylim(0.35, 3.2)
     axes[2].set_ylim(0.06, 260.0)
-    axes[1].yaxis.set_label_coords(-0.18, 0.5)
+    axes[1].yaxis.set_label_coords(-0.26, 0.5)
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
@@ -459,6 +519,11 @@ def parse_args() -> argparse.Namespace:
         default=CONE_FIT_WINDOW,
         help="Near-inception fit window used for the cone and inertio-capillary prefactors.",
     )
+    parser.add_argument(
+        "--optimise-cone-window",
+        action="store_true",
+        help="Optimise the upper bound of --cone-fit-window before fitting prefactors.",
+    )
     return parser.parse_args()
 
 
@@ -469,6 +534,7 @@ def main() -> None:
         args.output,
         use_tex=not args.no_tex,
         cone_fit_window=tuple(args.cone_fit_window),
+        optimise_cone_window=args.optimise_cone_window,
     )
     print(f"Wrote {args.output}")
 

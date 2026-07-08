@@ -64,8 +64,10 @@ i  dt  t  ke  maxlevel  r_b  z_b  r_base  z_base  q_jet  q_l
 
 The plots use, at the jet-base plane:
 - `r_base` (col 8) = **r_j**, jet-base radius (robust getBase probe).
-- `q_jet`  (col 10) = **q_j = ∫ v_z r dr**.
-- `q_l`    (col 11) = **q_ℓ = ∫ v_z dr**.
+- `q_jet`  (col 10) = **∫ v_z r dr**; manuscript Fig. 2 uses
+  **Q_j = 2π q_jet** and **q_j = Q_j/(π r_j)**.
+- `q_l`    (col 11) = **∫ v_z dr**; retained as a diagnostic, but not used
+  for the approved manuscript Fig. 2 line-flux panel.
 
 `Oh` and `Bond` are in each `*_case.params` (Bond only picks the initial shape;
 the solver has no gravity term).
@@ -77,6 +79,6 @@ the solver has no gravity term).
 - Theory lines: cone (this work, α=1/(2−ν(β)), β fit from the inception facet),
   inertio-capillary (α=2/3), PRF 2023 (α=1/2). Fit the cone and
   inertio-capillary prefactors over the r_j→0 window
-  `--cone-fit-window 0.005 0.023952`.
+  `--cone-fit-window 0.005 0.015`.
 - If matplotlib complains about LaTeX, set `text.usetex = False` at the top of
   `plotJetMetricsTheory.py`.
