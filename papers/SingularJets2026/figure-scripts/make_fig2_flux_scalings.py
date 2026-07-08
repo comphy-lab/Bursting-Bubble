@@ -30,22 +30,23 @@ except ImportError as exc:  # pragma: no cover - depends on local environment
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = ROOT / "data-Oh-0.03"
 
 APS_DOUBLE_COL = 6.75
 ALPHA = 0.629
 MAX_RJ = 1.0
-CONE_FIT_WINDOW = (0.005, 0.015)
+CONE_FIT_WINDOW = (0.005, 0.023952)
 CONE_FIT_RMAX_LIMIT = 0.030
 PRF_FIT_WINDOW = (0.11, 0.19)
 CONE_DRAW_WINDOW = (0.005, 0.10)
 PRF_DRAW_WINDOW = (0.052, 0.60)
 
 APS = {
-    "LabelFont": 10,
-    "AxesFont": 8.5,
-    "LegendFont": 7.5,
-    "PanelFont": 10,
+    "LabelFont": 10.5,
+    "AxesFont": 9,
+    "LegendFont": 8,
+    "PanelFont": 10.5,
 }
 
 LINE = {
@@ -412,7 +413,7 @@ def draw_theory(
         ls=":",
         lw=LINE["theory_linewidth"] + 0.25,
         zorder=8,
-        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [26]" if show_labels else None,
+        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]" if show_labels else None,
     )
 
 

@@ -32,6 +32,10 @@ inception, for the cone fit), the generated figure (the `reproduce-Oh*.sh` runne
   `python3 figure-scripts/make_sketch_paper_worthington.py`.
 - **Fig. 2:** `fig2_flux_scalings.{pdf,png}`; regenerate with
   `python3 figure-scripts/make_fig2_flux_scalings.py`.
+  The current manuscript version is `fig2_v2.{pdf,png}`; regenerate with
+  `bash reproduce-fig2-v2.sh`. Panel (c) samples an interpolated $Q_j(r_j)$
+  branch before computing $We_j=Q_j^2/(\pi^2r_j^3)$ to avoid repeated $r_j$
+  markers.
   The supporting raw grid-convergence diagnostic is
   `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{pdf,png}`, regenerated with
   `bash reproduce-Oh0.03.sh`.
