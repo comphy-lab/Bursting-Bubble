@@ -1,0 +1,10 @@
+SingularJets2026 paper-capsule source commit
+============================================
+
+Commit: eea44b8c779965a9bbbce7f58e5b9fdebc69f079
+Capsule subtree: 42667f4166138e19532ff62049c911d65ee96634
+Reviewed PR head before remediation: 765c46799595b00db26e43046ecbdf061043ba9d
+
+The named commit contains the complete scientific capsule, derived inputs,
+figures, code, tests and provenance payload.  Its follow-up commit adds only
+this self-reference and the generated SHA256SUMS ledger.
