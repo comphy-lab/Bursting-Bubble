@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "capsule": "SingularJets2026",
+  "figure_2": {
+    "alpha": 0.629,
+    "canonical_fit_window": {
+      "quantity": "r_j",
+      "minimum": 0.005,
+      "maximum": 0.023952,
+      "bounds": "inclusive"
+    },
+    "fit_method": "geometric mean of the fixed-slope prefactor on the reference run",
+    "reference_case": 5008,
+    "reference_run": "data-Oh-0.03/5008_L15_focus15_log.txt",
+    "expected_prefactors": {
+      "Q_j": 22.645609844940886,
+      "q_j": 7.208321492305661,
+      "We_j_raw": 51.95989873643568,
+      "We_j_interpolated_panel_c": 51.52043840437157
+    },
+    "expected_point_counts": {
+      "reference_window_raw": 1777,
+      "reference_window_interpolated_panel_c": 35
+    }
+  },
+  "figure_2a": {
+    "case": 5003,
+    "snapshots": ["0.492500", "0.494219", "0.496719", "0.499844"],
+    "regular_grid": {
+      "zmin": -1.72,
+      "zmax": -0.82,
+      "rmax": 0.58,
+      "nr": 190,
+      "columns": ["z", "r", "f", "uz", "ur", "speed"]
+    }
+  }
+}

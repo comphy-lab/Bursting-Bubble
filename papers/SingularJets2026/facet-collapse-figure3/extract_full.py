@@ -9,7 +9,10 @@ Writes facetpremain_<t>.txt (pre-inception) and facetmain_<t>.txt (post) plus
 index_pre.txt / index.txt (t r_j z_base, from the run log) into facets_full/.
 Facets are filtered to r<0.6 (well outside the r<0.35 view) to keep files small.
 """
-import subprocess, os, glob
+import glob
+import os
+import subprocess
+import tempfile
 
 CASE = "/gpfs/work2/0/nctt0620/vatsal/2026-07-03-Singular-Bursting-Bubbles-Bo0-OhSweep-L14/simulationCases/5003"
 GETFACET = os.path.join(CASE, "getFacet")
@@ -38,6 +41,25 @@ for ln in open(os.path.join(CASE, "log")):
         continue
 logrows.sort()
 logts = [r[0] for r in logrows]
+if not logrows:
+    raise RuntimeError("No numeric rows found in the case log")
+
+
+def atomic_write(path, payload):
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=".%s." % os.path.basename(path), dir=os.path.dirname(path), text=True
+    )
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if os.path.getsize(temporary) == 0:
+            raise RuntimeError("Refusing to install empty output: %s" % path)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 def nearest_log(t):
     import bisect
@@ -48,7 +70,9 @@ def nearest_log(t):
 
 def extract(path, prefix):
     t = tof(path)
-    r = subprocess.run([GETFACET, path], capture_output=True, text=True)
+    r = subprocess.run([GETFACET, path], capture_output=True, text=True, check=True)
+    if not r.stderr.strip():
+        raise RuntimeError("getFacet returned no facet payload for %s" % path)
     lines = r.stderr.splitlines()
     out = []; i = 0
     while i < len(lines) - 1:
@@ -63,10 +87,14 @@ def extract(path, prefix):
         if r1 < RMAX and r2 < RMAX:
             out.append("%s %s\n%s %s\n\n" % (z1, r1, z2, r2))
         i += 3
-    open(os.path.join(OUT, "%s_%.6f.txt" % (prefix, t)), "w").write("".join(out))
+    if not out:
+        raise RuntimeError("No valid facets parsed for %s" % path)
+    atomic_write(os.path.join(OUT, "%s_%.6f.txt" % (prefix, t)), "".join(out))
     return t
 
 def run(frames, prefix, idxname):
+    if not frames:
+        raise RuntimeError("No snapshots selected for %s" % prefix)
     idx = ["t0 %.6f\n" % T0]
     for k, p in enumerate(frames):
         t = extract(p, prefix)
@@ -74,7 +102,7 @@ def run(frames, prefix, idxname):
         idx.append("%.6f %.8e %.8e\n" % (t, rj, zb))
         if k % 10 == 0:
             print("%s %d/%d t=%.6f" % (prefix, k, len(frames), t), flush=True)
-    open(os.path.join(OUT, idxname), "w").write("".join(idx))
+    atomic_write(os.path.join(OUT, idxname), "".join(idx))
 
 run(pre, "facetpremain", "index_pre.txt")
 run(post, "facetmain", "index.txt")

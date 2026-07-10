@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Build a four-frame, 2x2 streamline diagnostic for Fig. 2(a).
+"""Build the four-frame streamline diagnostic for Fig. 2(a).
 
-The figure uses the L15, focus-14, Bo=0, Oh=0.03 snapshots from case 5003.
-Snapshots are fetched into a local cache from the durable ohnesorge archive if
-they are not already present.
+The default path reads the committed regular-grid fields and interface segments
+and is fully offline.  Maintainers may explicitly refresh those extracts from
+the checksum-verified raw snapshots archived on Dropbox.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 import shutil
 import subprocess as sp
 import tempfile
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,20 +28,17 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 
+from capsule_utils import atomic_savefig, load_metadata, require_nonempty
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_REMOTE_CASE = (
-    "ohnesorge-ts:/media/vatsal/ohnesorgeV5/"
-    "SBB-OhSweep-Archive-2026-07/Bo0-L14/5003"
-)
-DEFAULT_CACHE = Path(tempfile.gettempdir()) / "sbb_fig2a_5003"
-DEFAULT_SNAPSHOTS = (
-    "0.492500",
-    "0.494219",
-    "0.496719",
-    "0.499844",
-)
+METADATA = load_metadata()
+FIG2A_METADATA = METADATA["figure_2a"]
+DEFAULT_DATA_DIR = ROOT / "data-fig2a"
+DEFAULT_SNAPSHOT_MANIFEST = DEFAULT_DATA_DIR / "raw-snapshots.json"
+DEFAULT_SNAPSHOT_CACHE = Path(tempfile.gettempdir()) / "sbb_fig2a_5003"
+DEFAULT_SNAPSHOTS = tuple(FIG2A_METADATA["snapshots"])
 
 T0 = 0.49443
 DEFAULT_VMAX = 50.0
@@ -63,7 +64,7 @@ def configure_matplotlib(use_tex: bool = True) -> None:
     matplotlib.rcParams.update(
         {
             "font.family": "serif",
-            "font.serif": ["Computer Modern Roman"],
+            "font.serif": ["Computer Modern Roman", "DejaVu Serif"],
             "mathtext.fontset": "cm",
             "text.usetex": use_tex,
             "text.latex.preamble": r"\usepackage{amsmath}",
@@ -91,19 +92,62 @@ def run(cmd: list[str], *, cwd: Path | None = None, capture_stdout: bool = False
     return result.stdout if capture_stdout else result.stderr
 
 
-def ensure_snapshot_cache(case_dir: Path, remote_case: str, snapshots: tuple[str, ...]) -> None:
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_download(path: Path, entry: dict) -> None:
+    require_nonempty(path)
+    if path.stat().st_size != int(entry["bytes"]):
+        raise ValueError(f"Size mismatch for {path}")
+    if sha256(path) != entry["sha256"]:
+        raise ValueError(f"SHA-256 mismatch for {path}")
+
+
+def ensure_snapshot_cache(
+    case_dir: Path,
+    manifest_path: Path,
+    snapshots: tuple[str, ...],
+) -> None:
+    """Download the optional raw inputs only when a maintainer requests refresh."""
+    with manifest_path.open(encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    entries = {entry["snapshot"]: entry for entry in manifest["snapshots"]}
     case_dir.mkdir(parents=True, exist_ok=True)
-    (case_dir / "intermediate").mkdir(exist_ok=True)
+    intermediate = case_dir / "intermediate"
+    intermediate.mkdir(exist_ok=True)
 
-    for name in ("case.params", "log"):
-        target = case_dir / name
-        if not target.exists():
-            run(["rsync", "-az", f"{remote_case}/{name}", str(target)])
-
-    for snap in snapshots:
-        target = case_dir / "intermediate" / f"snapshot-{snap}"
-        if not target.exists():
-            run(["rsync", "-az", f"{remote_case}/intermediate/snapshot-{snap}", str(target)])
+    for snapshot in snapshots:
+        if snapshot not in entries:
+            raise KeyError(f"Snapshot {snapshot} is absent from {manifest_path}")
+        entry = entries[snapshot]
+        target = intermediate / f"snapshot-{snapshot}"
+        if target.exists():
+            validate_download(target, entry)
+            continue
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", dir=target.parent
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        try:
+            url = entry.get("url")
+            if not url:
+                raise RuntimeError(
+                    f"No public Dropbox URL is recorded for snapshot {snapshot}; "
+                    "the committed extracts remain fully offline, but maintainer refresh "
+                    "requires an authenticated Dropbox link update"
+                )
+            with urllib.request.urlopen(url) as response, temporary.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            validate_download(temporary, entry)
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def compile_field_helper() -> Path:
@@ -123,10 +167,22 @@ def compile_field_helper() -> Path:
     return helper
 
 
-def postprocess_helper(name: str) -> Path:
-    helper = ROOT.parents[1] / "postProcess" / name
-    if not helper.exists():
-        raise SystemExit(f"Missing postProcess helper: {helper}")
+def compile_facet_helper() -> Path:
+    qcc = shutil.which("qcc")
+    if qcc is None:
+        raise SystemExit("qcc was not found on PATH; cannot compile the Basilisk facet extractor.")
+
+    source = ROOT.parents[1] / "postProcess" / "getFacet.c"
+    if not source.is_file():
+        raise SystemExit(f"Missing postProcess source: {source}")
+    helper = Path(tempfile.gettempdir()) / "sbb_getFacet"
+    if helper.exists() and helper.stat().st_mtime >= source.stat().st_mtime:
+        return helper
+
+    run(
+        [qcc, "-O2", "-disable-dimensions", source.name, "-o", str(helper), "-lm"],
+        cwd=source.parent,
+    )
     return helper
 
 
@@ -144,7 +200,21 @@ def parse_field(payload: str, nr: int) -> Field:
     uz = data[:, 3].reshape(nz, nr)
     ur = data[:, 4].reshape(nz, nr)
     speed = data[:, 5].reshape(nz, nr)
-    return Field(z=z, r=r, f=f, uz=uz, ur=ur, speed=speed)
+    field = Field(z=z, r=r, f=f, uz=uz, ur=ur, speed=speed)
+    validate_field(field)
+    return field
+
+
+def validate_field(field: Field) -> None:
+    shape = field.z.shape
+    if not shape or any(array.shape != shape for array in field.__dict__.values()):
+        raise ValueError("Archived field arrays do not share one non-empty shape")
+    if not np.all(np.isfinite(field.z)) or not np.all(np.isfinite(field.r)):
+        raise ValueError("Archived grid coordinates contain non-finite values")
+    if not np.all(np.diff(field.z[:, 0]) > 0.0) or not np.all(np.diff(field.r[0, :]) > 0.0):
+        raise ValueError("Archived field coordinates are not strictly increasing")
+    if not np.any(np.isfinite(field.speed)):
+        raise ValueError("Archived velocity field contains no finite values")
 
 
 def extract_field(
@@ -172,9 +242,13 @@ def extract_field(
     return parse_field(payload, nr)
 
 
-def facets(case_dir: Path, snapshot: str) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+def facets(
+    helper: Path,
+    case_dir: Path,
+    snapshot: str,
+) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     raw = sp.run(
-        [str(postprocess_helper("getFacet")), f"intermediate/snapshot-{snapshot}"],
+        [str(helper), f"intermediate/snapshot-{snapshot}"],
         cwd=case_dir,
         check=True,
         text=True,
@@ -202,7 +276,77 @@ def facets(case_dir: Path, snapshot: str) -> list[tuple[tuple[float, float], tup
         segments.append(((r1, z1), (r2, z2)))
         segments.append(((-r1, z1), (-r2, z2)))
         skip = True
+    if not segments:
+        raise ValueError(f"Facet extractor returned no interface segments for {snapshot}")
     return segments
+
+
+def _atomic_npz(path: Path, **arrays: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.stem}.", suffix=".npz", dir=path.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        np.savez_compressed(temporary, **arrays)
+        require_nonempty(temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def field_path(data_dir: Path, snapshot: str) -> Path:
+    return data_dir / "fields" / f"snapshot-{snapshot}.npz"
+
+
+def facet_path(data_dir: Path, snapshot: str) -> Path:
+    return data_dir / "interfaces" / f"snapshot-{snapshot}.npz"
+
+
+def refresh_archived_inputs(args: argparse.Namespace) -> None:
+    ensure_snapshot_cache(args.snapshot_cache, args.snapshot_manifest, tuple(args.snapshots))
+    field_helper = compile_field_helper()
+    facet_helper = compile_facet_helper()
+    for snapshot in args.snapshots:
+        field = extract_field(
+            field_helper,
+            args.snapshot_cache,
+            snapshot,
+            args.zmin,
+            args.zmax,
+            args.rmax,
+            args.nr,
+        )
+        segments = facets(facet_helper, args.snapshot_cache, snapshot)
+        _atomic_npz(field_path(args.data_dir, snapshot), **field.__dict__)
+        _atomic_npz(
+            facet_path(args.data_dir, snapshot),
+            segments=np.asarray(segments, dtype=float),
+        )
+
+
+def load_archived_inputs(
+    data_dir: Path,
+    snapshots: tuple[str, ...],
+) -> tuple[list[Field], list[list[tuple[tuple[float, float], tuple[float, float]]]]]:
+    fields: list[Field] = []
+    all_segments = []
+    for snapshot in snapshots:
+        with np.load(field_path(data_dir, snapshot)) as payload:
+            field = Field(**{name: payload[name] for name in Field.__dataclass_fields__})
+        validate_field(field)
+        with np.load(facet_path(data_dir, snapshot)) as payload:
+            segment_array = np.asarray(payload["segments"], dtype=float)
+        if segment_array.ndim != 3 or segment_array.shape[1:] != (2, 2) or len(segment_array) == 0:
+            raise ValueError(f"Malformed or empty archived interface segments for {snapshot}")
+        if not np.all(np.isfinite(segment_array)):
+            raise ValueError(f"Non-finite archived interface segments for {snapshot}")
+        fields.append(field)
+        all_segments.append(
+            [(tuple(first), tuple(second)) for first, second in segment_array]
+        )
+    return fields, all_segments
 
 
 def stream_arrays(field: Field, mirror: bool = False):
@@ -303,22 +447,9 @@ def draw_frame(
 
 def build_figure(args: argparse.Namespace) -> None:
     configure_matplotlib(use_tex=not args.no_tex)
-    ensure_snapshot_cache(args.case_dir, args.remote_case, tuple(args.snapshots))
-    field_helper = compile_field_helper()
-
-    fields = [
-        extract_field(
-            field_helper,
-            args.case_dir,
-            snap,
-            args.zmin,
-            args.zmax,
-            args.rmax,
-            args.nr,
-        )
-        for snap in args.snapshots
-    ]
-    all_segments = [facets(args.case_dir, snap) for snap in args.snapshots]
+    if args.refresh_data:
+        refresh_archived_inputs(args)
+    fields, all_segments = load_archived_inputs(args.data_dir, tuple(args.snapshots))
 
     if args.vmax is None:
         all_speed = np.concatenate(
@@ -367,8 +498,7 @@ def build_figure(args: argparse.Namespace) -> None:
     cb1.ax.tick_params(labelsize=APS["ColorbarFont"], length=2.5, width=0.5, pad=1.0)
     cb1.outline.set_linewidth(0.5)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(args.output, bbox_inches="tight", pad_inches=0.02, dpi=300)
+    atomic_savefig(fig, args.output, bbox_inches="tight", pad_inches=0.02, dpi=300)
     plt.close(fig)
 
     if args.frames_dir is not None:
@@ -405,7 +535,8 @@ def save_individual_frames(
             label,
         )
         fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        fig.savefig(
+        atomic_savefig(
+            fig,
             args.frames_dir / f"fig2a_streamlines_snapshot_{snap}.pdf",
             bbox_inches="tight",
             pad_inches=0.01,
@@ -416,8 +547,9 @@ def save_individual_frames(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--case-dir", type=Path, default=DEFAULT_CACHE)
-    parser.add_argument("--remote-case", default=DEFAULT_REMOTE_CASE)
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument("--snapshot-cache", type=Path, default=DEFAULT_SNAPSHOT_CACHE)
+    parser.add_argument("--snapshot-manifest", type=Path, default=DEFAULT_SNAPSHOT_MANIFEST)
     parser.add_argument("--snapshots", nargs="+", default=list(DEFAULT_SNAPSHOTS))
     parser.add_argument("--output", type=Path, default=ROOT / "fig2a_streamlines.pdf")
     parser.add_argument(
@@ -432,6 +564,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--nr", type=int, default=190)
     parser.add_argument("--vmax", type=float, default=DEFAULT_VMAX)
     parser.add_argument("--speed-percentile", type=float, default=99.2)
+    parser.add_argument(
+        "--refresh-data",
+        action="store_true",
+        help="Maintainer-only: download raw snapshots and atomically rebuild committed extracts.",
+    )
     parser.add_argument("--no-tex", action="store_true")
     args = parser.parse_args()
     if args.frames_dir == Path(""):

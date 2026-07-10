@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "case": 5003,
+  "source": "ohnesorge-ts:/media/vatsal/ohnesorgeV5/SBB-OhSweep-Archive-2026-07/Bo0-L14/5003",
+  "dropbox_folder": "/2-Resource-Research/1-Github-Files/Bursting-Bubble/SingularJets2026-data/5003/intermediate",
+  "link_status": "public-downloads-verified",
+  "link_note": "Each dl=1 URL was downloaded without an authenticated browser on 2026-07-10 and matched the archived byte count and SHA-256.",
+  "snapshots": [
+    {
+      "snapshot": "0.492500",
+      "bytes": 9685057,
+      "sha256": "d7a2d498c9f03a097c0a93fe01cd95d387e95981cf1aebb06c0a82bb8cecaf96",
+      "dropbox_file_id": "id:gMFppV3C6tIAAAAAACv1gQ",
+      "url": "https://www.dropbox.com/scl/fi/l484kdpo10lsesx46dguv/snapshot-0.492500?rlkey=nexxutl3o40b1vwjtx4howxge&dl=1"
+    },
+    {
+      "snapshot": "0.494219",
+      "bytes": 59332209,
+      "sha256": "7cda92123a58c7410c47ef71a3466e23fda88aa135b140b68de0e87d8e816ca9",
+      "dropbox_file_id": "id:gMFppV3C6tIAAAAAACv1sA",
+      "url": "https://www.dropbox.com/scl/fi/zu9rrbvk002peczp2fjdm/snapshot-0.494219?rlkey=wrf08f3bzouan83hcd2w4a9ak&dl=1"
+    },
+    {
+      "snapshot": "0.496719",
+      "bytes": 59074417,
+      "sha256": "9649d3b39492d911381e457b8ff6f373f87e1406c977221134d98e52f2cb2398",
+      "dropbox_file_id": "id:gMFppV3C6tIAAAAAACv1sQ",
+      "url": "https://www.dropbox.com/scl/fi/01oaji4tnwo8vzdo9exbf/snapshot-0.496719?rlkey=fox6jyvfr7q5ekwmxhk5kua5h&dl=1"
+    },
+    {
+      "snapshot": "0.499844",
+      "bytes": 60457313,
+      "sha256": "fe8ed64782a5bd0ce8f24e1eb3eabf2c2b6b6a0563dc41dd22818dfeb865040c",
+      "dropbox_file_id": "id:gMFppV3C6tIAAAAAACv1sg",
+      "url": "https://www.dropbox.com/scl/fi/qjcj8au9uyiqsew34gg5i/snapshot-0.499844?rlkey=dsle7li0vsl8r3ujrzje32vbx&dl=1"
+    }
+  ]
+}

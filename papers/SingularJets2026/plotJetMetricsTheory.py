@@ -111,6 +111,7 @@ import re
 import math
 import argparse
 import subprocess as sp
+import tempfile
 from collections import defaultdict
 
 import numpy as np
@@ -274,15 +275,20 @@ def facet_points_from_file(path):
 def facet_points_from_case(case_dir, snap_t):
     import glob
     snaps = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
-    if not snaps or not os.path.exists(GETFACET):
-        return None
+    if not snaps:
+        raise FileNotFoundError("No snapshots found in %s" % case_dir)
+    if not os.path.exists(GETFACET):
+        raise FileNotFoundError("Missing facet extractor: %s" % GETFACET)
     rel = os.path.relpath(
         min(snaps, key=lambda f: abs(float(f.rsplit("snapshot-", 1)[-1]) - snap_t)),
         case_dir)
-    out, _ = sp.Popen([GETFACET, rel], cwd=case_dir,
-                       stdout=sp.PIPE, stderr=sp.PIPE).communicate()
+    result = sp.run(
+        [GETFACET, rel], cwd=case_dir, capture_output=True, text=True, check=True
+    )
+    if not result.stderr.strip():
+        raise RuntimeError("getFacet returned no facet payload for %s" % rel)
     pts = []
-    for ln in out.decode(errors="ignore").split("\n"):
+    for ln in result.stderr.splitlines():
         s = ln.split()
         if len(s) == 2:
             try:
@@ -291,6 +297,8 @@ def facet_points_from_case(case_dir, snap_t):
                     pts.append((z, r))
             except ValueError:
                 pass
+    if not pts:
+        raise RuntimeError("No positive-radius facet points parsed for %s" % rel)
     return pts
 
 
@@ -455,7 +463,10 @@ def main():
             print("Oh=%.4g: cone fit beta=%.2fdeg nu=%.4f alpha=%.4f (R^2=%.4f, n=%d)"
                   % (oh, cone["beta"], cone["nu"], cone["alpha"], cone["r2"], cone["n"]))
         else:
-            print("Oh=%.4g: CONE FIT FAILED (no facet data) — theory line skipped" % oh)
+            raise SystemExit(
+                "plotJetMetricsTheory: cone fit failed for Oh=%.4g; "
+                "refusing to emit an incomplete theory figure" % oh
+            )
 
     # ---- exponents. Both We_j estimators share the same We_j exponent. ------
     def exps(alpha):
@@ -631,8 +642,26 @@ def main():
         ], fontsize=11, loc="lower left", frameon=False, handletextpad=0.6, labelspacing=0.3)
 
     plt.tight_layout(w_pad=2.4, h_pad=2.2)
-    plt.savefig(args.out + ".png", dpi=300, bbox_inches="tight", pad_inches=0.08)
-    plt.savefig(args.out + ".pdf", dpi=300, bbox_inches="tight", pad_inches=0.08)
+    pending = []
+    try:
+        for suffix in (".png", ".pdf"):
+            output = args.out + suffix
+            directory = os.path.dirname(os.path.abspath(output))
+            os.makedirs(directory, exist_ok=True)
+            descriptor, temporary = tempfile.mkstemp(
+                prefix=".%s." % os.path.basename(args.out), suffix=suffix, dir=directory
+            )
+            os.close(descriptor)
+            pending.append((temporary, output))
+            fig.savefig(temporary, dpi=300, bbox_inches="tight", pad_inches=0.08)
+            if os.path.getsize(temporary) == 0:
+                raise RuntimeError("Empty figure output: %s" % output)
+        for temporary, output in pending:
+            os.replace(temporary, output)
+    finally:
+        for temporary, _ in pending:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
     plt.close(fig)
     print("\nWROTE: %s.png\nWROTE: %s.pdf" % (args.out, args.out))
 

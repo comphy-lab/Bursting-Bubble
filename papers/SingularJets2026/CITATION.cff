@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this data and figure-reproduction capsule, please cite it using this metadata."
+title: "SingularJets2026 bursting-bubble data and figure-reproduction capsule"
+type: dataset
+version: 1.0.0
+date-released: 2026-07-10
+authors:
+  - family-names: Sanjay
+    given-names: Vatsal
+repository-code: "https://github.com/comphy-lab/Bursting-Bubble"
+license: CC-BY-4.0

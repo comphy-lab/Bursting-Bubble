@@ -17,6 +17,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from capsule_utils import atomic_savefig, load_metadata
+
 try:
     import matplotlib
 
@@ -32,11 +34,16 @@ except ImportError as exc:  # pragma: no cover - depends on local environment
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = ROOT / "data-Oh-0.03"
+METADATA = load_metadata()
+FIG2_METADATA = METADATA["figure_2"]
 
 APS_DOUBLE_COL = 6.75
-ALPHA = 0.629
+ALPHA = float(FIG2_METADATA["alpha"])
 MAX_RJ = 1.0
-CONE_FIT_WINDOW = (0.005, 0.023952)
+CONE_FIT_WINDOW = (
+    float(FIG2_METADATA["canonical_fit_window"]["minimum"]),
+    float(FIG2_METADATA["canonical_fit_window"]["maximum"]),
+)
 CONE_FIT_RMAX_LIMIT = 0.030
 PRF_FIT_WINDOW = (0.11, 0.19)
 CONE_DRAW_WINDOW = (0.005, 0.10)
@@ -68,6 +75,7 @@ LEVEL_COLOURS = {
 GREY = "#666666"
 LIGHT_GREY = "#d9d9d9"
 BLACK = "#111111"
+USE_TEX = True
 
 
 @dataclass(frozen=True)
@@ -107,10 +115,12 @@ COLUMNS = (
 
 
 def configure_matplotlib(use_tex: bool = True) -> None:
+    global USE_TEX
+    USE_TEX = use_tex
     matplotlib.rcParams.update(
         {
             "font.family": "serif",
-            "font.serif": ["Computer Modern Roman"],
+            "font.serif": ["Computer Modern Roman", "DejaVu Serif"],
             "mathtext.fontset": "cm",
             "text.usetex": use_tex,
             "text.latex.preamble": r"\usepackage{amsmath}",
@@ -120,6 +130,12 @@ def configure_matplotlib(use_tex: bool = True) -> None:
             "axes.unicode_minus": False,
         }
     )
+
+
+def literature_label() -> str:
+    if USE_TEX:
+        return r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]"
+    return "Gordillo & Blanco-Rodríguez 2023 [27]"
 
 
 def read_log(path: Path) -> dict[str, np.ndarray]:
@@ -413,7 +429,7 @@ def draw_theory(
         ls=":",
         lw=LINE["theory_linewidth"] + 0.25,
         zorder=8,
-        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]" if show_labels else None,
+        label=literature_label() if show_labels else None,
     )
 
 
@@ -503,7 +519,7 @@ def build_figure(
 
     fig.subplots_adjust(left=0.07, right=0.99, bottom=0.18, top=0.76, wspace=0.50)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, bbox_inches="tight", pad_inches=0.035, dpi=300)
+    atomic_savefig(fig, output, bbox_inches="tight", pad_inches=0.035, dpi=300)
     plt.close(fig)
 
 

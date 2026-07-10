@@ -1,0 +1,40 @@
+name: SingularJets2026 offline capsule
+
+on:
+  pull_request:
+    paths:
+      - "papers/SingularJets2026/**"
+      - ".github/workflows/singularjets2026-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "papers/SingularJets2026/**"
+      - ".github/workflows/singularjets2026-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce-offline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: papers/SingularJets2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: papers/SingularJets2026/uv.lock
+      - name: Install locked environment
+        run: uv sync --frozen
+      - name: Verify capsule checksums
+        run: sha256sum --check SHA256SUMS
+      - name: Run scientific regressions offline
+        run: uv run --offline pytest
+      - name: Reproduce Fig. 2 offline
+        env:
+          PYTHONPATH: tests/offline_guard
+          SINGULARJETS_NO_TEX: "1"
+        run: uv run --offline bash reproduce-fig2-v2.sh

@@ -23,6 +23,8 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from scipy.interpolate import PchipInterpolator
 
+from capsule_utils import atomic_savefig
+
 
 sys.dont_write_bytecode = True
 
@@ -48,7 +50,6 @@ flux = load_script_module("fig2_flux_scalings", SCRIPT_DIR / "make_fig2_flux_sca
 SHORT_LEGEND_LABELS = {
     rf"cone ($\alpha={flux.ALPHA:.3f}$)": rf"present theory, $\alpha={flux.ALPHA:.3f}$",
     r"inertio-capillary": r"inertio-capillary, $\alpha=2/3$",
-    r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]": r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]",
     r"L13": r"Level 13, focus 13",
     r"L14": r"Level 14, focus 13",
     r"L15, focus 13": r"Level 15, focus 13",
@@ -80,22 +81,7 @@ def tune_flux_style() -> None:
 
 
 def load_streamline_fields(args: argparse.Namespace):
-    fig2a.ensure_snapshot_cache(args.case_dir, args.remote_case, tuple(args.snapshots))
-    field_helper = fig2a.compile_field_helper()
-    fields = [
-        fig2a.extract_field(
-            field_helper,
-            args.case_dir,
-            snap,
-            args.zmin,
-            args.zmax,
-            args.rmax,
-            args.nr,
-        )
-        for snap in args.snapshots
-    ]
-    segments = [fig2a.facets(args.case_dir, snap) for snap in args.snapshots]
-    return fields, segments
+    return fig2a.load_archived_inputs(args.fig2a_data_dir, tuple(args.snapshots))
 
 
 def draw_panel_a(fig: plt.Figure, bbox: tuple[float, float, float, float], args: argparse.Namespace) -> None:
@@ -264,7 +250,7 @@ def draw_theory_v2(
         ls=":",
         lw=flux.LINE["theory_linewidth"] + 0.2,
         zorder=9,
-        label=r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]" if show_labels else None,
+        label=flux.literature_label() if show_labels else None,
     )
 
 
@@ -495,8 +481,7 @@ def build_figure(args: argparse.Namespace) -> None:
         borderaxespad=0.0,
     )
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(args.output, dpi=300)
+    atomic_savefig(fig, args.output, dpi=300)
     plt.close(fig)
 
 
@@ -504,8 +489,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=flux.DEFAULT_DATA_DIR)
     parser.add_argument("--output", type=Path, default=ROOT / "fig2_v2.pdf")
-    parser.add_argument("--case-dir", type=Path, default=fig2a.DEFAULT_CACHE)
-    parser.add_argument("--remote-case", default=fig2a.DEFAULT_REMOTE_CASE)
+    parser.add_argument("--fig2a-data-dir", type=Path, default=fig2a.DEFAULT_DATA_DIR)
     parser.add_argument("--snapshots", nargs="+", default=list(fig2a.DEFAULT_SNAPSHOTS))
     parser.add_argument("--zmin", type=float, default=-1.72)
     parser.add_argument("--zmax", type=float, default=-0.82)

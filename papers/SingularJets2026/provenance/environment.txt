@@ -1,0 +1,48 @@
+SingularJets2026 simulation and environment provenance
+=====================================================
+
+Simulation source
+-----------------
+Source commit: e35ebdc3c0f8dfc60d45a96eae426b38b75f22b1
+Commit subject: Harden terminal relaxation for production (drillRelaxLevel)
+Archived solver: simulationCases/burstingBubble-drillResolution.c
+Archived/repository SHA-256: 2ebb137102b81de6f2622489bc367c4056b728e43517f9f523fd7fb167b18daa
+Git bundle: simulation-source.bundle
+
+The archived solver is byte-identical to that path at the source commit.  The
+archive did not preserve the checkout HEAD.  The submission script itself was
+added later at ea5f1612e05fae3ed4718fe190d063fbb9e41fe0, so e35ebdc records the
+scientific source tree rather than claiming an unprovable working-copy HEAD.
+
+Basilisk
+--------
+Declared ref: v2026-01-13
+Tag object: 7b6724042a6215d100a73cc1709eedf33183b8c3
+Peeled commit: 0aef3771998d04a7636efe6fdbb7691d947561f2
+Upstream: https://github.com/comphy-lab/basilisk-C
+
+The ref and peeled commit are exact.  The archived run has no Basilisk install
+marker, and the original Snellius filesystem was unavailable during capsule
+assembly, so the installed Basilisk tree cannot be independently re-hashed.
+
+HPC build and runtime
+---------------------
+Submission environment:
+  module purge
+  module load 2024
+  module load OpenMPI/5.0.3-GCC-13.3.0
+
+OpenMP compile command:
+  qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local
+
+Ordinary sweep cases used 24 OpenMP threads.  The case-5008 restart used the
+already-built `drill` binary with OMP_NUM_THREADS=64, OMP_PROC_BIND=spread and
+OMP_PLACES=cores on the `genoa` partition.  Its exact submission and scheduler
+streams are under provenance/raw/5008/.
+
+Figure environment
+------------------
+Python requirement: CPython 3.12.x
+Dependency specification: pyproject.toml
+Complete transitive lock: uv.lock
+Offline CI: .github/workflows/singularjets2026-offline.yml
