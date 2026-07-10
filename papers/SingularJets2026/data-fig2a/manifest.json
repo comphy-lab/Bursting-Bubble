@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "case": 5003,
+  "source_commit": "e35ebdc3c0f8dfc60d45a96eae426b38b75f22b1",
+  "extractor": "figure-scripts/extract_fig2a_fields.c",
+  "facet_extractor": "postProcess/getFacet.c",
+  "grid": {
+    "shape": [294, 190],
+    "zmin": -1.72,
+    "zmax": -0.82,
+    "rmin": 0.0,
+    "rmax": 0.58,
+    "columns": ["z", "r", "f", "uz", "ur", "speed"]
+  },
+  "files": [
+    {"path": "fields/snapshot-0.492500.npz", "bytes": 1295237, "sha256": "55fc4feca838c637bec35292a23ec0785ca88c373e0257fbad3bc2a1ef5cefd2"},
+    {"path": "interfaces/snapshot-0.492500.npz", "segments": 9600, "bytes": 88380, "sha256": "796accf1632ee96f043117d9d18d2a2732e278303efb1ec74084e5320bdafec3"},
+    {"path": "fields/snapshot-0.494219.npz", "bytes": 1289848, "sha256": "b0ca4d5b97e69aa6efb6143c9d6c489616b5799160ae35a6389208c1186d1f2c"},
+    {"path": "interfaces/snapshot-0.494219.npz", "segments": 74718, "bytes": 704344, "sha256": "751283e98e1549b479275a6610467e385538f237b709dd9fe0eb7e02313dbb6b"},
+    {"path": "fields/snapshot-0.496719.npz", "bytes": 1288102, "sha256": "0f15dacf8f1eae4d1732ccd725a3a19e78128f496723f0566e083934488ac361"},
+    {"path": "interfaces/snapshot-0.496719.npz", "segments": 77334, "bytes": 732481, "sha256": "abddfad52c25ca719c4e8866cea6ae8aecbf43f87505de64c6d327e0130d1839"},
+    {"path": "fields/snapshot-0.499844.npz", "bytes": 1287525, "sha256": "c8c4efed9e2dda9aff7110bb9d970de110a65434adb89e1862dde053d326e4d0"},
+    {"path": "interfaces/snapshot-0.499844.npz", "segments": 78542, "bytes": 743377, "sha256": "5a27cb7b1bbb040092f4b2616df7940df074c0c0179e29ac94c977c06e165d7a"}
+  ]
+}
