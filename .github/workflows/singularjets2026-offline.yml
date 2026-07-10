@@ -32,9 +32,9 @@ jobs:
       - name: Verify capsule checksums
         run: sha256sum --check SHA256SUMS
       - name: Run scientific regressions offline
-        run: uv run --offline pytest
+        run: uv run --frozen --offline pytest
       - name: Reproduce Fig. 2 offline
         env:
           PYTHONPATH: tests/offline_guard
           SINGULARJETS_NO_TEX: "1"
-        run: uv run --offline bash reproduce-fig2-v2.sh
+        run: uv run --frozen --offline bash reproduce-fig2-v2.sh
