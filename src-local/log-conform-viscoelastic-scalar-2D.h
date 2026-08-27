@@ -335,6 +335,14 @@ event tracer_advection(i++)
 
 #if AXI
     double Aqq = AThTh[];
+    if (Aqq <= 0. || !isfinite(Aqq)) {
+      fprintf(ferr, "Invalid axisymmetric conformation: Aqq = %g\n", Aqq);
+      fprintf(ferr, "x = %g, y = %g\n", x, y);
+#if _MPI
+      MPI_Abort(MPI_COMM_WORLD, 1);
+#endif
+      exit(1);
+    }
     Psiqq[] = log (Aqq);
 #endif
 
