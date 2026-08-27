@@ -12,16 +12,13 @@ everywhere else. The refinement idea is taken from
 two-regime bursting-bubble probe.
 
 The drill solver is **self-contained**: the jet-base / cavity-focus probe is
-inlined (the same detection algorithm developed as a logging-only diagnostic in
-`burstingBubble-adaptiveResolution.c`), and here it *drives* the mesh rather
-than just being logged. The A/B baseline is `burstingBubble.c` (fixed level) or
-this same solver with `drillAMR=0`.
+inlined, and here it *drives* the mesh rather than just being logged. The A/B
+baseline is `burstingBubble.c` (fixed level) or this same solver with
+`drillAMR=0`.
 
-This PR also bundles the logging-only probe solver
-(`burstingBubble-adaptiveResolution.c`) and the flux post-processing
-(`getJetFoot.c`, `VideoFoot.py`, `footplots.py`, `conefit.py`), so the base
-flux `q_jet`/`q_l`, cone-fit, and `R_j × Q_L` observable can be computed from a
-run. The post-processing reads the snapshot **dumps** (`getJetFoot`/`getFacet`
+Flux post-processing (`getJetFoot.c`, `VideoFoot.py`, `footplots.py`,
+`conefit.py`) computes the base flux `q_jet`/`q_l`, cone-fit, and
+`R_j × Q_L` observable from a run. The post-processing reads the snapshot **dumps** (`getJetFoot`/`getFacet`
 via `restore()`), not the solver `log`, and the drill dumps the same `f`,`u`
 fields — so the pipeline runs on drill snapshots unchanged. (The drill `log`
 does add a `maxlevel` column, `i dt t ke maxlevel r_b z_b`, for its own
@@ -474,11 +471,14 @@ Drill (this work):
 - `DRILL-RESOLUTION.md` — this document.
 
 Probe + post-processing (bundled from the jet-base-tracking line):
-- `simulationCases/burstingBubble-adaptiveResolution.c` — logging-only probe
-  solver (fixed ceiling); the A/B reference and the origin of the inlined probe.
 - `postProcess/getJetFoot.c` — base-flux `q_jet`/`q_l` and jet-foot geometry.
 - `postProcess/VideoFoot.py`, `footplots.py`, `conefit.py` — overlay video,
   PRL figures, cone fit.
 
 A/B baseline is `simulationCases/burstingBubble.c` (fixed level) or this solver
 with `drillAMR=0`.
+
+The Oldroyd-B counterpart is `simulationCases/burstingBubbleVE-drillResolution.c`
+(same drill, plus conformation-tensor adaptation). Select it with
+`Solver=burstingBubbleVE-drillResolution` in `case.params` (see
+`default-ve-drill.params`).

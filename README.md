@@ -55,13 +55,21 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 │   ├── parse_params.sh            Parameter parsing utilities (shell layer)
 │   ├── sweep_utils.sh             Sweep generation utilities
 │   ├── basilisk_version.sh        Centralized version pinning
-│   └── params.h                   C-side runtime parameter layer (struct + file parser + CLI overrides + validation)
+│   ├── params.h                   C-side runtime parameter layer (struct + file parser + CLI overrides + validation)
+│   ├── two-phaseVE.h              Two-phase VE properties (vendored from MultiRheoFlow)
+│   ├── log-conform-viscoelastic-scalar-2D.h  Axisymmetric Oldroyd-B log-conformation
+│   └── log-conform-viscoelastic.h Tensor log-conformation (optional)
 ├── postProcess/                   Post-processing tools and visualization
 │   ├── getData.c                  Field extraction on structured grids
 │   ├── getFacet.c                 Interface geometry extraction
-│   └── Video.py                   Frame-by-frame visualization pipeline
+│   ├── Video.py                   Frame-by-frame visualization pipeline
+│   ├── plot_comphy_fields.py      Split-axi stills (dissipation or tr A, |u|)
+│   └── plot_comphy_video.py       Same layout as a mathtext MP4
 ├── simulationCases/               Case-based simulation outputs
-│   ├── burstingBubble.c           Main simulation case
+│   ├── burstingBubble.c           Newtonian, fixed-ceiling wavelet AMR
+│   ├── burstingBubble-drillResolution.c     Newtonian feature-tracking drill
+│   ├── burstingBubbleVE.c         Oldroyd-B, usual wavelet AMR
+│   ├── burstingBubbleVE-drillResolution.c   Oldroyd-B + drill
 │   └── DataFiles/                 Input geometry data
 ├── runSimulation.sh               Single case runner
 ├── runParameterSweep.sh           Parameter sweep runner (local)
@@ -70,7 +78,9 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 ├── runSweepSnellius-serial.sbatch HPC Stage 1 runner (SURF Snellius)
 ├── runSweepSnellius.sbatch        HPC sweep runner (SURF Snellius)
 ├── runPostProcess-Ncases.sh       Post-processing pipeline
-├── default.params                 Single-case configuration
+├── default.params                 Newtonian single-case configuration
+├── default-ve.params              Oldroyd-B usual-AMR configuration
+├── default-ve-drill.params        Oldroyd-B drill configuration
 ├── sweep.params                   Sweep configuration
 ```
 
@@ -80,10 +90,13 @@ All knobs live in `default.params` (single case) or per-case `case.params` files
 read at runtime by the simulation; you never edit the source to change a run. The main
 physical parameters are:
 
-- **Ohnesorge Number (Oh)**: `Oh = mu/sqrt(rho*sigma*R)` - ratio of viscous to inertial-capillary forces (`OhRatio` sets the gas-phase value, `Oha = OhRatio*Oh`)
+- **Ohnesorge Number (Oh)**: `Oh = mu_s/sqrt(rho*sigma*R)` - solvent viscous to inertial-capillary forces (`OhRatio` sets the gas-phase value, `Oha = OhRatio*Oh`)
 - **Bond Number (Bo)**: `Bo = rho*g*R^2/sigma` - ratio of gravitational to surface tension forces
+- **Deborah Number (De)**: liquid relaxation time over the capillary time. `0` is Newtonian. Used only by the VE solvers.
+- **Elasto-capillary Number (Ec)**: liquid elastic modulus over capillary stress. `0` is Newtonian. Polymeric viscosity is the derived product `Oh_p = Ec*De`.
 - **tmax**: Maximum simulation time (dimensionless, based on the capillary time scale)
 - **zWall**: Distance from the bubble south pole to the bottom wall (sets the domain size)
+- **Solver**: which `simulationCases/*.c` entry point to compile. `burstingBubble` is the Newtonian baseline; `burstingBubbleVE` is usual-AMR Oldroyd-B; `burstingBubbleVE-drillResolution` is Oldroyd-B with the singularity drill.
 
 ### Adaptive resolution
 

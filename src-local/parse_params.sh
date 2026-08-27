@@ -112,3 +112,41 @@ validate_restart_file() {
 
     return 0
 }
+
+# Resolve Solver= from the parsed params into SOLVER_STEM / SOURCE_FILE_NAME /
+# EXECUTABLE_NAME. Known stems must match files in simulationCases/.
+# Usage: resolve_solver
+resolve_solver() {
+    local solver
+    solver=$(get_param "Solver" "burstingBubble")
+    solver="${solver%.c}"
+    case "$solver" in
+        burstingBubble|burstingBubble-drillResolution|burstingBubbleVE|burstingBubbleVE-drillResolution)
+            ;;
+        *)
+            echo "ERROR: Unknown Solver='$solver'" >&2
+            echo "Allowed: burstingBubble, burstingBubble-drillResolution, burstingBubbleVE, burstingBubbleVE-drillResolution" >&2
+            return 1
+            ;;
+    esac
+    SOLVER_STEM="$solver"
+    SOURCE_FILE_NAME="${solver}.c"
+    EXECUTABLE_NAME="$solver"
+}
+
+# Drill solvers must not enable Basilisk's Linux FPE trap (-D_GNU_SOURCE).
+# -D_DEFAULT_SOURCE still exposes madvise() without re-arming the trap.
+solver_uses_drill() {
+    case "${SOLVER_STEM:-}" in
+        *drillResolution) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+solver_mpi_cc99() {
+    if solver_uses_drill; then
+        echo "mpicc -std=c99 -D_DEFAULT_SOURCE"
+    else
+        echo "mpicc -std=c99 -D_GNU_SOURCE=1"
+    fi
+}

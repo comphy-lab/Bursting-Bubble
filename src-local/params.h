@@ -39,9 +39,11 @@ struct SimulationParams {
   int CaseNo;            /**< Case number for folder naming (4-digit: 1000-9999) */
 
   // Physical parameters (dimensionless numbers)
-  double Oh;             /**< Ohnesorge number (liquid): mu/sqrt(rho*sigma*R) */
+  double Oh;             /**< Ohnesorge number (liquid solvent): mu_s/sqrt(rho*sigma*R) */
   double Bond;           /**< Bond number: rho*g*R^2/sigma */
   double OhRatio;        /**< Gas/liquid Ohnesorge ratio; Oha = OhRatio*Oh */
+  double De;             /**< Deborah number (liquid): lambda / t_cap. 0 = Newtonian */
+  double Ec;             /**< Elasto-capillary number (liquid): G / (sigma/R). 0 = Newtonian */
 
   // Geometry
   double zWall;          /**< Distance from bubble south pole to bottom wall */
@@ -53,6 +55,7 @@ struct SimulationParams {
   double fErr;           /**< Wavelet error tolerance on the VOF field f */
   double VelErr;         /**< Wavelet error tolerance on velocity components */
   double KErr;           /**< Wavelet error tolerance on interface curvature */
+  double AErr;           /**< Wavelet error tolerance on conformation A_ij (VE solvers) */
 
   // Adaptive TIME resolution
   double CFL;            /**< Advective CFL number */
@@ -145,6 +148,8 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->Oh = 1.0e-2;
   p->Bond = 1.0e-3;
   p->OhRatio = 2.0e-2;
+  p->De = 0.0;           // Newtonian unless a VE solver is selected
+  p->Ec = 0.0;
 
   // Geometry
   p->zWall = 0.05;
@@ -156,6 +161,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->fErr = 1.0e-3;
   p->VelErr = 1.0e-3;
   p->KErr = 1.0e-6;
+  p->AErr = 1.0e-3;
 
   // Adaptive time
   p->CFL = 0.1;
@@ -197,9 +203,12 @@ key dispatch lives in exactly one place.
 static inline int apply_param_kv(const char *key, const char *value,
                                  struct SimulationParams *p) {
   if      (strcmp(key, "CaseNo")          == 0) p->CaseNo = atoi(value);
+  else if (strcmp(key, "Solver")          == 0) return 1; /* runner-only */
   else if (strcmp(key, "Oh")              == 0) p->Oh = atof(value);
   else if (strcmp(key, "Bond")            == 0) p->Bond = atof(value);
   else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = atof(value);
+  else if (strcmp(key, "De")              == 0) p->De = atof(value);
+  else if (strcmp(key, "Ec")              == 0) p->Ec = atof(value);
   else if (strcmp(key, "zWall")           == 0) p->zWall = atof(value);
   else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = atoi(value);
   else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = atoi(value);
@@ -207,6 +216,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "fErr")            == 0) p->fErr = atof(value);
   else if (strcmp(key, "VelErr")          == 0) p->VelErr = atof(value);
   else if (strcmp(key, "KErr")            == 0) p->KErr = atof(value);
+  else if (strcmp(key, "AErr")            == 0) p->AErr = atof(value);
   else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
@@ -416,6 +426,14 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: OhRatio must be positive (OhRatio = %g)\n", p->OhRatio);
     valid = 0;
   }
+  if (p->De < 0) {
+    fprintf(stderr, "ERROR: De must be non-negative (De = %g)\n", p->De);
+    valid = 0;
+  }
+  if (p->Ec < 0) {
+    fprintf(stderr, "ERROR: Ec must be non-negative (Ec = %g)\n", p->Ec);
+    valid = 0;
+  }
   if (p->Bond < 0) {
     fprintf(stderr, "ERROR: Bond must be non-negative (Bond = %g)\n", p->Bond);
     valid = 0;
@@ -436,7 +454,7 @@ static inline int validate_params(const struct SimulationParams *p) {
   if (p->MAXlevel > 15) {
     fprintf(stderr, "WARNING: Very high MAXlevel (%d) may exhaust memory\n", p->MAXlevel);
   }
-  if (p->fErr <= 0 || p->VelErr <= 0 || p->KErr <= 0) {
+  if (p->fErr <= 0 || p->VelErr <= 0 || p->KErr <= 0 || p->AErr <= 0) {
     fprintf(stderr, "ERROR: Wavelet error tolerances must be positive\n");
     valid = 0;
   }
@@ -519,16 +537,20 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
   fprintf(fp, "========================================\n");
   fprintf(fp, "Case Number:              %04d\n", p->CaseNo);
   fprintf(fp, "Physical Parameters:\n");
-  fprintf(fp, "  Ohnesorge (liquid):     %g\n", p->Oh);
+  fprintf(fp, "  Ohnesorge (solvent):    %g\n", p->Oh);
   fprintf(fp, "  Ohnesorge (gas):        %g  (OhRatio=%g)\n", p->OhRatio * p->Oh, p->OhRatio);
   fprintf(fp, "  Bond number:            %g\n", p->Bond);
+  fprintf(fp, "  Deborah (liquid):       %g\n", p->De);
+  fprintf(fp, "  Elasto-capillary:       %g\n", p->Ec);
+  fprintf(fp, "  Polymeric Oh (Ec*De):   %g\n", p->Ec * p->De);
   fprintf(fp, "Geometry:\n");
   fprintf(fp, "  zWall:                  %g\n", p->zWall);
   fprintf(fp, "Adaptive Space:\n");
   fprintf(fp, "  Levels (min/max):       %d / %d\n", p->MINlevel, p->MAXlevel);
   fprintf(fp, "  Initial grid level:     %d (2^%d = %d cells)\n",
           p->init_grid_level, p->init_grid_level, 1 << p->init_grid_level);
-  fprintf(fp, "  Error tol (f/Vel/K):    %g / %g / %g\n", p->fErr, p->VelErr, p->KErr);
+  fprintf(fp, "  Error tol (f/Vel/K/A):  %g / %g / %g / %g\n",
+          p->fErr, p->VelErr, p->KErr, p->AErr);
   fprintf(fp, "Adaptive Time:\n");
   fprintf(fp, "  CFL:                    %g\n", p->CFL);
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);

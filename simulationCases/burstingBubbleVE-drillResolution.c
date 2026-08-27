@@ -1,5 +1,20 @@
 /**
-# Bursting Bubbles in Newtonian Fluids — DRILL adaptive resolution
+# Bursting Bubbles in Viscoelastic Fluids — DRILL adaptive resolution
+
+Oldroyd-B counterpart of `burstingBubble-drillResolution.c`. The drill
+(feature-tracking mesh + staged snapshots, regional ceiling, gas-wisp
+cleanup) is unchanged. The extra physics is the CoMPhy log-conformation
+solver vendored from MultiRheoFlow
+(`src-local/log-conform-viscoelastic-scalar-2D.h` + `two-phaseVE.h`).
+
+Liquid: Oldroyd-B with solvent `Oh`, relaxation time `De`, elastic modulus
+`Ec`. Gas remains Newtonian. Polymeric viscosity is the derived product
+`Oh_p = Ec * De`.
+
+This is the production VE path for resolving the cavity-focus / jet
+singularity: the drill sets the local ceiling from the geometric probe,
+and wavelet adaptation also sees the conformation components so polymeric
+stress layers are refined inside that ceiling.
 
 This is the jet-base / cavity-focus probe promoted from a passive diagnostic
 into the *driver* of a
@@ -114,16 +129,18 @@ rebalance and aborts an otherwise-correct run with SIGFPE. With the trap off,
 np=2 and np=4 give bit-identical, physically-correct results (the ke
 blow-up/decay checks remain the real-divergence guard). See DRILL-RESOLUTION.md.
 
-Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
+Coords: x = axial (= z), y = radial (= r >= 0). Dump carries f, u, and the
+conformation / polymeric-stress fields.
 
-@file burstingBubble-drillResolution.c
+@file burstingBubbleVE-drillResolution.c
 @author Vatsal Sanjay (vatsal.sanjay@comphy-lab.org) / CoMPhy Lab
-@version 2.0
-@date Jan 04, 2025 (jet-base logging Jun 2026; drill AMR/dt trigger Jul 2026)
+@version 1.0
+@date Aug 27, 2026 (VE port of the Jul 2026 drill)
 */
 
 #include "axi.h"
 #include "navier-stokes/centered.h"
+#include "log-conform-viscoelastic-scalar-2D.h"
 
 /**
 ## Solver Configuration
@@ -131,7 +148,7 @@ Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
 - `FILTERED`: Enable density and viscosity jump smoothing
 */
 #define FILTERED 1 // Smear density and viscosity jumps
-#include "two-phase.h"
+#include "two-phaseVE.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"
 
@@ -145,7 +162,7 @@ Coords: x = axial (= z), y = radial (= r >= 0). Dump carries only f and u.
 `tag.h` provides connected-component tagging (main liquid body vs detached
 drops); `curvature.h` provides `curvature()`; `fractions.h` provides the VOF
 fraction helpers. These are logging-only and do not touch the solver state.
-(`two-phase.h`/`tension.h` already pull `curvature.h`/`fractions.h` in via
+(`two-phaseVE.h`/`tension.h` already pull `curvature.h`/`fractions.h` in via
 include guards; the explicit includes here just make the dependency obvious.)
 */
 #include "fractions.h"
@@ -219,9 +236,11 @@ double g_rbase = -1000., g_zbase = -1000.;
 double g_qjet = -1000., g_ql = -1000.;
 
 // Physical parameters (set from params in main):
-//   Oh  -> Ohnesorge number (liquid)
+//   Oh  -> solvent Ohnesorge number (liquid)
 //   Oha -> Ohnesorge number (gas) = OhRatio * Oh
-double Oh, Oha, Bond, tmax;
+//   De  -> Deborah number (liquid relaxation time)
+//   Ec  -> elasto-capillary number (liquid elastic modulus)
+double Oh, Oha, De, Ec, Bond, tmax;
 
 // Domain parameters:
 //   zWall   -> distance from bubble south pole to bottom wall
@@ -229,8 +248,9 @@ double Oh, Oha, Bond, tmax;
 double zWall, Ldomain;
 
 // Adaptive-resolution controls (set from params in main):
-//   fErr/VelErr/KErr -> wavelet error tolerances (VOF, velocity, curvature)
-double fErr, VelErr, KErr;
+//   fErr/VelErr/KErr/AErr -> wavelet error tolerances
+//   (VOF, velocity, curvature, conformation)
+double fErr, VelErr, KErr, AErr;
 
 // tsnap -> snapshot/restart dump interval. Needs a non-zero static initial
 // value: Basilisk classifies event expressions (e.g. `t += tsnap`) before
@@ -287,12 +307,15 @@ int main(int argc, char *argv[]) {
   MINlevel = params.MINlevel;
   Oh = params.Oh;
   Oha = params.OhRatio * params.Oh;
+  De = params.De;
+  Ec = params.Ec;
   Bond = params.Bond;
   tmax = params.tmax;
   zWall = params.zWall;
   fErr = params.fErr;
   VelErr = params.VelErr;
   KErr = params.KErr;
+  AErr = params.AErr;
   tsnap = params.tsnap;
 
   // Drill trigger knobs
@@ -342,10 +365,14 @@ int main(int argc, char *argv[]) {
 
   Sets up the material properties for both phases:
   - `rho1`, `rho2`: Density of liquid and gas phases
-  - `mu1`, `mu2`: Dynamic viscosity of liquid and gas phases
+  - `mu1`, `mu2`: Solvent viscosity of liquid and gas phases
+  - `lambda1`, `G1`: Liquid relaxation time and elastic modulus (`De`, `Ec`)
+  - gas remains Newtonian (`lambda2 = G2 = 0`)
   */
   rho1 = 1., rho2 = 1e-3;
   mu1 = Oh, mu2 = Oha;
+  lambda1 = De; lambda2 = 0.;
+  G1 = Ec; G2 = 0.;
 
   f.sigma = 1.0;
 
@@ -500,12 +527,12 @@ event adapt(i++) {
   already regularises the collapse there.
   */
   if (drillAMR && jetFormed && drillMaxlevelFocus > 0 && g_zbase > -900.)
-    adapt_wavelet_limited((scalar *){f, u.x, u.y, KAPPA},
-      (double[]){fErr, VelErr, VelErr, KErr},
+    adapt_wavelet_limited((scalar *){f, u.x, u.y, KAPPA, A11, A12, A22, AThTh},
+      (double[]){fErr, VelErr, VelErr, KErr, AErr, AErr, AErr, AErr},
       drillMLFun, MINlevel);
   else
-    adapt_wavelet((scalar *){f, u.x, u.y, KAPPA},
-      (double[]){fErr, VelErr, VelErr, KErr},
+    adapt_wavelet((scalar *){f, u.x, u.y, KAPPA, A11, A12, A22, AThTh},
+      (double[]){fErr, VelErr, VelErr, KErr, AErr, AErr, AErr, AErr},
       maxlevelLocal, MINlevel);
 }
 
@@ -851,8 +878,8 @@ Writes a final summary of the simulation parameters when the simulation ends.
 */
 event end(t = end) {
   if (pid() == 0)
-    fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
-            MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
+    fprintf(ferr, "Level %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+            MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain);
 }
 
 /**
@@ -890,12 +917,12 @@ event logWriting(i++) {
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
-      fprintf(ferr, "MAXlevel %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
-              MAXlevel, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
+      fprintf(ferr, "MAXlevel %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
+              MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
       fprintf(ferr, "i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l\n");
       fp = fopen("log", "w");
-      fprintf(fp, "MAXlevel %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
-              MAXlevel, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
+      fprintf(fp, "MAXlevel %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g, drillAMR %d\n",
+              MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain, drillAMR);
       fprintf(fp, "i dt t ke maxlevel r_b z_b r_base z_base q_jet q_l\n");
       fprintf(fp, "%d %.6e %.8f %.6e %d %.6e %.6e %.6e %.6e %.6e %.6e\n",
               i, dt, t, ke, maxlevelLocal, rb, zb, rbase, zbase, qjet, ql);

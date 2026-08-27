@@ -47,9 +47,7 @@ set -euo pipefail  # Exit on error, unset variables, pipeline failures
 SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
 SWEEP_FILE="${SCRIPT_DIR}/sweep.params"
 
-# Source file to compile inside each case directory
-SOURCE_FILE_NAME="burstingBubble.c"
-EXECUTABLE_NAME="${SOURCE_FILE_NAME%.c}"
+# Source file is selected per case from case.params Solver= (default burstingBubble)
 
 # Number of MPI tasks for Stage 2
 MPI_TASKS=${SLURM_NTASKS:-128}
@@ -279,6 +277,11 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
         tmax=$(get_param "tmax" "1.0")
         zWall=$(get_param "zWall" "0.025")
     fi
+    if ! resolve_solver; then
+        ((FAILED_CASES++)) || true
+        cd "$SCRIPT_DIR"
+        continue
+    fi
 
     # Copy source file to case directory if needed
     SRC_FILE_ORIG="${SCRIPT_DIR}/simulationCases/${SOURCE_FILE_NAME}"
@@ -311,7 +314,7 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
     echo "Stage 2: Full simulation (MPI)..."
 
     # Compile with MPI
-    if CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc -I../../src-local \
+    if CC99="$(solver_mpi_cc99)" qcc -I../../src-local \
         -Wall -O2 -D_MPI=1 -disable-dimensions \
         "$SOURCE_FILE_NAME" -o "$EXECUTABLE_NAME" -lm 2>&1; then
         echo "MPI compilation successful"

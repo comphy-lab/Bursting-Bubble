@@ -61,6 +61,7 @@ Affiliation: CoMPhy Lab, Durham University
 
 scalar f[];
 vector u[];
+scalar A11[], A12[], A22[], AThTh[]; // present in VE dumps; stay 0 on Newtonian
 
 /**
 ## Data Structures
@@ -72,7 +73,7 @@ typedef struct {
   int nx, ny;
 } extraction_config;
 
-scalar D2c[], vel[];
+scalar D2c[], vel[], trA[];
 scalar * field_list = NULL;
 
 static int parse_arguments(int argc, char const *argv[],
@@ -89,6 +90,7 @@ static void write_fields(const extraction_config *cfg, double **field_buffer,
 static void cleanup_output(FILE *fp, double **field_buffer);
 static void compute_D2c_field(scalar target);
 static void compute_velocity_field(scalar target);
+static void compute_trA_field(scalar target);
 
 /**
 ## Main Function
@@ -187,6 +189,7 @@ static void register_fields(void)
 {
   field_list = list_add(field_list, D2c);
   field_list = list_add(field_list, vel);
+  field_list = list_add(field_list, trA);
 }
 
 /**
@@ -198,6 +201,7 @@ static void compute_fields(void)
 {
   compute_D2c_field(D2c);
   compute_velocity_field(vel);
+  compute_trA_field(trA);
 }
 
 static double ** allocate_field_buffer(const extraction_config *cfg,
@@ -275,8 +279,8 @@ $$D^2 = D_{11}^2 + D_{22}^2 + D_{33}^2 + 2D_{13}^2$$
 **2D Cartesian (AXI=0):**
 Same as above but without the D₂₂ term.
 
-Returns log₁₀(μᵣ·D²) where μᵣ is the viscosity ratio (1 in liquid, 0.02 in gas).
-Floor value of -10 for non-positive values.
+Returns log₁₀(2 μᵣ D:D), dissipation per unit volume scaled by the
+liquid solvent viscosity. Floor value of -10 for non-positive values.
 */
 static void compute_D2c_field(scalar target)
 {
@@ -294,7 +298,7 @@ static void compute_D2c_field(scalar target)
     double D2 = sq(D11) + sq(D33) + 2.*sq(D13);
 #endif
     double mu_r = f[] + (1. - f[])*2e-2;  // viscosity ratio: 1 in liquid, 0.02 in gas
-    target[] = mu_r * D2;
+    target[] = 2. * mu_r * D2;
     if (target[] > 0.)
       target[] = log(target[])/log(10);
     else
@@ -315,4 +319,21 @@ static void compute_velocity_field(scalar target)
 {
   foreach()
     target[] = sqrt(sq(u.x[]) + sq(u.y[]));
+}
+
+/**
+## Conformation-tensor trace
+
+Axi Oldroyd-B stores A11, A12, A22, AThTh. Equilibrium is identity,
+so tr(A) = 3. Newtonian dumps leave these fields at 0. Floor at -1.
+*/
+static void compute_trA_field(scalar target)
+{
+  foreach() {
+    double tr = A11[] + A22[] + AThTh[];
+    if (tr > 1e-12)
+      target[] = log(tr)/log(10);
+    else
+      target[] = -1;
+  }
 }

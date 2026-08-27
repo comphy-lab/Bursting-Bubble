@@ -1,4 +1,4 @@
-# Bursting Bubble Simulation - Default Parameters (Newtonian)
+# Bursting Bubble Simulation - Default Parameters (Oldroyd-B, usual AMR)
 # Format: key=value (one per line, # for comments)
 # This file provides a typical configuration for bursting bubble simulations
 
@@ -7,14 +7,14 @@
 # ============================================================
 # Case number for folder naming (4-digit: 1000-9999)
 # Output will be created in simulationCases/<CaseNo>/
-CaseNo=1000
+CaseNo=2000
 
 # Solver source stem in simulationCases/ (no .c). Allowed:
 #   burstingBubble                    Newtonian, fixed-ceiling wavelet AMR
 #   burstingBubble-drillResolution    Newtonian, feature-tracking drill
 #   burstingBubbleVE                  Oldroyd-B, fixed-ceiling wavelet AMR
 #   burstingBubbleVE-drillResolution  Oldroyd-B + drill (singularity path)
-Solver=burstingBubble
+Solver=burstingBubbleVE
 
 # ============================================================
 # Physical Parameters (Dimensionless Numbers)
@@ -38,8 +38,8 @@ OhRatio=2e-2
 # limit of the VE solver (identity conformation, zero polymeric stress).
 # Oh is the SOLVENT Ohnesorge; polymeric viscosity is the derived product
 # Oh_p = Ec*De. Keep Oh, De, and Ec as independent controls.
-De=0
-Ec=0
+De=0.05
+Ec=0.05
 
 # ============================================================
 # Mesh Adaptation (space)
