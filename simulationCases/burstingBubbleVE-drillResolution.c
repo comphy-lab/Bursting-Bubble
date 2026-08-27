@@ -145,9 +145,10 @@ conformation / polymeric-stress fields.
 /**
 ## Solver Configuration
 
-- `FILTERED`: Enable density and viscosity jump smoothing
+Density and viscosity follow the sharp VOF field. `two-phaseVE.h`
+smears those jumps only when `FILTERED` is defined; this case leaves
+that flag unset.
 */
-#define FILTERED 1 // Smear density and viscosity jumps
 #include "two-phaseVE.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"
