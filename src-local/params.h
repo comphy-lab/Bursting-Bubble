@@ -25,6 +25,7 @@ CoMPhy Lab, Durham University
 #define PARAMS_H
 
 #include <ctype.h>      // isspace()
+#include <math.h>       // isfinite()
 #include <sys/stat.h>   // mkdir()
 #include <errno.h>      // errno
 
@@ -440,6 +441,11 @@ static inline int validate_params(const struct SimulationParams *p) {
   }
   if (p->Ec < 0) {
     fprintf(stderr, "ERROR: Ec must be non-negative (Ec = %g)\n", p->Ec);
+    valid = 0;
+  }
+  if (!isfinite(p->De) || !isfinite(p->Ec)) {
+    fprintf(stderr, "ERROR: De and Ec must be finite (De = %g, Ec = %g)\n",
+            p->De, p->Ec);
     valid = 0;
   }
   if (p->Bond < 0) {

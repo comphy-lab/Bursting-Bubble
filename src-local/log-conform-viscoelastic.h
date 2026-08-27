@@ -367,6 +367,9 @@ event tracer_advection(i++)
       if (Lambda.x <= 0. || Lambda.y <= 0.) {
         fprintf(ferr, "Negative eigenvalue detected: Lambda.x = %g, Lambda.y = %g\n", Lambda.x, Lambda.y);
         fprintf(ferr, "x = %g, y = %g\n", x, y);
+#if _MPI
+        MPI_Abort(MPI_COMM_WORLD, 1);
+#endif
         exit(1);
       }
 

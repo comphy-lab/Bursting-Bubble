@@ -245,13 +245,6 @@ if [ "$OS_TYPE" = "Darwin" ]; then
     QCC_FLAGS="${QCC_FLAGS} -D_DARWIN_C_SOURCE"
 fi
 
-# Current Basilisk replaced sf.dirty with set_prolongation(); older
-# installs still use the dirty-flag pair. Detect from $BASILISK.
-if [ -n "${BASILISK:-}" ] && grep -q "void set_prolongation" \
-    "${BASILISK}/grid/multigrid-common.h" 2>/dev/null; then
-    QCC_FLAGS="${QCC_FLAGS} -DVE_USE_SET_PROLONGATION"
-fi
-
 # Verify MPI tools if MPI is enabled
 if [ $MPI_ENABLED -eq 1 ]; then
     if ! command -v mpicc &> /dev/null; then
@@ -355,14 +348,8 @@ echo "Case Directory: $CASE_DIR"
 echo "Parameter File: $PARAM_FILE"
 echo "Solver: $SOLVER_STEM"
 echo ""
-if [ "$FILTERED" != "0" ] && [ "$FILTERED" != "1" ]; then
-    echo "ERROR: FILTERED must be 0 or 1, got: $FILTERED" >&2
+if ! append_solver_qcc_flags; then
     exit 1
-fi
-# two-phase.h / two-phaseVE.h use #ifdef FILTERED, so 0 must leave the
-# macro undefined. Do not pass -DFILTERED=0.
-if [ "$FILTERED" = "1" ]; then
-    QCC_FLAGS="${QCC_FLAGS} -DFILTERED"
 fi
 
 echo "Physical Parameters:"

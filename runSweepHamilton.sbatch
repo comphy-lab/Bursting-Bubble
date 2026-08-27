@@ -282,6 +282,11 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
         cd "$SCRIPT_DIR"
         continue
     fi
+    if ! append_solver_qcc_flags; then
+        ((FAILED_CASES++)) || true
+        cd "$SCRIPT_DIR"
+        continue
+    fi
 
     # Copy source file to case directory if needed
     SRC_FILE_ORIG="${SCRIPT_DIR}/simulationCases/${SOURCE_FILE_NAME}"
@@ -316,6 +321,7 @@ for param_file in "${SWEEP_CASE_FILES[@]}"; do
     # Compile with MPI
     if CC99="$(solver_mpi_cc99)" qcc -I../../src-local \
         -Wall -O2 -D_MPI=1 -disable-dimensions \
+        $QCC_FLAGS \
         "$SOURCE_FILE_NAME" -o "$EXECUTABLE_NAME" -lm 2>&1; then
         echo "MPI compilation successful"
     else

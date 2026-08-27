@@ -107,6 +107,7 @@ TOLERANCE=1e-4
 tsnap=1e-2
 tmax=${TMAX}
 zWall=4.0
+FILTERED=1
 drillAMR=1
 drillMaxlevelStart=${DRILL_MAXLEVEL_START}
 drillNcellsK=5
@@ -123,9 +124,13 @@ cat "${CASE_DIR}/case.params"
 echo ""
 
 # --- Compile ----------------------------------------------------------------
+source "${SCRIPT_DIR}/src-local/parse_params.sh"
+parse_param_file "${CASE_DIR}/case.params"
+append_solver_qcc_flags
 cd "${CASE_DIR}"
 echo "Compiling burstingBubble-drillResolution.c ..."
 qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
+    $QCC_FLAGS \
     burstingBubble-drillResolution.c -o drill -lm
 
 # --- Run (from scratch: distance.h init, so this must stay single-node) ----

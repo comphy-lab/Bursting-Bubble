@@ -226,6 +226,10 @@ run_stage1_case() {
         echo "FAILED" > "${status_dir}/${CASE_NO}"
         return 1
     fi
+    if ! append_solver_qcc_flags; then
+        echo "FAILED" > "${status_dir}/${CASE_NO}"
+        return 1
+    fi
 
     {
         echo "========================================="
@@ -256,6 +260,7 @@ run_stage1_case() {
         # Compile SERIAL (no OpenMP, no MPI)
         echo "Compiling (serial)..."
         if ! qcc -I../../src-local -Wall -O2 -disable-dimensions \
+            $QCC_FLAGS \
             "$SOURCE_FILE_NAME" -o "$EXECUTABLE_NAME" -lm 2>&1; then
             echo "ERROR: Compilation failed"
             echo "FAILED" > "${status_dir}/${CASE_NO}"

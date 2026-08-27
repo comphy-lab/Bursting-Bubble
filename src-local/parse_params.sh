@@ -150,3 +150,28 @@ solver_mpi_cc99() {
         echo "mpicc -std=c99 -D_GNU_SOURCE=1"
     fi
 }
+
+# Append host- and case-dependent -D flags for qcc. Call after the
+# case.params file has been parsed. two-phase*.h use #ifdef FILTERED,
+# so FILTERED=0 must leave the macro undefined.
+# Usage: append_solver_qcc_flags
+append_solver_qcc_flags() {
+    QCC_FLAGS="${QCC_FLAGS:-}"
+    if [ -n "${BASILISK:-}" ] && grep -q "void set_prolongation" \
+        "${BASILISK}/grid/multigrid-common.h" 2>/dev/null; then
+        QCC_FLAGS="${QCC_FLAGS} -DVE_USE_SET_PROLONGATION"
+    fi
+    local filtered
+    filtered=$(get_param "FILTERED" "1")
+    if [ "$filtered" != "0" ] && [ "$filtered" != "1" ]; then
+        echo "ERROR: FILTERED must be 0 or 1, got: $filtered" >&2
+        return 1
+    fi
+    # Incoming QCC_FLAGS may already contain -DFILTERED; FILTERED=0 must
+    # drop it so #ifdef FILTERED stays false.
+    QCC_FLAGS="${QCC_FLAGS//-DFILTERED/}"
+    if [ "$filtered" = "1" ]; then
+        QCC_FLAGS="${QCC_FLAGS} -DFILTERED"
+    fi
+    export QCC_FLAGS
+}
