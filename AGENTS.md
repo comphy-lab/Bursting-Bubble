@@ -32,15 +32,23 @@ The simulation uses a two-stage execution model due to a Basilisk limitation:
 ├── runSweepHamilton-serial.sbatch   # HPC sweep runner (Hamilton Stage 1)
 ├── runSweepSnellius.sbatch    # HPC sweep runner (Snellius Stage 2)
 ├── runSweepSnellius-serial.sbatch   # HPC sweep runner (Snellius Stage 1)
-├── default.params             # Default parameter file
+├── default.params             # Default parameter file (Newtonian)
+├── default-ve.params          # Oldroyd-B, usual wavelet AMR
+├── default-ve-drill.params    # Oldroyd-B + drill (singularity path)
 ├── sweep.params               # Parameter sweep configuration
 ├── src-local/                 # Shared shell + C runtime libraries
 │   ├── params.h               # C-side runtime parameter layer (case.params)
 │   ├── parse_params.sh        # Parameter file parsing (shell layer)
 │   ├── sweep_utils.sh         # Sweep generation utilities
-│   └── basilisk_version.sh    # Basilisk version pinning
+│   ├── basilisk_version.sh    # Basilisk version pinning
+│   ├── two-phaseVE.h          # Two-phase VE properties (from MultiRheoFlow)
+│   ├── log-conform-viscoelastic-scalar-2D.h
+│   └── log-conform-viscoelastic.h
 ├── simulationCases/           # Output directory
-│   ├── burstingBubble.c       # Main source file (template)
+│   ├── burstingBubble.c                         # Newtonian, fixed-ceiling AMR
+│   ├── burstingBubble-drillResolution.c         # Newtonian drill
+│   ├── burstingBubbleVE.c                       # Oldroyd-B, usual AMR
+│   ├── burstingBubbleVE-drillResolution.c       # Oldroyd-B + drill
 │   ├── DataFiles/             # Initial condition data
 │   └── <CaseNo>/              # Per-case output folders
 └── postProcess/               # Post-processing scripts and helpers
@@ -83,9 +91,13 @@ Stage 1 (restart generation) uses the override form `./burstingBubble case.param
 | Parameter | Group | Description | Default |
 |-----------|-------|-------------|---------|
 | `CaseNo` | case | 4-digit case identifier (1000-9999) | 1000 |
-| `Oh` | physical | Ohnesorge number, liquid | 1e-2 |
+| `Solver` | case | source stem in `simulationCases/` (runner-only) | burstingBubble |
+| `Oh` | physical | solvent Ohnesorge number, liquid | 1e-2 |
 | `Bond` | physical | Bond number (gravity) | 1e-3 |
 | `OhRatio` | physical | gas/liquid Ohnesorge ratio; `Oha = OhRatio*Oh` | 2e-2 |
+| `De` | physical | Deborah number (liquid relaxation time); `0` = Newtonian | 0 |
+| `Ec` | physical | elasto-capillary number (liquid modulus); `0` = Newtonian | 0 |
+| `FILTERED` | numerical | compile-time smear of density/viscosity jumps (`-DFILTERED` when 1) | 1 |
 | `zWall` | geometry | distance from bubble south pole to bottom wall | 0.05 |
 | `MAXlevel` | space | maximum refinement level | 10 |
 | `MINlevel` | space | far-field coarsening floor | 4 |
@@ -93,6 +105,7 @@ Stage 1 (restart generation) uses the override form `./burstingBubble case.param
 | `fErr` | space | wavelet tolerance on VOF `f` | 1e-3 |
 | `VelErr` | space | wavelet tolerance on velocity | 1e-3 |
 | `KErr` | space | wavelet tolerance on curvature | 1e-6 |
+| `AErr` | space | wavelet tolerance on conformation `A_ij` (VE solvers) | 1e-3 |
 | `CFL` | time | advective CFL number | 0.1 |
 | `dtmax` | time | timestep ceiling (see note) | 1e-2 |
 | `TOLERANCE` | time | Poisson/viscous solver tolerance | 1e-4 |
@@ -170,7 +183,7 @@ Generates Cartesian product: 2 Oh values x 2 Bond values = 4 cases
 The scripts preserve existing files for reruns:
 
 - **case.params**: Preserved unless `--force` is used
-- **burstingBubble.c**: Preserved unless `--force` is used
+- **solver source** (`Solver=` stem): Preserved unless `--force` is used
 - **restart**: Stage 2 requires this file from Stage 1
 
 This allows manual parameter/code edits between runs.

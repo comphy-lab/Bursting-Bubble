@@ -222,26 +222,34 @@ run_stage1_case() {
     Bond=$(get_param "Bond" "1e-3")
     MAXlevel=$(get_param "MAXlevel" "10")
     zWall=$(get_param "zWall" "4")
+    if ! resolve_solver; then
+        echo "FAILED" > "${status_dir}/${CASE_NO}"
+        return 1
+    fi
+    if ! append_solver_qcc_flags; then
+        echo "FAILED" > "${status_dir}/${CASE_NO}"
+        return 1
+    fi
 
     {
         echo "========================================="
         echo "Case $CASE_NO - Stage 1 ($(date))"
         echo "========================================="
-        echo "Parameters: Oh=$Oh, Bond=$Bond"
+        echo "Parameters: Solver=$SOLVER_STEM Oh=$Oh, Bond=$Bond"
         echo "            MAXlevel=$MAXlevel, tmax=$stage1_tmax, zWall=$zWall"
 
         cd "$CASE_DIR"
 
         # Copy source file
-        local SRC_FILE_ORIG="${script_dir}/simulationCases/burstingBubble.c"
+        local SRC_FILE_ORIG="${script_dir}/simulationCases/${SOURCE_FILE_NAME}"
         if [ ! -f "$SRC_FILE_ORIG" ]; then
             echo "ERROR: Source file not found"
             echo "FAILED" > "${status_dir}/${CASE_NO}"
             return 1
         fi
         # Use existing source file if present (allows local code edits for reruns)
-        if [ ! -f "burstingBubble.c" ]; then
-            cp "$SRC_FILE_ORIG" "burstingBubble.c"
+        if [ ! -f "$SOURCE_FILE_NAME" ]; then
+            cp "$SRC_FILE_ORIG" "$SOURCE_FILE_NAME"
         fi
 
         # Create symlink to DataFiles
@@ -252,7 +260,8 @@ run_stage1_case() {
         # Compile SERIAL (no OpenMP, no MPI)
         echo "Compiling (serial)..."
         if ! qcc -I../../src-local -Wall -O2 -disable-dimensions \
-            burstingBubble.c -o burstingBubble -lm 2>&1; then
+            $QCC_FLAGS \
+            "$SOURCE_FILE_NAME" -o "$EXECUTABLE_NAME" -lm 2>&1; then
             echo "ERROR: Compilation failed"
             echo "FAILED" > "${status_dir}/${CASE_NO}"
             return 1
@@ -262,7 +271,7 @@ run_stage1_case() {
         # Run Stage 1 with small tmax
         # Reads case.params; tmax override forces the short Stage 1 run.
         echo "Running Stage 1 (tmax=$stage1_tmax)..."
-        if ./burstingBubble case.params tmax=$stage1_tmax; then
+        if ./"$EXECUTABLE_NAME" case.params tmax=$stage1_tmax; then
             echo "Stage 1 completed"
 
             # Verify restart file was created

@@ -58,8 +58,7 @@ Stage Selection (mutually exclusive):
 
 Parallelization:
     --fopenmp [N]       Enable OpenMP with N threads (default: 8)
-                        Stage 1: Linux only (macOS always serial)
-                        Stage 2: Linux only (macOS runs serial with warning)
+                        macOS: Homebrew GCC via CC99 (Apple clang rejects -fopenmp)
     --mpi [N]           Enable MPI with N cores (default: 2, Stage 2 only)
 
 Other Options:
@@ -72,6 +71,12 @@ Other Options:
 
 Parameter file mode (default):
     $0 default.params
+    $0 default-ve.params
+    $0 default-ve-drill.params
+
+The Solver= key in the parameter file selects the source in
+simulationCases/ (burstingBubble, burstingBubble-drillResolution,
+burstingBubbleVE, burstingBubbleVE-drillResolution).
 
 If no parameter file specified, uses default.params from current directory.
 
@@ -85,7 +90,7 @@ Examples:
 
     # Stage 1 only: Generate restart file
     $0 --stage1 default.params                # Serial
-    $0 --stage1 --fopenmp default.params      # OpenMP (Linux only)
+    $0 --stage1 --fopenmp default.params      # OpenMP (Homebrew GCC on macOS)
 
     # Stage 2 only: Full simulation (requires existing restart)
     $0 --stage2 default.params                # Serial
@@ -208,15 +213,36 @@ if [ $MPI_ENABLED -eq 1 ] && [ $FOPENMP_ENABLED -eq 1 ]; then
     exit 1
 fi
 
-# Check --fopenmp on macOS
+# Check --fopenmp on macOS. Apple clang rejects -fopenmp; Homebrew gcc-N
+# accepts it. Prefer an explicit CC99, otherwise the newest Homebrew gcc.
 if [ "$OS_TYPE" = "Darwin" ] && [ $FOPENMP_ENABLED -eq 1 ]; then
-    if [ $STAGE -eq 1 ]; then
-        echo "ERROR: --fopenmp not supported on macOS for Stage 1 (always runs serial)" >&2
-        exit 1
-    else
-        echo "WARNING: OpenMP not available on macOS, Stage 2 will run serial" >&2
-        FOPENMP_ENABLED=0
+    if [ -z "${CC99:-}" ]; then
+        _gcc=""
+        for _n in 16 15 14 13 12; do
+            if command -v "gcc-${_n}" >/dev/null 2>&1; then
+                _gcc="$(command -v "gcc-${_n}")"
+                break
+            fi
+            if [ -x "/opt/homebrew/bin/gcc-${_n}" ]; then
+                _gcc="/opt/homebrew/bin/gcc-${_n}"
+                break
+            fi
+        done
+        if [ -z "$_gcc" ]; then
+            echo "ERROR: OpenMP on macOS needs Homebrew GCC (brew install gcc)." >&2
+            echo "       Apple clang rejects -fopenmp; libomp alone is not enough." >&2
+            exit 1
+        fi
+        CC99="$_gcc"
+        export CC99
     fi
+    echo "macOS OpenMP compiler: CC99=$CC99"
+fi
+
+# Homebrew GCC and `mpicc -std=c99` hide Darwin mmap extensions that
+# Apple clang exposes by default (MAP_ANONYMOUS, madvise, MADV_DONTNEED).
+if [ "$OS_TYPE" = "Darwin" ]; then
+    QCC_FLAGS="${QCC_FLAGS} -D_DARWIN_C_SOURCE"
 fi
 
 # Verify MPI tools if MPI is enabled
@@ -253,9 +279,15 @@ parse_param_file "$PARAM_FILE"
 CASE_NO=$(get_param "CaseNo")
 Oh=$(get_param "Oh" "1e-2")
 Bond=$(get_param "Bond" "1e-3")
+De=$(get_param "De" "0")
+Ec=$(get_param "Ec" "0")
+FILTERED=$(get_param "FILTERED" "1")
 MAXlevel=$(get_param "MAXlevel" "10")
 tmax=$(get_param "tmax" "1.0")
 zWall=$(get_param "zWall" "4")
+if ! resolve_solver; then
+    exit 1
+fi
 
 if [ -z "$CASE_NO" ]; then
     echo "ERROR: CaseNo not found in parameter file" >&2
@@ -292,9 +324,15 @@ else
     parse_param_file "$CASE_DIR/case.params"
     Oh=$(get_param "Oh" "1e-2")
     Bond=$(get_param "Bond" "1e-3")
+    De=$(get_param "De" "0")
+    Ec=$(get_param "Ec" "0")
+    FILTERED=$(get_param "FILTERED" "1")
     MAXlevel=$(get_param "MAXlevel" "10")
     tmax=$(get_param "tmax" "1.0")
     zWall=$(get_param "zWall" "4")
+    if ! resolve_solver; then
+        exit 1
+    fi
 fi
 
 # ============================================================
@@ -303,14 +341,19 @@ fi
 # NOTE: Display AFTER preservation logic so values reflect what will actually be used
 echo ""
 echo "========================================="
-echo "Bursting Bubble Simulation (Newtonian)"
+echo "Bursting Bubble Simulation"
 echo "========================================="
 echo "Case Number: $CASE_NO"
 echo "Case Directory: $CASE_DIR"
 echo "Parameter File: $PARAM_FILE"
+echo "Solver: $SOLVER_STEM"
 echo ""
+if ! append_solver_qcc_flags; then
+    exit 1
+fi
+
 echo "Physical Parameters:"
-echo "  Oh=$Oh, Bond=$Bond"
+echo "  Oh=$Oh, Bond=$Bond, De=$De, Ec=$Ec, FILTERED=$FILTERED"
 echo "  MAXlevel=$MAXlevel, tmax=$tmax, zWall=$zWall"
 echo ""
 if [ $STAGE -eq 0 ]; then
@@ -336,9 +379,9 @@ cd "$CASE_DIR"
 # ============================================================
 # Source File Setup
 # ============================================================
-SRC_FILE_ORIG="../burstingBubble.c"
-SRC_FILE_LOCAL="burstingBubble.c"
-EXECUTABLE="burstingBubble"
+SRC_FILE_ORIG="../${SOURCE_FILE_NAME}"
+SRC_FILE_LOCAL="$SOURCE_FILE_NAME"
+EXECUTABLE="$EXECUTABLE_NAME"
 
 # Check if source file exists
 if [ ! -f "$SRC_FILE_ORIG" ]; then
@@ -354,7 +397,7 @@ elif [ ! -f "$SRC_FILE_LOCAL" ]; then
     cp "$SRC_FILE_ORIG" "$SRC_FILE_LOCAL"
     echo "Copied source file to case directory"
 else
-    echo "Using existing burstingBubble.c (local edits preserved; use --force to overwrite)"
+    echo "Using existing $SOURCE_FILE_NAME (local edits preserved; use --force to overwrite)"
 fi
 
 # Create symlink to DataFiles (required for initial condition loading)
@@ -374,7 +417,7 @@ if [ $STAGE -eq 1 ] || [ $STAGE -eq 0 ]; then
     # Compilation
     if [ $FOPENMP_ENABLED -eq 1 ]; then
         echo "Compiling with OpenMP..."
-        [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
+        [ $VERBOSE -eq 1 ] && echo "Compiler: qcc (CC99=${CC99:-cc})"
         [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
         qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
@@ -465,18 +508,19 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
                 $DEBUG_FLAGS $QCC_FLAGS \
                 "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
         else
-            # Linux
-            [ $VERBOSE -eq 1 ] && echo "Compiler: CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc"
+            # Linux. Drill solvers omit -D_GNU_SOURCE (Basilisk FPE trap).
+            MPI_CC99="$(solver_mpi_cc99)"
+            [ $VERBOSE -eq 1 ] && echo "Compiler: CC99='$MPI_CC99' qcc"
             [ $VERBOSE -eq 1 ] && echo "Flags: -Wall -O2 -D_MPI=1 -disable-dimensions $DEBUG_FLAGS $QCC_FLAGS"
 
-            CC99='mpicc -std=c99 -D_GNU_SOURCE=1' qcc \
+            CC99="$MPI_CC99" qcc \
                 -Wall -O2 -D_MPI=1 -disable-dimensions -I../../src-local \
                 $DEBUG_FLAGS $QCC_FLAGS \
                 "$SRC_FILE_LOCAL" -o "$EXECUTABLE" -lm
         fi
     elif [ $FOPENMP_ENABLED -eq 1 ]; then
         echo "Compiling with OpenMP..."
-        [ $VERBOSE -eq 1 ] && echo "Compiler: qcc"
+        [ $VERBOSE -eq 1 ] && echo "Compiler: qcc (CC99=${CC99:-cc})"
         [ $VERBOSE -eq 1 ] && echo "Flags: -O2 -Wall -disable-dimensions -fopenmp -I../../src-local $DEBUG_FLAGS $QCC_FLAGS"
 
         qcc -O2 -Wall -disable-dimensions -fopenmp -I../../src-local \
@@ -510,12 +554,15 @@ if [ $STAGE -eq 2 ] || [ $STAGE -eq 0 ]; then
     # Execution
     echo ""
     echo "Starting full simulation..."
-    echo "  Command: ./$EXECUTABLE case.params  (Oh=$Oh Bond=$Bond MAXlevel=$MAXlevel tmax=$tmax zWall=$zWall)"
+    echo "  Command: ./$EXECUTABLE case.params  (Solver=$SOLVER_STEM Oh=$Oh Bond=$Bond De=$De Ec=$Ec MAXlevel=$MAXlevel tmax=$tmax zWall=$zWall)"
     echo "========================================="
 
     if [ $MPI_ENABLED -eq 1 ]; then
-        [ $VERBOSE -eq 1 ] && echo "Command: mpirun -np $MPI_CORES ./$EXECUTABLE case.params"
-        mpirun -np $MPI_CORES ./$EXECUTABLE case.params
+        # MPIRUN_EXTRA lets a host bind ranks (Open MPI default core-bind
+        # follows sibling pairs and can escape an outer taskset).
+        [ $VERBOSE -eq 1 ] && echo "Command: mpirun ${MPIRUN_EXTRA:-} -np $MPI_CORES ./$EXECUTABLE case.params"
+        # shellcheck disable=SC2086
+        mpirun ${MPIRUN_EXTRA:-} -np $MPI_CORES ./$EXECUTABLE case.params
     elif [ $FOPENMP_ENABLED -eq 1 ]; then
         export OMP_NUM_THREADS=$FOPENMP_THREADS
         [ $VERBOSE -eq 1 ] && echo "OMP_NUM_THREADS=$FOPENMP_THREADS"

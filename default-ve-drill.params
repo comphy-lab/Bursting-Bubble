@@ -1,4 +1,4 @@
-# Bursting Bubble Simulation - Default Parameters (Newtonian)
+# Bursting Bubble Simulation - Default Parameters (Oldroyd-B, drill AMR)
 # Format: key=value (one per line, # for comments)
 # This file provides a typical configuration for bursting bubble simulations
 
@@ -7,14 +7,14 @@
 # ============================================================
 # Case number for folder naming (4-digit: 1000-9999)
 # Output will be created in simulationCases/<CaseNo>/
-CaseNo=1000
+CaseNo=2001
 
 # Solver source stem in simulationCases/ (no .c). Allowed:
 #   burstingBubble                    Newtonian, fixed-ceiling wavelet AMR
 #   burstingBubble-drillResolution    Newtonian, feature-tracking drill
 #   burstingBubbleVE                  Oldroyd-B, fixed-ceiling wavelet AMR
 #   burstingBubbleVE-drillResolution  Oldroyd-B + drill (singularity path)
-Solver=burstingBubble
+Solver=burstingBubbleVE-drillResolution
 
 # ============================================================
 # Physical Parameters (Dimensionless Numbers)
@@ -38,12 +38,12 @@ OhRatio=2e-2
 # limit of the VE solver (identity conformation, zero polymeric stress).
 # Oh is the SOLVENT Ohnesorge; polymeric viscosity is the derived product
 # Oh_p = Ec*De. Keep Oh, De, and Ec as independent controls.
-De=0
-Ec=0
+De=0.05
+Ec=0.05
 
 # Smear density/viscosity jumps (compile-time). 1 = define FILTERED for
-# two-phase.h; 0 = sharp VOF properties. #ifdef, so 0 must not define it.
-FILTERED=1
+# two-phaseVE.h; 0 = sharp VOF properties. #ifdef, so 0 must not define it.
+FILTERED=0
 
 # ============================================================
 # Mesh Adaptation (space)
@@ -174,7 +174,7 @@ drillTsnapMinFactor=0.1
 # focus regime at a level proven to cross (12), and the full MAXlevel is
 # released once the inception latch fires (the slender jet is fast but smooth,
 # so deep refinement is safe and useful there). <=0 disables the cap.
-drillMaxlevelFocus=-1
+drillMaxlevelFocus=12
 
 # Kinetic-energy safety gates (checked every step after the first 10). The
 # blow-up gate keStopMax is historical and AD HOC (1e2): a localised transient
@@ -192,7 +192,7 @@ keStopMin=1e-6
 # Liquid droplets are never touched (shed tip droplets are physics). At
 # MAXlevel=14, size 3 removes gas structures below ~2e-3 R0 — smaller than
 # anything the validated level-12 run could even represent. 0 disables.
-drillRemoveGasSize=0
+drillRemoveGasSize=3
 
 # Force the inception latch (jetFormed=1) at init after a successful restore.
 # For restarts from LEGACY post-inception dumps that predate the drillstate

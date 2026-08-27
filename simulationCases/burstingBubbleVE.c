@@ -1,56 +1,43 @@
 /**
-# Bursting Bubbles in Newtonian Fluids Simulation
+# Bursting Bubbles in Viscoelastic Fluids — usual AMR
 
-This simulation models the dynamics of bursting bubbles in Newtonian fluids
-using the Basilisk framework. It focuses on the formation of
-Worthington jets and droplets that emerge during the bursting process.
+Oldroyd-B counterpart of `burstingBubble.c`. Geometry, two-stage init,
+runtime `case.params`, and wavelet AMR are the same; the extra physics is
+the CoMPhy log-conformation solver vendored from MultiRheoFlow
+(`src-local/log-conform-viscoelastic-scalar-2D.h` + `two-phaseVE.h`).
 
-## Physics Overview
+The liquid is an Oldroyd-B fluid with solvent Ohnesorge `Oh`, relaxation
+time `De`, and elastic modulus `Ec`. Gas remains Newtonian
+(`lambda2 = G2 = 0`). Polymeric viscosity is the derived product
+`Oh_p = Ec * De`; keep `Oh`, `De`, and `Ec` as independent controls.
 
-The simulation implements a two-phase axisymmetric flow model with
-adaptive mesh refinement and adaptive (surface-tension-limited) time
-stepping. A bubble initially at rest bursts at a free surface, creating a
-cavity collapse and subsequent jet formation.
+`De = 0` or `Ec = 0` recovers the Newtonian limit of this solver (identity
+conformation, zero polymeric stress). For a bit-identical Newtonian
+baseline use `burstingBubble.c`, not this file.
 
-## Usage
+Mesh: fixed-ceiling wavelet AMR on `f`, `u`, curvature, and the
+conformation components `A11`, `A12`, `A22`, `AThTh`. For
+feature-tracking resolution into the cavity-focus / jet singularity use
+`burstingBubbleVE-drillResolution.c`.
 
-Preferred (parameter-file mode):
-
-```
-./burstingBubble case.params [key=value ...]
-```
-
-The simulation reads every knob from `case.params` (see `default.params`
-for the documented template). Trailing `key=value` tokens override the
-file, e.g. the Stage 1 restart run uses `./burstingBubble case.params
-tmax=0.10`.
-
-Legacy positional mode (new resolution knobs take defaults):
-
-```
-./burstingBubble <MAXlevel> <Oh> <Bond> <tmax> <zWall>
-```
-
-See `src-local/params.h` for the full parameter list, defaults, and
-validation rules.
-
-@file burstingBubble.c
-@author Vatsal Sanjay
-@version 2.0
-@date Jan 04, 2025
+@file burstingBubbleVE.c
+@author Vatsal Sanjay (vatsal.sanjay@comphy-lab.org) / CoMPhy Lab
+@version 1.0
+@date Aug 27, 2026
 */
 
 #include "axi.h"
 #include "navier-stokes/centered.h"
+#include "log-conform-viscoelastic-scalar-2D.h"
 
 /**
 ## Solver Configuration
 
 `FILTERED` is a compile-time switch from `case.params`. The runner
-adds `-DFILTERED` when `FILTERED=1`. `two-phase.h` smears density
+adds `-DFILTERED` when `FILTERED=1`. `two-phaseVE.h` smears density
 and viscosity jumps only when that macro is defined.
 */
-#include "two-phase.h"
+#include "two-phaseVE.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"
 
@@ -83,18 +70,19 @@ u.t[left] = dirichlet(0.0);    // No-slip tangential
 int MAXlevel, MINlevel;
 
 // Physical parameters (set from params in main):
-//   Oh  -> Ohnesorge number (liquid)
+//   Oh  -> solvent Ohnesorge number (liquid)
 //   Oha -> Ohnesorge number (gas) = OhRatio * Oh
-double Oh, Oha, Bond, tmax;
+//   De  -> Deborah number (liquid relaxation time)
+//   Ec  -> elasto-capillary number (liquid elastic modulus)
+double Oh, Oha, De, Ec, Bond, tmax;
 
 // Domain parameters:
 //   zWall   -> distance from bubble south pole to bottom wall
 //   Ldomain -> computed domain size: min(zWall + 6.0, 16.0)
 double zWall, Ldomain;
 
-// Adaptive-resolution controls (set from params in main):
-//   fErr/VelErr/KErr -> wavelet error tolerances (VOF, velocity, curvature)
-double fErr, VelErr, KErr;
+// Adaptive-resolution controls (set from params in main)
+double fErr, VelErr, KErr, AErr;
 
 // tsnap -> snapshot/restart dump interval. Needs a non-zero static initial
 // value: Basilisk classifies event expressions (e.g. `t += tsnap`) before
@@ -113,7 +101,7 @@ the run.
 - Parses `case.params` (or legacy positional CLI) into `params`
 - Validates the configuration before allocating the grid
 - Sets up the physical domain with appropriate dimensions
-- Configures fluid properties for both phases
+- Configures Newtonian and Oldroyd-B properties for both phases
 - Maps the adaptive space/time knobs onto Basilisk's solver globals
 */
 int main(int argc, char *argv[]) {
@@ -130,12 +118,15 @@ int main(int argc, char *argv[]) {
   MINlevel = params.MINlevel;
   Oh = params.Oh;
   Oha = params.OhRatio * params.Oh;
+  De = params.De;
+  Ec = params.Ec;
   Bond = params.Bond;
   tmax = params.tmax;
   zWall = params.zWall;
   fErr = params.fErr;
   VelErr = params.VelErr;
   KErr = params.KErr;
+  AErr = params.AErr;
   tsnap = params.tsnap;
 
   // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
@@ -174,10 +165,14 @@ int main(int argc, char *argv[]) {
 
   Sets up the material properties for both phases:
   - `rho1`, `rho2`: Density of liquid and gas phases
-  - `mu1`, `mu2`: Dynamic viscosity of liquid and gas phases
+  - `mu1`, `mu2`: Solvent viscosity of liquid and gas phases
+  - `lambda1`, `G1`: Liquid relaxation time and elastic modulus (`De`, `Ec`)
+  - gas remains Newtonian (`lambda2 = G2 = 0`)
   */
   rho1 = 1., rho2 = 1e-3;
   mu1 = Oh, mu2 = Oha;
+  lambda1 = De; lambda2 = 0.;
+  G1 = Ec; G2 = 0.;
 
   f.sigma = 1.0;
 
@@ -196,11 +191,15 @@ The function attempts to restore from a dump file first. If that fails:
 - For MPI runs: Ends with an error
 - For non-MPI runs: Tries to load an initial shape from a data file,
   creates a distance field, and initializes the volume fraction
+
+Fresh init leaves the conformation at identity (unstressed polymers),
+which is the log-conformation default.
 */
 event init(t = 0) {
 #if _MPI // This is for supercomputers without OpenMP support
   if (!restore(file = dumpFile)) {
-    fprintf(ferr, "Cannot restored from a dump file!\n");
+    fprintf(ferr, "Cannot restore from dump file '%s': MPI runs must start from a restart dump (distance.h init is MPI-incompatible). Aborting.\n", dumpFile);
+    exit(1);
   }
 #else  // Note that distance.h is incompatible with OpenMPI. So, the below code should not be used with MPI
   if (!restore(file = dumpFile)) {
@@ -245,18 +244,19 @@ Refines the mesh based on gradients of key fields:
 - Volume fraction
 - Velocity components
 - Curvature
+- Conformation-tensor components (liquid polymeric stress layers)
 
-The wavelet error tolerances (`fErr`, `VelErr`, `KErr`) and the refinement
-band (`MINlevel` to `MAXlevel`) are runtime parameters. The interface is
-always resolved to `MAXlevel` through the `fErr` criterion, while `MINlevel`
-sets how coarse the far field is allowed to become.
+The wavelet error tolerances (`fErr`, `VelErr`, `KErr`, `AErr`) and the
+refinement band (`MINlevel` to `MAXlevel`) are runtime parameters. The
+interface is always resolved to `MAXlevel` through the `fErr` criterion,
+while `MINlevel` sets how coarse the far field is allowed to become.
 */
 event adapt(i++) {
   scalar KAPPA[];
   curvature(f, KAPPA);
 
-  adapt_wavelet((scalar *){f, u.x, u.y, KAPPA},
-    (double[]){fErr, VelErr, VelErr, KErr},
+  adapt_wavelet((scalar *){f, u.x, u.y, KAPPA, A11, A12, A22, AThTh},
+    (double[]){fErr, VelErr, VelErr, KErr, AErr, AErr, AErr, AErr},
     MAXlevel, MINlevel);
 }
 
@@ -266,6 +266,8 @@ event adapt(i++) {
 Creates periodic snapshots of the simulation state.
 - Dumps restart files for simulation recovery
 - Saves intermediate snapshots at regular intervals defined by `tsnap`
+
+Dumps carry `f`, `u`, and the conformation / polymeric-stress fields.
 */
 event writingFiles(t = 0; t += tsnap; t <= tmax) {
   dump(file = dumpFile);
@@ -280,8 +282,8 @@ Writes a final summary of the simulation parameters when the simulation ends.
 */
 event end(t = end) {
   if (pid() == 0)
-    fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
-            MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
+    fprintf(ferr, "Level %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+            MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain);
 }
 
 /**
@@ -305,15 +307,18 @@ event logWriting(i++) {
     ke += (2*pi*y)*(0.5*rho(f[])*(sq(u.x[]) + sq(u.y[])))*sq(Delta);
   }
 
+  int stopBlowUp = (ke > params.keStopMax && i > 1e1);
+  int stopTooSmall = (ke < params.keStopMin && i > 1e1);
+
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
-      fprintf(ferr, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
-              MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
+      fprintf(ferr, "Level %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+              MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain);
       fprintf(ferr, "i dt t ke\n");
       fp = fopen("log", "w");
-      fprintf(fp, "Level %d, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
-              MAXlevel, Oh, Oha, Bond, zWall, Ldomain);
+      fprintf(fp, "Level %d, De %2.1e, Ec %2.1e, Oh %2.1e, Oha %2.1e, Bo %4.3f, zWall %g, Ldomain %g\n",
+              MAXlevel, De, Ec, Oh, Oha, Bond, zWall, Ldomain);
       fprintf(fp, "i dt t ke\n");
       fprintf(fp, "%d %g %g %g\n", i, dt, t, ke);
       fclose(fp);
@@ -326,29 +331,25 @@ event logWriting(i++) {
 
     assert(ke > -1e-10);
 
-    // Check for energy blowup (numerical instability)
-    if (ke > 1e2 && i > 1e1) {
-      if (pid() == 0) {
-        fprintf(ferr, "The kinetic energy blew up. Stopping simulation\n");
-        fp = fopen("log", "a");
-        fprintf(fp, "The kinetic energy blew up. Stopping simulation\n");
-        fclose(fp);
-        dump(file = dumpFile);
-        return 1;
-      }
+    if (stopBlowUp) {
+      fprintf(ferr, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
+              ke, params.keStopMax);
+      fp = fopen("log", "a");
+      fprintf(fp, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
+              ke, params.keStopMax);
+      fclose(fp);
     }
-    assert(ke < 1e2);
 
-    // Check for energy dissipation below threshold
-    if (ke < 1e-6 && i > 1e1) {
-      if (pid() == 0) {
-        fprintf(ferr, "kinetic energy too small now! Stopping!\n");
-        dump(file = dumpFile);
-        fp = fopen("log", "a");
-        fprintf(fp, "kinetic energy too small now! Stopping!\n");
-        fclose(fp);
-        return 1;
-      }
+    if (stopTooSmall) {
+      fprintf(ferr, "kinetic energy too small now! Stopping!\n");
+      fp = fopen("log", "a");
+      fprintf(fp, "kinetic energy too small now! Stopping!\n");
+      fclose(fp);
     }
+  }
+
+  if (stopBlowUp || stopTooSmall) {
+    dump(file = dumpFile);
+    return 1;
   }
 }
