@@ -306,6 +306,9 @@ event logWriting(i++) {
     ke += (2*pi*y)*(0.5*rho(f[])*(sq(u.x[]) + sq(u.y[])))*sq(Delta);
   }
 
+  int stopBlowUp = (ke > params.keStopMax && i > 1e1);
+  int stopTooSmall = (ke < params.keStopMin && i > 1e1);
+
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
@@ -327,24 +330,25 @@ event logWriting(i++) {
 
     assert(ke > -1e-10);
 
-    if (ke > params.keStopMax && i > 1e1) {
+    if (stopBlowUp) {
       fprintf(ferr, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
               ke, params.keStopMax);
       fp = fopen("log", "a");
       fprintf(fp, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
               ke, params.keStopMax);
       fclose(fp);
-      dump(file = dumpFile);
-      return 1;
     }
 
-    if (ke < params.keStopMin && i > 1e1) {
+    if (stopTooSmall) {
       fprintf(ferr, "kinetic energy too small now! Stopping!\n");
-      dump(file = dumpFile);
       fp = fopen("log", "a");
       fprintf(fp, "kinetic energy too small now! Stopping!\n");
       fclose(fp);
-      return 1;
     }
+  }
+
+  if (stopBlowUp || stopTooSmall) {
+    dump(file = dumpFile);
+    return 1;
   }
 }

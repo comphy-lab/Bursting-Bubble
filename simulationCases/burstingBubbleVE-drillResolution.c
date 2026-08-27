@@ -914,6 +914,9 @@ event logWriting(i++) {
   double rb = g_rb, zb = g_zb;
   double rbase = g_rbase, zbase = g_zbase, qjet = g_qjet, ql = g_ql;
 
+  int stopBlowUp = (ke > params.keStopMax && i > 1e1);
+  int stopTooSmall = (ke < params.keStopMin && i > 1e1);
+
   if (pid() == 0) {
     static FILE *fp;
     if (i == 0) {
@@ -943,25 +946,25 @@ event logWriting(i++) {
     // still self-recover, while a genuine divergence also stalls dt — so a
     // relaxed gate plus an external dt/progress watchdog is a legitimate way
     // to force a run through the singular instant (case-1006 protocol).
-    if (ke > params.keStopMax && i > 1e1) {
+    if (stopBlowUp) {
       fprintf(ferr, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
               ke, params.keStopMax);
       fp = fopen("log", "a");
       fprintf(fp, "The kinetic energy blew up (ke = %g > keStopMax = %g). Stopping simulation\n",
               ke, params.keStopMax);
       fclose(fp);
-      dump(file = dumpFile);
-      return 1;
     }
 
-    // Check for energy dissipation below threshold
-    if (ke < params.keStopMin && i > 1e1) {
+    if (stopTooSmall) {
       fprintf(ferr, "kinetic energy too small now! Stopping!\n");
-      dump(file = dumpFile);
       fp = fopen("log", "a");
       fprintf(fp, "kinetic energy too small now! Stopping!\n");
       fclose(fp);
-      return 1;
     }
+  }
+
+  if (stopBlowUp || stopTooSmall) {
+    dump(file = dumpFile);
+    return 1;
   }
 }

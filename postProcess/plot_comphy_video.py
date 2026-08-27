@@ -115,7 +115,7 @@ def main() -> int:
         raise SystemExit(f"no snapshots <= {args.tmax} in {case_dir / 'intermediate'}")
     frames_dir = Path(args.frames)
     frames_dir.mkdir(parents=True, exist_ok=True)
-    for stale in frames_dir.glob("*.png"):
+    for stale in frames_dir.glob("[0-9][0-9][0-9][0-9][0-9].png"):
         stale.unlink()
     items = [(i, t, str(p)) for i, (t, p) in enumerate(snaps)]
     print(f"rendering {len(items)} frames from {case_dir} -> {frames_dir}", flush=True)
