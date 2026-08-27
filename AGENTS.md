@@ -97,6 +97,7 @@ Stage 1 (restart generation) uses the override form `./burstingBubble case.param
 | `OhRatio` | physical | gas/liquid Ohnesorge ratio; `Oha = OhRatio*Oh` | 2e-2 |
 | `De` | physical | Deborah number (liquid relaxation time); `0` = Newtonian | 0 |
 | `Ec` | physical | elasto-capillary number (liquid modulus); `0` = Newtonian | 0 |
+| `FILTERED` | numerical | compile-time smear of density/viscosity jumps (`-DFILTERED` when 1) | 1 |
 | `zWall` | geometry | distance from bubble south pole to bottom wall | 0.05 |
 | `MAXlevel` | space | maximum refinement level | 10 |
 | `MINlevel` | space | far-field coarsening floor | 4 |

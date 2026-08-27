@@ -46,9 +46,10 @@ validation rules.
 /**
 ## Solver Configuration
 
-- `FILTERED`: Enable density and viscosity jump smoothing
+`FILTERED` is a compile-time switch from `case.params`. The runner
+adds `-DFILTERED` when `FILTERED=1`. `two-phase.h` smears density
+and viscosity jumps only when that macro is defined.
 */
-#define FILTERED 1 // Smear density and viscosity jumps
 #include "two-phase.h"
 #include "navier-stokes/conserving.h"
 #include "tension.h"

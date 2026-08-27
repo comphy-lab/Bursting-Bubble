@@ -145,9 +145,9 @@ conformation / polymeric-stress fields.
 /**
 ## Solver Configuration
 
-Density and viscosity follow the sharp VOF field. `two-phaseVE.h`
-smears those jumps only when `FILTERED` is defined; this case leaves
-that flag unset.
+`FILTERED` is a compile-time switch from `case.params`. The runner
+adds `-DFILTERED` when `FILTERED=1`. `two-phaseVE.h` smears density
+and viscosity jumps only when that macro is defined.
 */
 #include "two-phaseVE.h"
 #include "navier-stokes/conserving.h"

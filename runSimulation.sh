@@ -288,6 +288,7 @@ Oh=$(get_param "Oh" "1e-2")
 Bond=$(get_param "Bond" "1e-3")
 De=$(get_param "De" "0")
 Ec=$(get_param "Ec" "0")
+FILTERED=$(get_param "FILTERED" "1")
 MAXlevel=$(get_param "MAXlevel" "10")
 tmax=$(get_param "tmax" "1.0")
 zWall=$(get_param "zWall" "4")
@@ -332,6 +333,7 @@ else
     Bond=$(get_param "Bond" "1e-3")
     De=$(get_param "De" "0")
     Ec=$(get_param "Ec" "0")
+    FILTERED=$(get_param "FILTERED" "1")
     MAXlevel=$(get_param "MAXlevel" "10")
     tmax=$(get_param "tmax" "1.0")
     zWall=$(get_param "zWall" "4")
@@ -353,8 +355,18 @@ echo "Case Directory: $CASE_DIR"
 echo "Parameter File: $PARAM_FILE"
 echo "Solver: $SOLVER_STEM"
 echo ""
+if [ "$FILTERED" != "0" ] && [ "$FILTERED" != "1" ]; then
+    echo "ERROR: FILTERED must be 0 or 1, got: $FILTERED" >&2
+    exit 1
+fi
+# two-phase.h / two-phaseVE.h use #ifdef FILTERED, so 0 must leave the
+# macro undefined. Do not pass -DFILTERED=0.
+if [ "$FILTERED" = "1" ]; then
+    QCC_FLAGS="${QCC_FLAGS} -DFILTERED"
+fi
+
 echo "Physical Parameters:"
-echo "  Oh=$Oh, Bond=$Bond, De=$De, Ec=$Ec"
+echo "  Oh=$Oh, Bond=$Bond, De=$De, Ec=$Ec, FILTERED=$FILTERED"
 echo "  MAXlevel=$MAXlevel, tmax=$tmax, zWall=$zWall"
 echo ""
 if [ $STAGE -eq 0 ]; then

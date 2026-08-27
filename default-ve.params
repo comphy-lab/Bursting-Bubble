@@ -41,6 +41,10 @@ OhRatio=2e-2
 De=0.05
 Ec=0.05
 
+# Smear density/viscosity jumps (compile-time). 1 = define FILTERED for
+# two-phaseVE.h; 0 = sharp VOF properties. #ifdef, so 0 must not define it.
+FILTERED=1
+
 # ============================================================
 # Mesh Adaptation (space)
 # ============================================================

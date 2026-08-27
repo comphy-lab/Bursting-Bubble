@@ -44,6 +44,12 @@ struct SimulationParams {
   double OhRatio;        /**< Gas/liquid Ohnesorge ratio; Oha = OhRatio*Oh */
   double De;             /**< Deborah number (liquid): lambda / t_cap. 0 = Newtonian */
   double Ec;             /**< Elasto-capillary number (liquid): G / (sigma/R). 0 = Newtonian */
+  int filtered;          /**< 1 = smear density/viscosity jumps; 0 = sharp VOF
+                              properties. File key remains FILTERED. The
+                              runner adds `-DFILTERED` only when this is 1
+                              (`two-phase.h` / `two-phaseVE.h` use `#ifdef`).
+                              The member cannot be named FILTERED: that
+                              token is a compile macro when smearing is on. */
 
   // Geometry
   double zWall;          /**< Distance from bubble south pole to bottom wall */
@@ -150,6 +156,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->OhRatio = 2.0e-2;
   p->De = 0.0;           // Newtonian unless a VE solver is selected
   p->Ec = 0.0;
+  p->filtered = 1;       // historical two-phase smear; set 0 for sharp properties
 
   // Geometry
   p->zWall = 0.05;
@@ -209,6 +216,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = atof(value);
   else if (strcmp(key, "De")              == 0) p->De = atof(value);
   else if (strcmp(key, "Ec")              == 0) p->Ec = atof(value);
+  else if (strcmp(key, "FILTERED")        == 0) p->filtered = atoi(value);
   else if (strcmp(key, "zWall")           == 0) p->zWall = atof(value);
   else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = atoi(value);
   else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = atoi(value);
@@ -438,6 +446,10 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: Bond must be non-negative (Bond = %g)\n", p->Bond);
     valid = 0;
   }
+  if (p->filtered != 0 && p->filtered != 1) {
+    fprintf(stderr, "ERROR: FILTERED must be 0 or 1 (FILTERED = %d)\n", p->filtered);
+    valid = 0;
+  }
   if (p->MAXlevel < p->MINlevel) {
     fprintf(stderr, "ERROR: MAXlevel (%d) must be >= MINlevel (%d)\n",
             p->MAXlevel, p->MINlevel);
@@ -543,6 +555,7 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
   fprintf(fp, "  Deborah (liquid):       %g\n", p->De);
   fprintf(fp, "  Elasto-capillary:       %g\n", p->Ec);
   fprintf(fp, "  Polymeric Oh (Ec*De):   %g\n", p->Ec * p->De);
+  fprintf(fp, "  FILTERED (compile):     %d\n", p->filtered);
   fprintf(fp, "Geometry:\n");
   fprintf(fp, "  zWall:                  %g\n", p->zWall);
   fprintf(fp, "Adaptive Space:\n");
