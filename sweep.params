@@ -36,8 +36,10 @@ SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0
 # Domain size: Ldomain = min(zWall + 6.0, 16.0)
 # SWEEP_zWall=0.025
 
-# Bond is 1e-3 unless DataFiles/BoXXXX.dat exists (see initialConditions/).
-# To sweep Bond values, you would need to generate additional Bo*.dat files
+# Bond comes from default.params (Bond=1e-3) unless a case overrides it.
+# burstingBubble.c loads DataFiles/Bo%5.4f.dat for that value; generate
+# missing files with simulationCases/initialConditions/generate_bond_shape.py.
+# SWEEP_Bond needs a matching BoXXXX.dat for every listed value.
 
 # ============================================================
 # Resolution sweep examples (commented out)

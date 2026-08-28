@@ -2,7 +2,7 @@
 
 Bond-number-dependent cavity shapes for Stage 1. The solvers read
 
-```
+```text
 simulationCases/DataFiles/Bo%5.4f.dat
 ```
 

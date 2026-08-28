@@ -31,12 +31,19 @@ class ZeroBondShape:
 
 
 def sphere_plane(delta: float = 0.01, rmax: float = 32.0, n: int = 2000) -> ZeroBondShape:
+    if not np.isfinite(delta):
+        raise ValueError("delta must be finite")
+    if not np.isfinite(rmax):
+        raise ValueError("rmax must be finite")
+    if not isinstance(n, (int, np.integer)) or int(n) < 2:
+        raise ValueError("n must be an integer >= 2")
     if delta <= 0.0:
         raise ValueError("delta must be positive")
     if delta >= 0.5:
         raise ValueError("delta < 0.5 is required for arcsin(2 delta)")
     if rmax <= 0.0:
         raise ValueError("rmax must be positive")
+    n = int(n)
 
     X1c = -(1.0 + delta)
     phic1 = np.arcsin(2.0 * delta)

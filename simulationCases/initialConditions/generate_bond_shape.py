@@ -14,6 +14,7 @@ Examples
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ if str(_DIR) not in sys.path:
 
 from young_laplace import (  # noqa: E402
     EquilibriumShape,
+    SolveError,
     bond_filename,
     continuation_ladder,
     solve_equilibrium,
@@ -34,8 +36,17 @@ def _parse_bonds(text: str) -> list[float]:
     bonds = []
     for token in text.split(","):
         token = token.strip()
-        if token:
-            bonds.append(float(token))
+        if not token:
+            continue
+        try:
+            val = float(token)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"invalid Bond number {token!r}") from exc
+        if not math.isfinite(val):
+            raise argparse.ArgumentTypeError(f"Bond must be finite, got {token!r}")
+        if val < 0.0:
+            raise argparse.ArgumentTypeError(f"Bond must be non-negative, got {token}")
+        bonds.append(val)
     if not bonds:
         raise argparse.ArgumentTypeError("need at least one Bond number")
     return bonds
@@ -90,6 +101,12 @@ def main(argv=None) -> int:
         help="disable Bond-parameter continuation (cold start at each value)",
     )
     args = ap.parse_args(argv)
+    if not math.isfinite(args.rmax) or args.rmax <= 0.0:
+        print("rmax must be a positive finite number", file=sys.stderr)
+        return 2
+    if not math.isfinite(args.fillet_span) or args.fillet_span < 0.0:
+        print("fillet-span must be a finite non-negative number", file=sys.stderr)
+        return 2
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     previous = None
@@ -108,13 +125,17 @@ def main(argv=None) -> int:
                     f"Bo={bond:g}: continuing through "
                     + ", ".join(f"{b:g}" for b in ladder)
                 )
-        shape = solve_equilibrium(
-            bond,
-            previous=previous,
-            continue_in_bond=not args.no_continue,
-            rmax_out=args.rmax,
-            fillet_span=args.fillet_span,
-        )
+        try:
+            shape = solve_equilibrium(
+                bond,
+                previous=previous,
+                continue_in_bond=not args.no_continue,
+                rmax_out=args.rmax,
+                fillet_span=args.fillet_span,
+            )
+        except SolveError as exc:
+            print(f"Bo={bond:g}: {exc}", file=sys.stderr)
+            return 1
         path = args.out_dir / bond_filename(bond)
         write_basilisk_dat(shape, path)
         _print_shape(shape, path)

@@ -12,6 +12,7 @@ _DIR = Path(__file__).resolve().parent
 if str(_DIR) not in sys.path:
     sys.path.insert(0, str(_DIR))
 
+from generate_bond_shape import _parse_bonds  # noqa: E402
 from young_laplace import continuation_ladder, solve_equilibrium  # noqa: E402
 from zero_bond import sphere_plane  # noqa: E402
 
@@ -44,6 +45,22 @@ def test_cold_start_continues_in_bond():
     assert walked, "expected a Bond continuation ladder"
     assert walked[-1] == 1.0
     assert walked[0] <= 1e-3 * 1.01
+    # Fillet must start at the neck, not walk back from the apex: after
+    # leaving the south pole the written polyline must not return to the axis.
+    left = int(np.argmax(shape.radial > 0.30))
+    assert left > 0
+    assert shape.radial[left:].min() > 0.15
+
+
+def test_parse_bonds_rejects_nonfinite_and_negative():
+    import argparse
+
+    for bad in ("nan", "inf", "-1", "-0.01"):
+        try:
+            _parse_bonds(bad)
+        except argparse.ArgumentTypeError:
+            continue
+        raise AssertionError(bad)
 
 
 def test_zero_bond_sphere_plane():
@@ -60,10 +77,21 @@ def test_zero_bond_sphere_plane():
         pass
     else:
         raise AssertionError("delta=0.5 must be rejected")
+    for kwargs in (
+        {"delta": float("nan")},
+        {"rmax": float("inf")},
+        {"n": 0},
+    ):
+        try:
+            sphere_plane(**kwargs)
+        except ValueError:
+            continue
+        raise AssertionError(kwargs)
 
 
 if __name__ == "__main__":
     test_continuation_ladder()
+    test_parse_bonds_rejects_nonfinite_and_negative()
     test_bo001_matches_datafile()
     test_cold_start_continues_in_bond()
     test_zero_bond_sphere_plane()

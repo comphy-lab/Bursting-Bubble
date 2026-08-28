@@ -323,12 +323,17 @@ def _shoot_tail(bond, phi, y, rb, rmax, tail_tol, previous_phic=None):
     if tail is None:
         raise SolveError(f"tail ODE failed at the converged φ_c (Bo={bond})")
     R_t, Z_t = tail
-    # Drop the growing-mode runaway, then hold the far field at h∞.
-    good = np.isfinite(Z_t) & (np.abs(Z_t - hinf) < 0.35 * max(abs(hinf), 1.0) + 0.25)
-    if np.count_nonzero(good) >= 8:
-        last = int(np.where(good)[0][-1])
-        R_t = R_t[: last + 1]
-        Z_t = Z_t[: last + 1]
+    # Keep the near-field meniscus (Z is not yet h∞), then drop from the
+    # first growing-mode spike after the profile has approached h∞.
+    far = np.isfinite(Z_t) & (np.abs(Z_t - hinf) < 0.35 * max(abs(hinf), 1.0) + 0.25)
+    entered = np.flatnonzero(far)
+    if entered.size >= 8:
+        start_far = int(entered[0])
+        rest = far[start_far:]
+        cut = len(Z_t) if bool(rest.all()) else start_far + int(np.argmin(rest))
+        if cut >= 8:
+            R_t = R_t[:cut]
+            Z_t = Z_t[:cut]
     tail = (R_t, Z_t)
     return {
         "phic": float(phic),
@@ -528,7 +533,11 @@ def _solve_at_bond(
 
     def volume_for_root(rb):
         val = volume_mismatch(rb)
-        return 1.0 if val is None else val
+        if val is None:
+            raise SolveError(
+                f"volume residual evaluation failed (Bo={bond}, Rb={rb:.6g})"
+            )
+        return val
 
     rb = brentq(volume_for_root, lo, hi, xtol=max(vol_tol, 1e-12), maxiter=max_vol_iter)
     phi, y, tail, R_sub, Z_sub, R_cap, Z_cap, vol = packed(rb)
@@ -547,9 +556,8 @@ def _solve_at_bond(
         Z_tail = Z_tail.copy()
         Z_tail[-1] = tail["hinf"]
 
-    fillet = _blend_fillet(
-        y[:, 0], y[:, 1], phi, R_tail, Z_tail, fillet_span
-    )
+    phi_sub = phi[: tail["ind"] + 1]
+    fillet = _blend_fillet(R_sub, Z_sub, phi_sub, R_tail, Z_tail, fillet_span)
     z_shift = Z_tail[-1]
     if fillet is None:
         R_poly = np.concatenate([R_sub, R_tail])
@@ -557,10 +565,10 @@ def _solve_at_bond(
         fillet_r = 0.0
     else:
         R_poly = np.concatenate(
-            [y[: fillet["i_cut"] + 1, 0], fillet["R"], R_tail[fillet["j_cut"] :]]
+            [R_sub[: fillet["i_cut"] + 1], fillet["R"], R_tail[fillet["j_cut"] :]]
         )
         Z_poly = np.concatenate(
-            [y[: fillet["i_cut"] + 1, 1], fillet["Z"], Z_tail[fillet["j_cut"] :]]
+            [Z_sub[: fillet["i_cut"] + 1], fillet["Z"], Z_tail[fillet["j_cut"] :]]
         )
         fillet_r = fillet["r"]
 
