@@ -9,7 +9,8 @@
 #   .github/scripts/deploy.sh
 #
 # Prerequisites:
-#   - Run build.sh first to generate docs/ directory
+#   - Run build.sh first. This preview serves the generated tree in
+#     .github/docs/, not the authored reports in docs/.
 #   - Python 3 must be installed
 #
 # Notes:
@@ -25,7 +26,7 @@ set -e
 # Define the project root relative to the script location
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 PROJECT_ROOT=$(dirname "$(dirname "$SCRIPT_DIR")") # Go two levels up from script dir
-DOCS_DIR="$PROJECT_ROOT/docs"
+DOCS_DIR="$PROJECT_ROOT/.github/docs"
 
 # Check if docs directory exists
 if [ ! -d "$DOCS_DIR" ]; then

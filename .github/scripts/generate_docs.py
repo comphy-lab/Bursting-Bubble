@@ -259,7 +259,9 @@ def parse_git_remote() -> Tuple[str, str]:
 # Configuration
 REPO_ROOT = Path(__file__).parent.parent.parent
 SOURCE_DIRS = ['src-local', 'simulationCases', 'postProcess']
-DOCS_DIR = REPO_ROOT / 'docs'
+DOCS_DIR = REPO_ROOT / '.github' / 'docs'
+DOCS_RELATIVE_PATH = DOCS_DIR.relative_to(REPO_ROOT).as_posix()
+DOCS_URL_FRAGMENT = f"/{DOCS_RELATIVE_PATH.strip('/')}/"
 README_PATH = REPO_ROOT / 'README.md'
 INDEX_PATH = DOCS_DIR / 'index.html'
 BASILISK_DIR = REPO_ROOT / 'basilisk'
@@ -1331,7 +1333,7 @@ def post_process_c_html(html_content: str, file_path: Path,
             try:
                 relative_link = os.path.relpath(target_html_path, start=file_path.parent)
                 link_url = relative_link.replace('\\', '/')
-                link_url = link_url.replace('/docs/', '/')
+                link_url = link_url.replace(DOCS_URL_FRAGMENT, '/')
             except ValueError:
                 link_url = target_html_path.as_uri()
             link_title = f"Link to local documentation for {filename}"
@@ -1557,7 +1559,7 @@ def process_file_with_page2html_logic(file_path: Path, output_html_path: Path, r
                               
         return input_content
     
-    print(f"  Processing {file_path.relative_to(repo_root)} -> {output_html_path.relative_to(repo_root / 'docs')}")
+    print(f"  Processing {file_path.relative_to(repo_root)} -> {output_html_path.relative_to(docs_dir)}")
 
     try:
         # Handle Jupyter notebook special case
@@ -1566,7 +1568,7 @@ def process_file_with_page2html_logic(file_path: Path, output_html_path: Path, r
             notebook_dest = output_html_path.parent / file_path.name
             try:
                 shutil.copy2(file_path, notebook_dest)
-                print(f"  Copied notebook {file_path.name} to {notebook_dest.relative_to(repo_root / 'docs')}")
+                print(f"  Copied notebook {file_path.name} to {notebook_dest.relative_to(docs_dir)}")
             except Exception as e:
                 print(f"  Warning: Failed to copy notebook file: {e}")
         
@@ -1577,7 +1579,7 @@ def process_file_with_page2html_logic(file_path: Path, output_html_path: Path, r
         pandoc_input_content = sanitize_pandoc_input(pandoc_input_content)
         
         # Calculate relative URL path
-        page_url = (base_url + output_html_path.relative_to(repo_root / 'docs').as_posix()).replace('//', '/')
+        page_url = (base_url + output_html_path.relative_to(docs_dir).as_posix()).replace('//', '/')
         
         # Clean up page title
         page_title = file_path.relative_to(repo_root).as_posix().strip('- \t')
