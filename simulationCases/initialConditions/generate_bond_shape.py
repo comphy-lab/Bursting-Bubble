@@ -128,7 +128,7 @@ def main(argv=None) -> int:
         try:
             shape = solve_equilibrium(
                 bond,
-                previous=previous,
+                previous=None if args.no_continue else previous,
                 continue_in_bond=not args.no_continue,
                 rmax_out=args.rmax,
                 fillet_span=args.fillet_span,
