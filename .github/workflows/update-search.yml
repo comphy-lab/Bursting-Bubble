@@ -40,7 +40,7 @@ jobs:
 
           # Try to clone search repository (may not exist for all organizations)
           if git clone "https://github.com/${GITHUB_ORG}/${SEARCH_REPO}.git"; then
-            mkdir -p docs/assets/js
+            mkdir -p .github/docs/assets/js
             echo "Search database repository cloned successfully"
           else
             echo "Warning: Could not clone ${GITHUB_ORG}/${SEARCH_REPO}"
@@ -61,10 +61,10 @@ jobs:
           fi
 
           # Ensure target directory exists
-          mkdir -p docs/assets/js
+          mkdir -p .github/docs/assets/js
 
           if [ -f "${SEARCH_REPO}/search_db.json" ]; then
-            cp "${SEARCH_REPO}/search_db.json" docs/assets/js/search_db.json
+            cp "${SEARCH_REPO}/search_db.json" .github/docs/assets/js/search_db.json
             echo "Search database copied successfully"
           else
             echo "Warning: search_db.json not found in ${SEARCH_REPO}"
@@ -76,7 +76,7 @@ jobs:
         run: |
           git config --global user.name 'comphy-search-updater[bot]'
           git config --global user.email "${{ env.APP_BOT_USER_ID }}+comphy-search-updater[bot]@users.noreply.github.com"
-          git add docs/assets/js/search_db.json
+          git add .github/docs/assets/js/search_db.json
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else

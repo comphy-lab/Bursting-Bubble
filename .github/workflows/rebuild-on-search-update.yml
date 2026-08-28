@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'docs/assets/js/search_db.json'
+      - '.github/docs/assets/js/search_db.json'
 
 permissions:
   contents: read
@@ -54,7 +54,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs'  # Deploy the pre-built docs directory
+          path: '.github/docs'  # Deploy the pre-built docs directory
 
       - name: Deploy to GitHub Pages
         id: deployment
