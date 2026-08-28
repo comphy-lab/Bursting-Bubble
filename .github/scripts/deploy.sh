@@ -9,7 +9,8 @@
 #   .github/scripts/deploy.sh
 #
 # Prerequisites:
-#   - Run build.sh first to generate .github/docs/
+#   - Run build.sh first. This preview serves the generated tree in
+#     .github/docs/, not the authored reports in docs/.
 #   - Python 3 must be installed
 #
 # Notes:

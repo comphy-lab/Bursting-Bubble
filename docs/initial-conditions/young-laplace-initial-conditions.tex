@@ -269,16 +269,17 @@ Basilisk Stage~1 reads
 through \texttt{distance.h} and \texttt{input\_xy}. Column~1 is axial.
 Column~2 is radial. The cavity lies in $-\mathrm{axial}$. The far-field
 free surface sits at $\mathrm{axial}=0$. The south pole is the first
-sample. \texttt{distance.h} is MPI-incompatible, so this polyline is
-converted to a restart dump in serial and then reused.
+sample. \texttt{distance.h} is MPI-incompatible, so Stage~1 must
+convert this polyline to a restart dump in serial (or OpenMP). Stage~2
+then reads that dump and may run under MPI.
 
 The repository ships \texttt{Bo0.0010.dat} as the current default
-Stage~1 cavity. Regenerating that Bond number from a cold start places
-the south pole within $0.01\,\Rzero$ of the shipped file, keeps the
-volume residual below $10^{-6}$, and recovers the small-Bond opening
-\eqref{eq:alpha} to better than eight percent. A cold start at
-$\Bo=1$ walks the continuation ladder and does not return to the axis
-after leaving the south pole.
+Stage~1 cavity. The geometry tests in \path{test_shapes.py} regenerate
+that Bond number from a cold start and require the south pole to lie
+within $0.01\,\Rzero$ of the shipped file, a volume residual below
+$10^{-6}$, and the small-Bond opening \eqref{eq:alpha} to better than
+eight percent. A cold start at $\Bo=1$ walks the continuation ladder
+and does not return to the axis after leaving the south pole.
 
 Figure~\ref{fig:opening} rebuilds the historical comparison.
 The abscissa is $(\Rc/\Rzero)\sqrt{\Bo}=\Rc/a$. The ordinate is

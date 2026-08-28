@@ -3,7 +3,9 @@
 #
 # Description:
 #   Builds HTML documentation from source files using Pandoc and Basilisk's
-#   literate-c processor. Creates a complete static site in .github/docs/.
+#   literate-c processor. Writes the generated GitHub Pages tree to
+#   .github/docs/. The repository-root docs/ tree is reserved for authored
+#   reports and is not the Pages output.
 #
 # Workflow:
 #   1. Detect GitHub organization from git remote
