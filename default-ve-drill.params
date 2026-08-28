@@ -26,7 +26,8 @@ Oh=1e-2
 
 # Bond number: Bo = rho*g*R^2/sigma (gravity / surface tension)
 # Controls gravitational effects on bubble shape
-# Note: Currently only Bo=0.0010 geometry available (Bo0.0010.dat)
+# Bond selects DataFiles/BoXXXX.dat. Generate other values with
+# simulationCases/initialConditions/generate_bond_shape.py (Bo=0: generate_zero_bond.py).
 Bond=1e-3
 
 # Gas/liquid Ohnesorge ratio: the gas-phase Ohnesorge number is

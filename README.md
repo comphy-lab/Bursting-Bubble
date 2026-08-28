@@ -70,7 +70,8 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 │   ├── burstingBubble-drillResolution.c     Newtonian feature-tracking drill
 │   ├── burstingBubbleVE.c         Oldroyd-B, usual wavelet AMR
 │   ├── burstingBubbleVE-drillResolution.c   Oldroyd-B + drill
-│   └── DataFiles/                 Input geometry data
+│   ├── DataFiles/                 Input geometry data (BoXXXX.dat)
+│   └── initialConditions/         Young-Laplace and Bo=0 shape generators
 ├── runSimulation.sh               Single case runner
 ├── runParameterSweep.sh           Parameter sweep runner (local)
 ├── runSweepHamilton-serial.sbatch HPC Stage 1 runner (Durham Hamilton)

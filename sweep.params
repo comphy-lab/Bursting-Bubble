@@ -36,7 +36,7 @@ SWEEP_Oh=0.0100,0.0117,0.0136,0.0158,0.0185,0.0215,0.0251,0.0293,0.0341,0.0398,0
 # Domain size: Ldomain = min(zWall + 6.0, 16.0)
 # SWEEP_zWall=0.025
 
-# NOTE: Bond is fixed at 1e-3 (only Bo0.0010.dat geometry available)
+# Bond is 1e-3 unless DataFiles/BoXXXX.dat exists (see initialConditions/).
 # To sweep Bond values, you would need to generate additional Bo*.dat files
 
 # ============================================================

@@ -49,7 +49,8 @@ The simulation uses a two-stage execution model due to a Basilisk limitation:
 │   ├── burstingBubble-drillResolution.c         # Newtonian drill
 │   ├── burstingBubbleVE.c                       # Oldroyd-B, usual AMR
 │   ├── burstingBubbleVE-drillResolution.c       # Oldroyd-B + drill
-│   ├── DataFiles/             # Initial condition data
+│   ├── DataFiles/             # Initial condition data (BoXXXX.dat)
+│   ├── initialConditions/     # Young-Laplace and Bo=0 shape generators
 │   └── <CaseNo>/              # Per-case output folders
 └── postProcess/               # Post-processing scripts and helpers
 ```
