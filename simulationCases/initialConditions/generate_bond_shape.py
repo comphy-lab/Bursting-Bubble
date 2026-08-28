@@ -25,6 +25,7 @@ if str(_DIR) not in sys.path:
 from young_laplace import (  # noqa: E402
     EquilibriumShape,
     SolveError,
+    _usable_previous,
     bond_filename,
     continuation_ladder,
     solve_equilibrium,
@@ -128,7 +129,11 @@ def main(argv=None) -> int:
         try:
             shape = solve_equilibrium(
                 bond,
-                previous=None if args.no_continue else previous,
+                previous=(
+                    None
+                    if args.no_continue
+                    else _usable_previous(previous, bond)
+                ),
                 continue_in_bond=not args.no_continue,
                 rmax_out=args.rmax,
                 fillet_span=args.fillet_span,

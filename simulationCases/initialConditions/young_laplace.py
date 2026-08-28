@@ -57,6 +57,15 @@ def bond_filename(bond: float) -> str:
     return f"Bo{bond:5.4f}.dat"
 
 
+def _usable_previous(previous: Optional[EquilibriumShape], bond: float):
+    """Keep a prior hit only when its Bond is at or below the target."""
+    if previous is None:
+        return None
+    if float(previous.bond) > float(bond) * (1.0 + 1e-9):
+        return None
+    return previous
+
+
 def continuation_ladder(
     target: float,
     seed: float = 1e-3,
@@ -620,8 +629,7 @@ def solve_equilibrium(
     the next (Rb, φ_c) brackets, so a cold start at large Bo does not
     need a guessed RbMax.
     """
-    if previous is not None and previous.bond > float(bond) * 1.01:
-        previous = None
+    previous = _usable_previous(previous, bond)
     if not continue_in_bond:
         return _solve_at_bond(bond, previous=previous, **kwargs)
 
@@ -635,9 +643,7 @@ def solve_equilibrium(
     current = previous
     walked = []
     for step in ladder:
-        if current is not None and abs(
-            np.log(max(step, 1e-30) / max(current.bond, 1e-30))
-        ) < np.log(1.02):
+        if current is not None and abs(current.bond / max(step, 1e-30) - 1.0) < 1e-9:
             continue
         current = _solve_at_bond(step, previous=current, **kwargs)
         walked.append(step)

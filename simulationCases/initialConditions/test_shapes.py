@@ -13,7 +13,11 @@ if str(_DIR) not in sys.path:
     sys.path.insert(0, str(_DIR))
 
 from generate_bond_shape import _parse_bonds  # noqa: E402
-from young_laplace import continuation_ladder, solve_equilibrium  # noqa: E402
+from young_laplace import (  # noqa: E402
+    _usable_previous,
+    continuation_ladder,
+    solve_equilibrium,
+)
 from zero_bond import sphere_plane  # noqa: E402
 
 DATA = _DIR.parent / "DataFiles"
@@ -27,6 +31,16 @@ def test_bo001_matches_datafile():
     assert abs(shape.volume_err) < 1e-6
     theory = shape.capillary_metric / (np.pi * np.sqrt(3.0))
     assert abs(shape.opening_metric - theory) / theory < 0.08
+
+
+def test_usable_previous_rejects_higher_bond():
+    from types import SimpleNamespace
+
+    assert _usable_previous(None, 1.0) is None
+    hi = SimpleNamespace(bond=1.0)
+    assert _usable_previous(hi, 0.995) is None
+    assert _usable_previous(hi, 1.0) is hi
+    assert _usable_previous(SimpleNamespace(bond=0.5), 1.0).bond == 0.5
 
 
 def test_continuation_ladder():
@@ -90,6 +104,7 @@ def test_zero_bond_sphere_plane():
 
 
 if __name__ == "__main__":
+    test_usable_previous_rejects_higher_bond()
     test_continuation_ladder()
     test_parse_bonds_rejects_nonfinite_and_negative()
     test_bo001_matches_datafile()
