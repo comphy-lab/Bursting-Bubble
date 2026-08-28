@@ -71,6 +71,9 @@ basilisk/
 # Local environment artefacts (never committed)
 # local Python virtualenv
 .venv/
+# regenerable opening-angle figure
+simulationCases/initialConditions/opening_angle.pdf
+simulationCases/initialConditions/opening_angle.png
 # qcc-lsp config generated in the workspace
 .comphy-basilisk
 # basilisk-docker mode flag
