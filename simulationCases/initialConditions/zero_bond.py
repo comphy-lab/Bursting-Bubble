@@ -33,6 +33,8 @@ class ZeroBondShape:
 def sphere_plane(delta: float = 0.01, rmax: float = 32.0, n: int = 2000) -> ZeroBondShape:
     if delta <= 0.0:
         raise ValueError("delta must be positive")
+    if delta >= 0.5:
+        raise ValueError("delta < 0.5 is required for arcsin(2 delta)")
     if rmax <= 0.0:
         raise ValueError("rmax must be positive")
 

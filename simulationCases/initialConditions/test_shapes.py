@@ -54,6 +54,12 @@ def test_zero_bond_sphere_plane():
     assert abs(shape.radial[-1] - 32.0) < 1e-8
     # unit sphere: south pole near -2
     assert -2.05 < shape.south_pole_axial() < -2.00
+    try:
+        sphere_plane(delta=0.5)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("delta=0.5 must be rejected")
 
 
 if __name__ == "__main__":

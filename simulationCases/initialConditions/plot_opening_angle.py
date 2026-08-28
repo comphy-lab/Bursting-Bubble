@@ -15,10 +15,16 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-matplotlib.rcParams["font.family"] = "serif"
-matplotlib.rcParams["font.serif"] = ["Computer Modern Roman"]
-matplotlib.rcParams["text.usetex"] = True
-matplotlib.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
+
+def _configure_matplotlib(*, usetex: bool) -> None:
+    matplotlib.rcParams["font.family"] = "serif"
+    matplotlib.rcParams["font.serif"] = ["Computer Modern Roman"]
+    matplotlib.rcParams["text.usetex"] = bool(usetex)
+    if usetex:
+        matplotlib.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
+    else:
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+
 
 _DIR = Path(__file__).resolve().parent
 if str(_DIR) not in sys.path:
@@ -43,13 +49,15 @@ def _load_villermaux(path: Path) -> tuple[np.ndarray, np.ndarray]:
     return data[:, 0], data[:, 1]
 
 
-def _sweep(bonds) -> list[EquilibriumShape]:
+def _sweep(bonds, *, skip_failed: bool = False) -> list[EquilibriumShape]:
     shapes = []
     previous = None
     for bond in bonds:
         try:
             shape = solve_equilibrium(float(bond), previous=previous)
         except Exception as exc:
+            if not skip_failed:
+                raise
             print(f"Bo={bond:g} skipped: {exc}", file=sys.stderr)
             continue
         shapes.append(shape)
@@ -85,7 +93,12 @@ def _draw_shape(ax, shape: EquilibriumShape) -> None:
     ax.axis("off")
 
 
-def plot_opening_angle(shapes: list[EquilibriumShape], out: Path) -> None:
+def plot_opening_angle(
+    shapes: list[EquilibriumShape],
+    out: Path,
+    *,
+    usetex: bool = True,
+) -> None:
     xv, yv = _load_villermaux(VILLERMAUX_CSV)
     x = np.array([s.capillary_metric for s in shapes])
     y = np.array([s.opening_metric for s in shapes])
@@ -101,7 +114,11 @@ def plot_opening_angle(shapes: list[EquilibriumShape], out: Path) -> None:
         markersize=14,
         markerfacecolor="k",
         markeredgecolor="k",
-        label=r"Lhuissier \& Villermaux (2012)",
+        label=(
+            r"Lhuissier \& Villermaux (2012)"
+            if usetex
+            else "Lhuissier & Villermaux (2012)"
+        ),
         zorder=3,
     )
     ax.plot(
@@ -138,7 +155,7 @@ def plot_opening_angle(shapes: list[EquilibriumShape], out: Path) -> None:
     ax.legend(loc="upper left", frameon=False, fontsize=26)
     ax.text(
         0.22, 0.42,
-        r"$\alpha_c=\dfrac{1}{2\sqrt{3}}\,\dfrac{R_c}{a}$",
+        r"$\alpha_c=\frac{1}{2\sqrt{3}}\,\frac{R_c}{a}$",
         transform=ax.transAxes,
         color="#d62728",
         fontsize=28,
@@ -173,9 +190,21 @@ def main(argv=None) -> int:
         type=Path,
         default=_DIR / "opening_angle.pdf",
     )
+    ap.add_argument(
+        "--no-usetex",
+        action="store_true",
+        help="render math with matplotlib mathtext (no external LaTeX)",
+    )
+    ap.add_argument(
+        "--skip-failed",
+        action="store_true",
+        help="omit Bond numbers that fail to converge instead of aborting",
+    )
     args = ap.parse_args(argv)
-    shapes = _sweep(PLOT_BONDS)
-    plot_opening_angle(shapes, args.out)
+    usetex = not args.no_usetex
+    _configure_matplotlib(usetex=usetex)
+    shapes = _sweep(PLOT_BONDS, skip_failed=args.skip_failed)
+    plot_opening_angle(shapes, args.out, usetex=usetex)
     return 0
 
 
