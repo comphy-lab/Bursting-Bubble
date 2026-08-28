@@ -3,7 +3,7 @@
 #
 # Description:
 #   Builds HTML documentation from source files using Pandoc and Basilisk's
-#   literate-c processor. Creates a complete static site in docs/ directory.
+#   literate-c processor. Creates a complete static site in .github/docs/.
 #
 # Workflow:
 #   1. Detect GitHub organization from git remote
@@ -77,7 +77,7 @@ else
     echo "Warning: Could not clone ${GITHUB_ORG}/${SEARCH_REPO}. Search functionality may be limited."
     echo "This is expected if the search repository doesn't exist for your organization."
 fi
-DOCS_DIR="$PROJECT_ROOT/docs"
+DOCS_DIR="$PROJECT_ROOT/.github/docs"
 PYTHON_SCRIPT="$PROJECT_ROOT/.github/scripts/generate_docs.py"
 
 # Function to display messages
