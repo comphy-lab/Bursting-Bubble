@@ -55,6 +55,11 @@ The simulation uses a two-stage execution model due to a Basilisk limitation:
 └── postProcess/               # Post-processing scripts and helpers
 ```
 
+## Documentation
+
+- `docs/` is authored public material (Markdown, LaTeX, PDF). Write it as eventually public.
+- `.github/docs/` is the generated GitHub Pages site. Rebuild with `.github/scripts/build.sh`. Do not hand-edit it.
+
 ### Shared Libraries (src-local/)
 
 - **parse_params.sh**: Parse key=value parameter files, export as `PARAM_*` environment variables

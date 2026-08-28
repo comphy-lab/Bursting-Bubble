@@ -33,7 +33,7 @@
 
 ## Overview
 
-This directory contains all the necessary files and scripts for generating and deploying the documentation of codes developed by CoMPhy Lab. The website is generated from source code files in the repository and is automatically deployed based on the repository configuration (domain from CNAME file, repository name auto-detected from git).
+This directory contains all the necessary files and scripts for generating and deploying the documentation of codes developed by CoMPhy Lab. The website is generated from source code files in the repository and is automatically deployed based on the repository configuration (domain from CNAME file, repository name auto-detected from git). Generated HTML is written to `.github/docs/`. Authored public reports live in the repository-root `docs/` tree and are not the Pages site.
 
 ## Website Generation Process
 
@@ -110,9 +110,9 @@ The website is deployed using GitHub Pages. The deployment URL is automatically 
 - **Path**: Auto-detected from the repository name via git remote
 
 The deployment process involves:
-1. Generating the documentation using `build.sh`.
-2. Pushing the generated documentation to the `gh-pages` branch.
-3. GitHub Pages serves the content from the `gh-pages` branch.
+1. Generating the documentation using `build.sh` (output in `.github/docs/`).
+2. Committing the generated site on `main`.
+3. GitHub Actions publishes `.github/docs/` to GitHub Pages.
 
 ## Customization
 

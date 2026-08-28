@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-GB"
+early_access: false
+
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  path_filters:
+    # Generated GitHub Pages site. Review .github/scripts/ instead.
+    - "!.github/docs/**"
+    # Vendored upstream Basilisk (gitignored; excluded for safety)
+    - "!basilisk/**"
+    # Simulation output and reference data, not source
+    - "!**/reference-data/**"
+    - "!**/*.tsv"
+    - "!**/*.csv"
+    - "!**/*.dat"
+    - "!**/*.npz"
+    - "!**/*.mp4"
+    - "!**/*.png"
+    - "!**/*.pdf"
+  path_instructions:
+    - path: "src-local/**"
+      instructions: |
+        Basilisk literate C: Markdown documentation lives inside /** */ comment
+        blocks and is part of the source contract. Basilisk extends C with
+        event/foreach constructs and @-macros; do not flag these as syntax
+        errors. Headers like two-phase.h or navier-stokes/centered.h resolve
+        from the upstream $BASILISK source tree, not this repository — do not
+        report them as missing includes. Focus on: dimensional consistency,
+        boundary-condition correctness, adaptivity criteria, and memory/field
+        lifecycle.
+    - path: "simulationCases/**"
+      instructions: |
+        Simulation entry points. Check parameter parsing against the .params
+        conventions, CFL/timestep logic, event ordering, and output paths.
+        Same Basilisk literate-C caveats as src-local.
+    - path: "postProcess/**"
+      instructions: |
+        Python/C analysis tooling. Review as ordinary code: correctness of the
+        physics extraction, file-handling robustness, and reproducibility.
+    - path: ".github/scripts/**"
+      instructions: |
+        These scripts GENERATE the excluded site under .github/docs/. Review
+        them carefully. They are the reviewable surface for the Pages HTML.
+    - path: "docs/**"
+      instructions: |
+        Authored public reports (Markdown, LaTeX). Review the prose and
+        equations, not the compiled PDF. Flag operational paths, unpublished
+        campaign numbers, and citations that do no work.
+    - path: "AGENTS.md"
+      instructions: |
+        Canonical repo operating manual. Check for stale state, broken
+        references, and contradictions with the actual repo layout.
+  tools:
+    # Standard C linters false-positive heavily on Basilisk literate C
+    cppcheck:
+      enabled: false
+    shellcheck:
+      enabled: true
+    ruff:
+      enabled: true
+    markdownlint:
+      enabled: true
+    actionlint:
+      enabled: true

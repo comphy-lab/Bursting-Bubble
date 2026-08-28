@@ -81,7 +81,18 @@ simulationCases/initialConditions/opening_angle.png
 
 # Case folders (4-digit case numbers: 1000-9999)
 simulationCases/[0-9][0-9][0-9][0-9]/
-docs/simulationCases/[0-9][0-9][0-9][0-9]/
+.github/docs/simulationCases/[0-9][0-9][0-9][0-9]/
+
+# LaTeX build artefacts under public docs
+docs/**/*.aux
+docs/**/*.log
+docs/**/*.out
+docs/**/*.toc
+docs/**/*.bbl
+docs/**/*.blg
+docs/**/*.fls
+docs/**/*.fdb_latexmk
+docs/**/*.synctex.gz
 
 # bview file
 **/display.html

@@ -83,7 +83,11 @@ vim sweep.params        # Set CASE_START, CASE_END, sweep variables
 ├── default-ve.params              Oldroyd-B usual-AMR configuration
 ├── default-ve-drill.params        Oldroyd-B drill configuration
 ├── sweep.params                   Sweep configuration
+├── docs/                          Public reports (Markdown, LaTeX, PDF)
+│   └── initial-conditions/        Young–Laplace and Bo=0 IC report
 ```
+
+Public reports live in `docs/`. The generated project website is built into `.github/docs/` and published by GitHub Pages.
 
 ## Key Parameters
 
