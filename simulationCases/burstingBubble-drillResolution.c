@@ -323,11 +323,15 @@ int main(int argc, char *argv[]) {
   Set the advective CFL and the timestep ceiling. Surface tension is
   time-explicit, so `tension.h` reduces the timestep each step to the
   capillary-wave period `T = sqrt(rho_m * Delta_min^3 / (pi * sigma))`;
-  `dtmax` is therefore a safety ceiling and the effective step is adaptive
+  the ceiling is therefore a safety limit and the effective step is adaptive
   (it scales with the finest cell size and the resolved physics).
+
+  The ceiling must be written to `DT`, not to `dtmax`. `centered.h` carries
+  `event set_dtmax (i++,last) dtmax = DT;`, so anything assigned to `dtmax`
+  here is discarded on the first step and the knob silently does nothing.
   */
   CFL = params.CFL;
-  dtmax = params.dtmax;
+  DT = params.dtmax;
   TOLERANCE = params.TOLERANCE;
 
   // Create a folder named intermediate where all the simulation snapshots are stored.

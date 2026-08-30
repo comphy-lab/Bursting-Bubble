@@ -1,10 +1,16 @@
 /**
-Vendored from comphy-lab/MultiRheoFlow `two-phaseVE.h`
-(commit 9d442b85f198474eb700874ebab3766fe8534a86, 2026-08-15).
-Prolongation follows the host Basilisk: `VE_USE_SET_PROLONGATION`
-selects `set_prolongation()` (current Stokes tree); otherwise the
-older `sf.prolongation` + `sf.dirty` pair (Worthington). Keep the
-G-lambda properties in lockstep with MultiRheoFlow.
+Vendored from comphy-lab/MultiRheoFlow `two-phaseVE.h`, reconciled with
+upstream `7d9c3df` (2026-08-30, PR #7 "adapt-basilisk-v2026-08-30").
+
+DELIBERATE DIVERGENCE FROM UPSTREAM. Upstream now calls `set_prolongation()`
+unconditionally, which requires Basilisk newer than the `sf.dirty` removal.
+This copy keeps the `VE_USE_SET_PROLONGATION` shim so the same source builds
+against old and new trees; `append_solver_qcc_flags()` in
+`src-local/parse_params.sh` defines the macro by probing the host tree for
+`void set_prolongation`. Do not "simplify" this back to upstream without
+first confirming every campaign host is on a new enough Basilisk.
+
+Keep the G-lambda properties in lockstep with MultiRheoFlow.
 */
 
 /**
