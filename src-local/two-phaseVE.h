@@ -153,3 +153,72 @@ event properties (i++) {
 #endif
 #endif
 }
+
+/**
+## Elastic-wave stability condition
+
+`tension.h` limits the timestep to the capillary-wave period. Nothing limited
+it to the *elastic* wave, and that omission is what destroyed the first
+viscoelastic campaign: seven runs at `Oh >= 0.024` blew up within one timestep,
+kinetic energy jumping from ~4 to between 1e9 and 1e100, always at the
+cavity-focus instant.
+
+The mechanism, measured rather than guessed. In the extensional flow at the jet
+base the axial conformation reaches `A11 ~ 3e5` — an extension ratio of ~550,
+which Oldroyd-B permits because it has no finite extensibility. The polymeric
+stress `Gp*A11` then supports a shear wave whose speed is
+$$
+c_e = \sqrt{\frac{G_p \,\mathrm{tr}\,\mathbf{A}}{\rho}}
+$$
+because a stretched dumbbell stiffens along its stretch direction: the modulus
+governing perturbations is `Gp*A`, not `Gp`. At the moment of failure `c_e`
+was ~52, giving `Delta/c_e = 4.70e-5`, while the solver was stepping at
+4.76e-5 — a ratio of 1.014. It was sitting exactly on the stability boundary
+and stepped over it.
+
+Restarting that same case with a step five times smaller walked straight
+through: the two runs agree to 1 part in 1e4 up to the failing step, after
+which one explodes by nine orders of magnitude and the other decays smoothly.
+
+So this is an explicit-scheme CFL condition on a wave family the code did not
+account for, not a limitation of Oldroyd-B. Imposing it here makes every
+viscoelastic run safe by construction instead of depending on a hand-tuned
+`DT` that must be re-guessed whenever `Ec` or the stretch changes.
+
+`CFL_elastic` defaults to 0.25 because that is the margin demonstrated to work
+(`dt/dt_limit = 0.213` in the successful restart), not a round number chosen
+for looks. `tr(A)` is used rather than the largest eigenvalue: it bounds the
+eigenvalue from above, so the criterion errs safe, and it costs no
+decomposition. The condition is inert for an unstretched polymer — at
+`A = I` it gives a limit far above the capillary one — so it only binds where
+the stretch is genuinely large.
+*/
+
+double CFL_elastic = 0.25;
+
+event stability (i++)
+{
+  if (CFL_elastic <= 0.)
+    return 0;
+  double dtelastic = HUGE;
+  foreach (reduction(min:dtelastic)) {
+    if (Gp[] > 0.) {
+      double trA = A11[] + A22[];
+#if AXI
+      trA += AThTh[];
+#endif
+      if (trA > 0. && isfinite(trA)) {
+        double rhom = rho(f[]);
+        if (rhom > 0.) {
+          double ce = sqrt (Gp[]*trA/rhom);
+          if (ce > 0.) {
+            double dte = CFL_elastic*Delta/ce;
+            if (dte < dtelastic) dtelastic = dte;
+          }
+        }
+      }
+    }
+  }
+  if (dtelastic < dtmax)
+    dtmax = dtelastic;
+}

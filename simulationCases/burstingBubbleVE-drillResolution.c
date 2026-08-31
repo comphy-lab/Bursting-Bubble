@@ -354,6 +354,7 @@ int main(int argc, char *argv[]) {
   here is discarded on the first step and the knob silently does nothing.
   */
   CFL = params.CFL;
+  CFL_elastic = params.CFLelastic;   // elastic-wave limit, see two-phaseVE.h
   DT = params.dtmax;
   TOLERANCE = params.TOLERANCE;
 

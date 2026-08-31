@@ -66,6 +66,12 @@ struct SimulationParams {
 
   // Adaptive TIME resolution
   double CFL;            /**< Advective CFL number */
+  double CFLelastic;     /**< Elastic-wave CFL safety factor. The polymeric
+                              stress supports a shear wave of speed
+                              sqrt(Gp*tr(A)/rho); nothing else in the timestep
+                              selection accounts for it, and the first VE
+                              campaign lost seven runs to exactly that
+                              omission. 0 disables the condition. */
   double dtmax;          /**< Ceiling on the timestep; surface tension reduces it
                               to the capillary-wave limit each step (adaptive dt) */
   double TOLERANCE;      /**< Poisson/viscous solver convergence tolerance */
@@ -173,6 +179,7 @@ static inline void set_default_params(struct SimulationParams *p) {
 
   // Adaptive time
   p->CFL = 0.1;
+  p->CFLelastic = 0.25;  // margin demonstrated to cross the cavity-focus instant
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
   p->keStopMax = 1.0e2;    // historical blow-up gate (ad hoc; see struct note)
@@ -227,6 +234,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "KErr")            == 0) p->KErr = atof(value);
   else if (strcmp(key, "AErr")            == 0) p->AErr = atof(value);
   else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
+  else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = atof(value);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
   else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
@@ -480,6 +488,11 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: CFL must be in (0, 1] (CFL = %g)\n", p->CFL);
     valid = 0;
   }
+  if (p->CFLelastic < 0 || p->CFLelastic > 1) {
+    fprintf(stderr, "ERROR: CFLelastic must be in [0, 1] (0 disables) (CFLelastic = %g)\n",
+            p->CFLelastic);
+    valid = 0;
+  }
   if (p->dtmax <= 0) {
     fprintf(stderr, "ERROR: dtmax must be positive (dtmax = %g)\n", p->dtmax);
     valid = 0;
@@ -572,6 +585,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
           p->fErr, p->VelErr, p->KErr, p->AErr);
   fprintf(fp, "Adaptive Time:\n");
   fprintf(fp, "  CFL:                    %g\n", p->CFL);
+  if (p->CFLelastic > 0)
+    fprintf(fp, "  CFL (elastic wave):     %g\n", p->CFLelastic);
+  else
+    fprintf(fp, "  CFL (elastic wave):     DISABLED\n");
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);
   fprintf(fp, "  Solver TOLERANCE:       %g\n", p->TOLERANCE);
   fprintf(fp, "  ke stop gates (min/max): %g / %g\n", p->keStopMin, p->keStopMax);
