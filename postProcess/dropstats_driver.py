@@ -214,7 +214,14 @@ def main():
     rising_resolved = [m for m in rising if m["resolved"]]
     Sb, Vb = 4.0 * math.pi, 4.0 * math.pi / 3.0   # R_0 = 1, so E_sb = sigma*Sb = Sb
 
-    first = rising[0] if rising else None
+    # Two distinct "first drops", reported separately rather than conflated.
+    # `first_detached` is the first fragment to leave the body, which at low Oh
+    # is routinely a sub-grid speck shed by the retracting film. The quantity
+    # the experiment reports is the first drop OF THE WORTHINGTON JET, and the
+    # nearest defensible proxy is the first *resolved* rising drop. Selecting
+    # the chronologically-first detachment silently measures the wrong object.
+    first = rising_resolved[0] if rising_resolved else None
+    first_detached = rising[0] if rising else None
     summary = dict(
         case=os.path.abspath(a.case),
         n_snapshots=len(snaps),
@@ -223,12 +230,17 @@ def main():
         n_rising=len(rising),
         min_cells=a.min_cells,
         n_rising_resolved=len(rising_resolved),
+        first_detached=None if first_detached is None else dict(
+            t=first_detached["t"], Rd_over_R0=first_detached["Rd"],
+            vz_over_Vc=first_detached["vz"], cells_per_radius=first_detached["cells"],
+            resolved=first_detached["resolved"],
+            note="first fragment to detach; may be a sub-grid speck, not the jet drop"),
         first_drop=None if first is None else dict(
             t=first["t"], Rd_over_R0=first["Rd"], vz_over_Vc=first["vz"],
             sphericity=first["sphericity"], cells_per_radius=first["cells"],
-            resolved=first["resolved"],
+            resolved=first["resolved"], n_among_all_rising=first["n"],
             ligament_warning=first["sphericity"] > SPHERICITY_WARN,
-            unresolved_warning=not first["resolved"]),
+            definition="first RESOLVED rising drop (>= min_cells per radius)"),
         emitted_totals_rising_resolved=dict(
             N=len(rising_resolved),
             St_over_Sb=sum(m["S"] for m in rising_resolved) / Sb,
@@ -251,6 +263,7 @@ def main():
         json.dump(summary, fh, indent=2)
 
     print(json.dumps(summary["first_drop"], indent=2), file=sys.stderr)
+
     print(f"N(rising)={len(rising)}  N(rising,resolved)={len(rising_resolved)}  "
           f"tracks={len(tracks)}  measured={len(measured)}", file=sys.stderr)
     if first is not None and not first["resolved"]:
