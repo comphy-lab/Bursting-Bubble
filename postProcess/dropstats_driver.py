@@ -44,6 +44,7 @@ MATCH_DZ = 0.25
 MATCH_VOL = 3.0
 SETTLE_TOL = 1e-2       # |dV/dt| / V, in inverse capillary times
 SPHERICITY_WARN = 1.15  # Rs/Rv above this is a ligament, not a drop
+MIN_CELLS = 8.0         # cells per drop radius below which the radius is the mesh
 
 
 def snapshots(case):
@@ -71,11 +72,15 @@ def run_tool(tool, path):
                         vr=float(f[13]), Ek=float(f[14]), ztip=float(f[15]),
                         rtip=float(f[16]), vtip=float(f[17]), Vtot=float(f[18]))
         elif f[0] == "DROP" and len(f) >= 14:
+            # `dmin`/`cells` are trailing columns added later; tolerate their
+            # absence so tables written by the earlier binary still parse.
             drops.append(dict(t=float(f[1]), id=int(f[2]), V=float(f[3]),
                               Rv=float(f[4]), S=float(f[5]), Rs=float(f[6]),
                               zc=float(f[7]), zmin=float(f[8]), zmax=float(f[9]),
                               rmax=float(f[10]), vz=float(f[11]),
-                              vr=float(f[12]), Ek=float(f[13])))
+                              vr=float(f[12]), Ek=float(f[13]),
+                              dmin=float(f[14]) if len(f) > 14 else float("nan"),
+                              cells=float(f[15]) if len(f) > 15 else float("nan")))
     if main is None:
         print(f"WARNING: no MAIN row from {path}", file=sys.stderr)
     return main, drops
@@ -143,6 +148,8 @@ def main():
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--ztop", type=float, default=4.0,
                     help="top boundary; drops within one radius of it have left")
+    ap.add_argument("--min-cells", type=float, default=MIN_CELLS,
+                    help="cells per radius below which a drop is treated as unresolved")
     a = ap.parse_args()
 
     snaps = snapshots(a.case)
@@ -164,13 +171,14 @@ def main():
     rows = []
     for ti, tr in enumerate(tracks):
         for d in tr:
-            rows.append(dict(d, n=nof.get(ti, 0), sphericity=d["Rs"] / d["Rv"] if d["Rv"] else 0.0))
+            rows.append(dict(d, n=nof.get(ti, 0),
+                             sphericity=d["Rs"] / d["Rv"] if d["Rv"] else 0.0))
     rows.sort(key=lambda r: (r["t"], r["n"]))
 
     with open(os.path.join(a.case, "dropstats.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["t", "track", "n", "id", "V", "Rv", "S", "Rs",
-                                           "sphericity", "zc", "zmin", "zmax", "rmax",
-                                           "vz", "vr", "Ek"])
+                                           "sphericity", "cells", "dmin", "zc", "zmin",
+                                           "zmax", "rmax", "vz", "vr", "Ek"])
         w.writeheader()
         w.writerows(rows)
 
@@ -192,12 +200,18 @@ def main():
         m = measure(tracks[ti])
         if m is None:
             continue
+        cells = m.get("cells", float("nan"))
         measured.append(dict(track=ti, n=len(measured) + 1, n_raw=nof[ti],
                              t=m["t"], Rd=m["Rv"], S=m["S"], V=m["V"],
-                             vz=m["vz"], Ek=m["Ek"],
+                             vz=m["vz"], Ek=m["Ek"], cells=cells,
+                             resolved=not (cells == cells and cells < a.min_cells),
                              sphericity=m["Rs"] / m["Rv"] if m["Rv"] else 0.0,
                              left_domain=m["zc"] > a.ztop - m["Rv"]))
     rising = [m for m in measured if m["vz"] > 0.0]
+    # Aggregates are reported over RESOLVED rising drops. An unresolved speck
+    # contributes a mesh-determined volume and area to N, S_t, V_t and E_kt, so
+    # including it silently corrupts every Fig-10 observable.
+    rising_resolved = [m for m in rising if m["resolved"]]
     Sb, Vb = 4.0 * math.pi, 4.0 * math.pi / 3.0   # R_0 = 1, so E_sb = sigma*Sb = Sb
 
     first = rising[0] if rising else None
@@ -207,11 +221,20 @@ def main():
         n_tracks=len(tracks),
         n_measured=len(measured),
         n_rising=len(rising),
+        min_cells=a.min_cells,
+        n_rising_resolved=len(rising_resolved),
         first_drop=None if first is None else dict(
             t=first["t"], Rd_over_R0=first["Rd"], vz_over_Vc=first["vz"],
-            sphericity=first["sphericity"],
-            ligament_warning=first["sphericity"] > SPHERICITY_WARN),
-        emitted_totals_rising_only=dict(
+            sphericity=first["sphericity"], cells_per_radius=first["cells"],
+            resolved=first["resolved"],
+            ligament_warning=first["sphericity"] > SPHERICITY_WARN,
+            unresolved_warning=not first["resolved"]),
+        emitted_totals_rising_resolved=dict(
+            N=len(rising_resolved),
+            St_over_Sb=sum(m["S"] for m in rising_resolved) / Sb,
+            Vt_over_Vb=sum(m["V"] for m in rising_resolved) / Vb,
+            Ekt_over_Esb=sum(m["Ek"] for m in rising_resolved) / Sb),
+        emitted_totals_rising_all=dict(
             N=len(rising),
             St_over_Sb=sum(m["S"] for m in rising) / Sb,
             Vt_over_Vb=sum(m["V"] for m in rising) / Vb,
@@ -221,14 +244,19 @@ def main():
         n_transient_tracks=len(tracks) - len(measured),
         per_drop=[dict(n=m["n"], track=m["track"], Rd_over_R0=m["Rd"],
                        vz_over_Vc=m["vz"], sphericity=m["sphericity"],
+                       cells_per_radius=m["cells"], resolved=m["resolved"],
                        rising=m["vz"] > 0.0) for m in measured],
     )
     with open(os.path.join(a.case, "dropstats_summary.json"), "w") as fh:
         json.dump(summary, fh, indent=2)
 
     print(json.dumps(summary["first_drop"], indent=2), file=sys.stderr)
-    print(f"N(rising)={len(rising)}  tracks={len(tracks)}  measured={len(measured)}",
-          file=sys.stderr)
+    print(f"N(rising)={len(rising)}  N(rising,resolved)={len(rising_resolved)}  "
+          f"tracks={len(tracks)}  measured={len(measured)}", file=sys.stderr)
+    if first is not None and not first["resolved"]:
+        print(f"WARNING: first drop is {first['cells']:.1f} cells per radius "
+              f"(< {a.min_cells}); its radius is mesh-limited, not physical.",
+              file=sys.stderr)
 
 
 if __name__ == "__main__":

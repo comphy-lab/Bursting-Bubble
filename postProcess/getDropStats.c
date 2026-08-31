@@ -31,8 +31,8 @@ which is checked and reported (`MAIN` row, `nliq` column) rather than assumed.
 ## Output (stderr, one line per row, whitespace separated)
 
 ```text
-MAIN t nliq ndrop V Rv S Rs zc zmin zmax rmax vz vr Ek ztip rtip vtip Vtot
-DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek
+MAIN t nliq ndrop V Rv S Rs zc zmin zmax rmax vz vr Ek ztip rtip vtip Vtot dmin cells
+DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek dmin cells
 ```
 
 - `V`   volume, axisymmetric `sum 2 pi y f Delta^2`
@@ -47,6 +47,13 @@ DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek
         and the axial velocity there (the jet tip, distinct from any drop)
 - `Vtot` total liquid volume in the domain; `Vtot - V(MAIN) - sum V(DROP)` is
         the mass left unassigned by the tagging, and should be a rounding error
+- `dmin`, `cells` finest cell resolving the body, and `Rv/dmin` — the number of
+        cells across the drop's radius. **This is not optional bookkeeping.** A
+        drop only a few cells across is reported at whatever radius the mesh can
+        represent, not its physical one, and sphericity does not catch it: a
+        well-resolved sphere and a four-cell blob both score ~0.99. Any drop
+        below roughly eight cells per radius is a mesh artefact until a
+        refinement study says otherwise.
 
 Lengths are in `R_0`, velocities in the inertio-capillary `V_c`, energies in
 `rho V_c^2 R_0^3`. Convert to the experimental viscous-capillary velocity with
@@ -67,7 +74,10 @@ binary reads Newtonian and viscoelastic snapshots.
 #include "fractions.h"
 #include "tag.h"
 
-char filename[80];
+/* Snapshot paths routinely exceed 80 bytes once a campaign run root is
+   included, and the historical `char filename[80]` in the other postProcess
+   tools overflows on those. Size for a real path and truncate safely. */
+char filename[4096];
 
 #define FDROP  0.5       // component threshold: every resolved drop exceeds it
 #define FEPS   1e-6      // interfacial band
@@ -79,7 +89,10 @@ int main (int a, char const *arguments[]) {
     fprintf (ferr, "usage: %s <snapshot>\n", arguments[0]);
     return 1;
   }
-  sprintf (filename, "%s", arguments[1]);
+  if (snprintf (filename, sizeof(filename), "%s", arguments[1]) >= (int) sizeof(filename)) {
+    fprintf (ferr, "ERROR: snapshot path longer than %zu bytes\n", sizeof(filename));
+    return 1;
+  }
   restore (file = filename);
 #if TREE
   f.prolongation = fraction_refine;
@@ -97,7 +110,7 @@ int main (int a, char const *arguments[]) {
   foreach() d[] = (f[] > FDROP);
   int n = tag (d);
   if (n < 1) {
-    fprintf (ferr, "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 0\n", t);
+    fprintf (ferr, "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 0 0 -1\n", t);
     fflush (ferr);
     return 0;
   }
@@ -127,7 +140,10 @@ int main (int a, char const *arguments[]) {
   double *cUR = calloc (n, sizeof(double)), *cEK = calloc (n, sizeof(double));
   double *cZMIN = calloc (n, sizeof(double)), *cZMAX = calloc (n, sizeof(double));
   double *cRMAX = calloc (n, sizeof(double));
-  for (int j = 0; j < n; j++) { cZMIN[j] = HUGE; cZMAX[j] = -HUGE; cRMAX[j] = 0.; }
+  double *cDMIN = calloc (n, sizeof(double));
+  for (int j = 0; j < n; j++) {
+    cZMIN[j] = HUGE; cZMAX[j] = -HUGE; cRMAX[j] = 0.; cDMIN[j] = HUGE;
+  }
 
   foreach(serial) {
     int j = (int) dm[] - 1;
@@ -141,6 +157,7 @@ int main (int a, char const *arguments[]) {
     if (x < cZMIN[j]) cZMIN[j] = x;
     if (x > cZMAX[j]) cZMAX[j] = x;
     if (f[] > FDROP && y > cRMAX[j]) cRMAX[j] = y;
+    if (Delta < cDMIN[j]) cDMIN[j] = Delta;      // finest cell resolving this body
     if (f[] > FEPS && f[] < 1. - FEPS) {            // interfacial area
       coord m = mycs (point, f);
       double alpha = plane_alpha (f[], m);
@@ -159,6 +176,7 @@ int main (int a, char const *arguments[]) {
   MPI_Allreduce (MPI_IN_PLACE, cZMIN, n, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cZMAX, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cRMAX, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce (MPI_IN_PLACE, cDMIN, n, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 #endif
 
   /**
@@ -200,22 +218,25 @@ int main (int a, char const *arguments[]) {
   double Rv = pow (3.*cV[main_id]/(4.*pi), 1./3.);
   double Rs = sqrt (cS[main_id]/(4.*pi));
   fprintf (ferr,
-    "MAIN %.8f %d %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e\n",
+    "MAIN %.8f %d %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f\n",
     t, nliq, ndrop, cV[main_id], Rv, cS[main_id], Rs,
     cZ[main_id]/cV[main_id], cZMIN[main_id], cZMAX[main_id], cRMAX[main_id],
     cUZ[main_id]/cV[main_id], cUR[main_id]/cV[main_id], cEK[main_id],
-    ztip, rtip, vtip, Vtot);
+    ztip, rtip, vtip, Vtot, cDMIN[main_id],
+    cDMIN[main_id] > 0. && cDMIN[main_id] < HUGE ? Rv/cDMIN[main_id] : -1.);
 
   for (int j = 0; j < n; j++) {
     if (j == main_id || cV[j] <= 0.) continue;
     fprintf (ferr,
-      "DROP %.8f %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e\n",
+      "DROP %.8f %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f\n",
       t, j + 1, cV[j], pow (3.*cV[j]/(4.*pi), 1./3.), cS[j], sqrt (cS[j]/(4.*pi)),
-      cZ[j]/cV[j], cZMIN[j], cZMAX[j], cRMAX[j], cUZ[j]/cV[j], cUR[j]/cV[j], cEK[j]);
+      cZ[j]/cV[j], cZMIN[j], cZMAX[j], cRMAX[j], cUZ[j]/cV[j], cUR[j]/cV[j], cEK[j],
+      cDMIN[j],
+      cDMIN[j] > 0. && cDMIN[j] < HUGE ? pow (3.*cV[j]/(4.*pi), 1./3.)/cDMIN[j] : -1.);
   }
   fflush (ferr);
 
   free (cV); free (cS); free (cZ); free (cUZ); free (cUR); free (cEK);
-  free (cZMIN); free (cZMAX); free (cRMAX);
+  free (cZMIN); free (cZMAX); free (cRMAX); free (cDMIN);
   return 0;
 }
