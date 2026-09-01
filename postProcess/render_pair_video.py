@@ -280,7 +280,6 @@ def render_frame(task: FrameTask) -> str:
         left.set(xlim=(-config.rmax, config.rmax), ylim=(config.zbot, config.ztop))
         left.set_aspect("equal")
         left.axis("off")
-        left.set_title("interface + jet-base marker", fontsize=12)
         right.imshow(
             grid,
             extent=[-config.rmax, config.rmax, config.zbot, config.ztop],
@@ -289,10 +288,11 @@ def render_frame(task: FrameTask) -> str:
         )
         right.set(xlim=(-config.rmax, config.rmax), ylim=(config.zbot, config.ztop))
         right.axis("off")
-        right.set_title("interface + adaptive mesh", fontsize=12)
-        # Equal-aspect axes can otherwise expand into the title area for some
-        # interface geometries. Reserve one fixed band for all video frames.
-        figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.86, wspace=0.14)
+        # Axes-attached titles can move or clip when equal-aspect boxes adjust
+        # to different interface geometries. Put all labels in figure space.
+        figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.82, wspace=0.14)
+        figure.text(0.27, 0.865, "interface + jet-base marker", ha="center", fontsize=12)
+        figure.text(0.73, 0.865, "interface + adaptive mesh", ha="center", fontsize=12)
         figure.suptitle(
             rf"$t/\tau_\gamma = {task.time:.4f}$    ke $= {task.kinetic_energy:.3f}$"
             rf"    maxlevel $= {task.maxlevel}$",
