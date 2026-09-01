@@ -60,9 +60,6 @@ export BASILISK="${BASILISK:-${HOME}/basilisk/src}"
 export PATH="${BASILISK}:${PATH}"
 test -x "${BASILISK}/qcc"
 python3 -c 'import matplotlib, numpy, PIL'
-VIDEO_FONT_PATH="$(fc-match -f '%{file}\n' 'DejaVu Serif' | head -n 1)"
-export VIDEO_FONT_PATH
-test -f "${VIDEO_FONT_PATH}"
 
 PP_SOURCE="${SUBMIT_REAL}/postProcess"
 for source in Video.py render_pair_video.py getFacetFull.c getData.c getBase.c getView2D.c; do

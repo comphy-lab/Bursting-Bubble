@@ -294,16 +294,17 @@ def render_frame(task: FrameTask) -> str:
         temporary = f"{task.target}.tmp.{os.getpid()}"
         try:
             figure.savefig(temporary, format="png", dpi=120)
-            font_path = os.environ.get("VIDEO_FONT_PATH", "DejaVuSerif.ttf")
-            title_font = ImageFont.truetype(font_path, 28)
-            panel_font = ImageFont.truetype(font_path, 23)
+            # Pillow's embedded font avoids concurrent FreeType/fontconfig
+            # reads, which can silently lose glyphs at full-node process counts.
+            title_font = ImageFont.load_default(size=28)
+            panel_font = ImageFont.load_default(size=23)
             with Image.open(temporary) as rendered:
                 annotated = rendered.convert("RGB")
             draw = ImageDraw.Draw(annotated)
             width, _ = annotated.size
             draw.text(
                 (width // 2, 22),
-                f"t/τγ = {task.time:.4f}    ke = {task.kinetic_energy:.3f}"
+                f"t/tau_g = {task.time:.4f}    ke = {task.kinetic_energy:.3f}"
                 f"    maxlevel = {task.maxlevel}",
                 fill="black",
                 font=title_font,
