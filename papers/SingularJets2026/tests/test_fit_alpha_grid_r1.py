@@ -68,6 +68,48 @@ def test_same_level_cases_remain_isolated_and_recover_slope():
     assert pooled.intercepts["case-a"] != pooled.intercepts["case-b"]
 
 
+def test_equal_run_aggregation_is_invariant_to_duplicate_sampling():
+    def points(label, slope, count):
+        x = np.linspace(-5.0, -3.0, count)
+        return [fit.BinnedPoint(label, 15, index, np.exp(value),
+                                np.exp(2.0+slope*value), 1)
+                for index, value in enumerate(x)]
+
+    baseline = {"coarse": points("coarse", 1.0, 5),
+                "fine": points("fine", 2.0, 20)}
+    duplicated = {"coarse": baseline["coarse"],
+                  "fine": [point for point in baseline["fine"]
+                           for _ in range(3)]}
+    equal_baseline = fit.pooled_run_intercepts(baseline, aggregation="equal-run")
+    equal_duplicated = fit.pooled_run_intercepts(duplicated, aggregation="equal-run")
+    point_baseline = fit.pooled_run_intercepts(baseline, aggregation="point-weighted")
+    point_duplicated = fit.pooled_run_intercepts(duplicated, aggregation="point-weighted")
+
+    assert equal_duplicated.slope == pytest.approx(equal_baseline.slope)
+    assert point_duplicated.slope != pytest.approx(point_baseline.slope)
+
+
+def test_invalid_diagnostic_aggregation_does_not_erase_selected_fit(monkeypatch):
+    original = fit.pooled_run_intercepts
+
+    def fail_equal_run(points_by_run, *, fixed_slope=None,
+                       aggregation="point-weighted"):
+        if aggregation == "equal-run":
+            raise ValueError("diagnostic aggregation failed")
+        return original(points_by_run, fixed_slope=fixed_slope,
+                        aggregation=aggregation)
+
+    monkeypatch.setattr(fit, "pooled_run_intercepts", fail_equal_run)
+    summary, _ = fit.fit_window(
+        _synthetic_runs(1.4), lower=0.005, upper=0.025, bins=12,
+        min_occupied_bins=6, aggregation="point-weighted")
+
+    assert summary["pooled"]["alpha_flux"] > 0
+    alternative = summary["aggregation_comparison"]["equal-run"]
+    assert alternative == {"valid": False,
+                           "reason": "diagnostic aggregation failed"}
+
+
 def test_temporal_bootstrap_is_seed_deterministic():
     kwargs = dict(lower=0.005, upper=0.025, bins=12, min_occupied_bins=6,
                   replicates=40, block_size=5, seed=17)

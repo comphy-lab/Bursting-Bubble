@@ -17,9 +17,11 @@ is offline and does not require SSH, Basilisk, `qcc`, `getFacet` or `pdftoppm`.
 - **`data-fig2a/`** — the four committed regular-grid field arrays and interface
   segment sets used by Fig. 2(a), plus checksummed raw-snapshot metadata.  These
   are the default inputs for both the panel renderer and full-figure compositor.
-- **`data-Oh-0.03/`** — the case we focus on (Bo=0, Oh=0.03). L13, L14, and
-  three L15 runs (pre-inception focus 13, 14, and 15). `bash reproduce-Oh0.03.sh`
-  → `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{png,pdf}`.
+- **`data-Oh-0.03/`** — the case we focus on (Bo=0, Oh=0.03). L13, L14,
+  three L15 runs (pre-inception focus 13, 14, and 15), and the R1 L16/focus-14
+  run. `bash reproduce-Oh0.03.sh` retains the submitted L13--L15 figure;
+  `figure-scripts/fit_alpha_grid_r1.py` accepts explicitly selected series for
+  the separate R1 resolution analysis.
 - **`facet-collapse-figure3/`** — Figure 3: the self-similar interface-collapse figure (pre/post inception, raw + rescaled by |t-t0|^alpha). `bash reproduce_facets.sh` -> `facet-collapse-figure3/fig3_Oh0.03_collapse.{png,pdf}`. See that folder's README.
 - **`data-Oh-0.02297/`** — Bo=0, Oh=0.02297. L13 + L14. `bash reproduce-Oh0.02297.sh` →
   `data-Oh-0.02297/gridconv_Oh0.02297_L13-L14.{png,pdf}`.

@@ -15,7 +15,9 @@
 # Required environment: CASEDIR, OUT, T0.
 # Optional: PRE_LO, RMAX (0.6), MAX_LOG_GAP (1e-3), MAX_FRAMES, FORCE (0|1).
 # Submit from the Bursting-Bubble run root so CASEDIR remains under its
-# simulationCases/ tree and OUT remains under postprocessed/.
+# simulationCases/ tree and OUT remains under postprocessed/.  The script may
+# live in a separate, immutable source checkout; SOURCE_ROOT can override the
+# repository inferred from this script's location.
 # =============================================================================
 set -euo pipefail
 
@@ -23,16 +25,18 @@ set -euo pipefail
 : "${OUT:?OUT must be set}"
 : "${T0:?T0 must be set}"
 
-SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
-SUBMIT_REAL="$(realpath "${SUBMIT_DIR}")"
+RUN_ROOT="${RUN_ROOT:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
+RUN_REAL="$(realpath "${RUN_ROOT}")"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SOURCE_REAL="$(realpath "${SOURCE_ROOT:-${SCRIPT_ROOT}}")"
 CASE_REAL="$(realpath "${CASEDIR}")"
 OUT_REAL="$(realpath -m "${OUT}")"
-[[ "${CASE_REAL}" == "${SUBMIT_REAL}"/simulationCases/* ]] || {
-    echo "CASEDIR must be below ${SUBMIT_REAL}/simulationCases" >&2
+[[ "${CASE_REAL}" == "${RUN_REAL}"/simulationCases/* ]] || {
+    echo "CASEDIR must be below ${RUN_REAL}/simulationCases" >&2
     exit 2
 }
-[[ "${OUT_REAL}" == "${SUBMIT_REAL}"/postprocessed/* ]] || {
-    echo "OUT must be below ${SUBMIT_REAL}/postprocessed" >&2
+[[ "${OUT_REAL}" == "${RUN_REAL}"/postprocessed/* ]] || {
+    echo "OUT must be below ${RUN_REAL}/postprocessed" >&2
     exit 2
 }
 
@@ -51,8 +55,8 @@ export BASILISK="${BASILISK:-${HOME}/basilisk/src}"
 export PATH="${BASILISK}:${PATH}"
 test -x "${BASILISK}/qcc"
 
-EXTRACTOR="${SUBMIT_REAL}/papers/SingularJets2026/facet-collapse-figure3/extract_full.py"
-FACET_SOURCE="${SUBMIT_REAL}/postProcess/getFacetFull.c"
+EXTRACTOR="${SOURCE_REAL}/papers/SingularJets2026/facet-collapse-figure3/extract_full.py"
+FACET_SOURCE="${SOURCE_REAL}/postProcess/getFacetFull.c"
 test -f "${EXTRACTOR}"
 test -f "${FACET_SOURCE}"
 

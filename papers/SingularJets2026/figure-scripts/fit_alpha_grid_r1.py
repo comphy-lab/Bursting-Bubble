@@ -208,24 +208,43 @@ def ols(points: Sequence[BinnedPoint], *, fixed_slope: float | None = None) -> R
 
 
 def pooled_run_intercepts(points_by_run: Mapping[str, Sequence[BinnedPoint]], *,
-                          fixed_slope: float | None = None) -> Regression:
-    """Fit a common slope with a distinct intercept for every explicit run."""
+                          fixed_slope: float | None = None,
+                          aggregation: str = "point-weighted") -> Regression:
+    """Fit a common slope with a distinct intercept for every explicit run.
+
+    ``point-weighted`` is the historical pooled least-squares estimator.  In
+    ``equal-run`` mode each run contributes its mean squared residual, so a
+    finely sampled trajectory cannot dominate a coarser trajectory merely by
+    occupying more radius bins.
+    """
     arrays = {label: _xy(points) for label, points in points_by_run.items()}
     if not arrays:
         raise ValueError("No binned points")
+    if aggregation not in {"point-weighted", "equal-run"}:
+        raise ValueError(f"Unknown aggregation: {aggregation}")
+    weights = {label: (1.0 if aggregation == "point-weighted" else 1.0/len(x))
+               for label, (x, _) in arrays.items()}
     if fixed_slope is None:
-        numerator = sum(float(np.sum((x-x.mean())*(y-y.mean()))) for x, y in arrays.values())
-        denominator = sum(float(np.sum((x-x.mean())**2)) for x, _ in arrays.values())
+        numerator = sum(weights[label]*float(np.sum((x-x.mean())*(y-y.mean())))
+                        for label, (x, y) in arrays.items())
+        denominator = sum(weights[label]*float(np.sum((x-x.mean())**2))
+                          for label, (x, _) in arrays.items())
         if denominator <= 0:
             raise ValueError("Pooled radii have zero within-run variance")
         slope = numerator / denominator
     else:
         slope = float(fixed_slope)
     intercepts = {label: float(np.mean(y-slope*x)) for label, (x, y) in arrays.items()}
-    residuals = np.concatenate([y-intercepts[label]-slope*x
-                                for label, (x, y) in arrays.items()])
+    residuals_by_run = {label: y-intercepts[label]-slope*x
+                        for label, (x, y) in arrays.items()}
+    residuals = np.concatenate(list(residuals_by_run.values()))
+    if aggregation == "equal-run":
+        rms = float(np.sqrt(np.mean([
+            np.mean(residual**2) for residual in residuals_by_run.values()])))
+    else:
+        rms = float(np.sqrt(np.mean(residuals**2)))
     return Regression(float(slope), intercepts,
-                      float(np.sqrt(np.mean(residuals**2))), int(residuals.size))
+                      rms, int(residuals.size))
 
 
 def alpha_from_flux_slope(slope: float) -> float:
@@ -260,13 +279,14 @@ def temporal_block_inference(
     series: Sequence[RunSeries], *, lower: float, upper: float, bins: int,
     min_occupied_bins: int, replicates: int, block_size: int, seed: int,
     null_alpha: float = INERTIO_CAPILLARY_ALPHA,
+    aggregation: str = "point-weighted",
 ) -> dict[str, object]:
     """Resample raw time blocks, re-bin, and test the alpha_flux=2/3 null."""
     if replicates < 1 or block_size < 1:
         raise ValueError("replicates and block_size must be positive")
     observed = pooled_run_intercepts(bin_runs(
         series, lower=lower, upper=upper, bins=bins,
-        min_occupied_bins=min_occupied_bins))
+        min_occupied_bins=min_occupied_bins), aggregation=aggregation)
     alpha_from_flux_slope(observed.slope)
     null_slope = slope_from_alpha(null_alpha)
     pair_rng, null_rng = np.random.default_rng(seed), np.random.default_rng(seed+1)
@@ -284,7 +304,8 @@ def temporal_block_inference(
             try:
                 slope = pooled_run_intercepts(bin_runs(
                     sampled, lower=lower, upper=upper, bins=bins,
-                    min_occupied_bins=min_occupied_bins)).slope
+                    min_occupied_bins=min_occupied_bins),
+                    aggregation=aggregation).slope
                 alpha_from_flux_slope(slope)
             except ValueError:
                 pass
@@ -309,7 +330,8 @@ def temporal_block_inference(
             try:
                 slope = pooled_run_intercepts(bin_runs(
                     synthetic, lower=lower, upper=upper, bins=bins,
-                    min_occupied_bins=min_occupied_bins)).slope
+                    min_occupied_bins=min_occupied_bins),
+                    aggregation=aggregation).slope
                 alpha_from_flux_slope(slope)
             except ValueError:
                 pass
@@ -328,30 +350,49 @@ def temporal_block_inference(
         "null_test_alpha_flux": null_alpha, "null_test_s_Q": null_slope,
         "null_test_p_two_sided": float(p_value),
         "null_test_method": "null-centred circular temporal-block residual bootstrap",
+        "aggregation": aggregation,
     }
 
 
 def fit_window(series: Sequence[RunSeries], *, lower: float, upper: float,
-               bins: int, min_occupied_bins: int):
+               bins: int, min_occupied_bins: int,
+               aggregation: str = "point-weighted"):
     binned = bin_runs(series, lower=lower, upper=upper, bins=bins,
                       min_occupied_bins=min_occupied_bins)
-    pooled = pooled_run_intercepts(binned)
+    pooled = pooled_run_intercepts(binned, aggregation=aggregation)
     alpha = alpha_from_flux_slope(pooled.slope)
     runs = {run.label: run for run in series}
     fixed = {}
     for name, candidate in (("alpha_flux_0p629", DEFAULT_ALPHA),
                             ("alpha_flux_2_over_3", INERTIO_CAPILLARY_ALPHA)):
-        result = pooled_run_intercepts(binned, fixed_slope=slope_from_alpha(candidate))
+        result = pooled_run_intercepts(binned, fixed_slope=slope_from_alpha(candidate),
+                                       aggregation=aggregation)
         fixed[name] = {"alpha_flux_fixed": candidate, "s_Q": result.slope,
                        "rms_log_Q": result.rms, "point_count": result.point_count}
     summary = {
-        "lower": lower, "upper": upper,
+        "lower": lower, "upper": upper, "aggregation": aggregation,
         "occupied_bins": {label: len(points) for label, points in binned.items()},
         "pooled": {"alpha_flux": alpha, **derived_slopes(pooled.slope),
                    "rms_log_Q": pooled.rms, "point_count": pooled.point_count,
                    "log_intercepts": dict(pooled.intercepts)},
         "per_run": {}, "fixed_alpha_flux_comparisons": fixed,
+        "aggregation_comparison": {},
     }
+    for mode in ("point-weighted", "equal-run"):
+        try:
+            result = pooled_run_intercepts(binned, aggregation=mode)
+            candidate_alpha = alpha_from_flux_slope(result.slope)
+        except ValueError as error:
+            # A diagnostic alternative must not erase a valid result from the
+            # explicitly selected aggregation mode.
+            summary["aggregation_comparison"][mode] = {
+                "valid": False, "reason": str(error)}
+        else:
+            summary["aggregation_comparison"][mode] = {
+                "valid": True, "reason": "", "alpha_flux": candidate_alpha,
+                **derived_slopes(result.slope), "rms_log_Q": result.rms,
+                "point_count": result.point_count,
+            }
     for label, points in binned.items():
         result = ols(points)
         summary["per_run"][label] = {
@@ -364,7 +405,8 @@ def fit_window(series: Sequence[RunSeries], *, lower: float, upper: float,
 def window_sensitivity(series: Sequence[RunSeries], *, lower_grid: Sequence[float],
                        upper_grid: Sequence[float], bins: int,
                        min_occupied_bins: int, replicates: int,
-                       block_size: int, seed: int):
+                       block_size: int, seed: int,
+                       aggregation: str = "point-weighted"):
     support = common_radius_support(series)
     rows, index = [], 0
     for requested_lower in sorted(set(lower_grid)):
@@ -372,17 +414,20 @@ def window_sensitivity(series: Sequence[RunSeries], *, lower_grid: Sequence[floa
             lower, upper = max(requested_lower, support[0]), min(requested_upper, support[1])
             row: dict[str, object] = {
                 "requested_lower": requested_lower, "requested_upper": requested_upper,
-                "effective_lower": lower, "effective_upper": upper}
+                "effective_lower": lower, "effective_upper": upper,
+                "aggregation": aggregation}
             if not lower < upper:
                 row.update(valid=False, reason="empty common-window intersection")
             else:
                 try:
                     summary, _ = fit_window(series, lower=lower, upper=upper, bins=bins,
-                                            min_occupied_bins=min_occupied_bins)
+                                            min_occupied_bins=min_occupied_bins,
+                                            aggregation=aggregation)
                     inference = temporal_block_inference(
                         series, lower=lower, upper=upper, bins=bins,
                         min_occupied_bins=min_occupied_bins, replicates=replicates,
-                        block_size=block_size, seed=seed+1009*index)
+                        block_size=block_size, seed=seed+1009*index,
+                        aggregation=aggregation)
                 except ValueError as error:
                     row.update(valid=False, reason=str(error))
                 else:
@@ -410,6 +455,7 @@ def _atomic_text(path: Path, text: str) -> None:
 
 def write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
     columns = ("requested_lower", "requested_upper", "effective_lower", "effective_upper",
+        "aggregation",
         "valid", "reason", "occupied_bins", "N_binned", "alpha_flux",
         "alpha_flux_ci95", "p_alpha_flux_2_over_3", "s_Q", "s_q", "s_We",
         "rms_free", "rms_alpha_flux_0p629", "rms_alpha_flux_2_over_3")
@@ -478,11 +524,13 @@ def analyse(args: argparse.Namespace) -> dict[str, object]:
     if not lower < upper:
         raise ValueError("Requested window has no common-run intersection")
     fit, binned = fit_window(series, lower=lower, upper=upper, bins=args.bins,
-                             min_occupied_bins=args.min_occupied_bins)
+                             min_occupied_bins=args.min_occupied_bins,
+                             aggregation=args.aggregation)
     fit["pooled"]["temporal_block_inference"] = temporal_block_inference(
         series, lower=lower, upper=upper, bins=args.bins,
         min_occupied_bins=args.min_occupied_bins, replicates=args.bootstrap,
-        block_size=args.block_size, seed=args.seed)
+        block_size=args.block_size, seed=args.seed,
+        aggregation=args.aggregation)
     for offset, run in enumerate(series, start=1):
         fit["per_run"][run.label]["temporal_block_inference"] = (
             temporal_block_inference(
@@ -494,20 +542,29 @@ def analyse(args: argparse.Namespace) -> dict[str, object]:
                 replicates=args.bootstrap,
                 block_size=args.block_size,
                 seed=args.seed + 100_003 * offset,
+                aggregation=args.aggregation,
             )
         )
     sensitivity, _ = window_sensitivity(series,
         lower_grid=args.lower_grid or [args.window[0]],
         upper_grid=args.upper_grid or [args.window[1]], bins=args.bins,
         min_occupied_bins=args.min_occupied_bins, replicates=args.bootstrap,
-        block_size=args.block_size, seed=args.seed)
+        block_size=args.block_size, seed=args.seed,
+        aggregation=args.aggregation)
     report = {"schema_version": 2, "physics_group": args.physics_group,
         "method": {"independent_observable": "Q_j = 2*pi*q_jet",
             "regression": "OLS(log(Q_j),log(r_j)); run-specific intercepts",
             "derived_relations": {"alpha_flux": "1/(3-s_Q)", "s_q": "s_Q-1",
                                   "s_We": "2*s_Q-3"},
             "case_isolation": "each --series is a separate trajectory",
+            "aggregation": args.aggregation,
+            "aggregation_note": ("each run has equal objective weight" if
+                args.aggregation == "equal-run" else
+                "each occupied binned point has equal objective weight"),
             "serial_correlation": "raw temporal blocks are resampled and re-binned",
+            "inference_scope": ("confidence intervals are conditional on the selected "
+                                "trajectories and do not include between-run or "
+                                "resolution heterogeneity"),
             "interpretation": "alpha_flux is not the beta-derived geometry alpha"},
         "inputs": [{"label": run.label, "level": run.level, "path": str(run.path),
                     "post_inception_rows": int(run.r_j.size)} for run in series],
@@ -535,6 +592,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--upper-grid", type=float, nargs="+")
     parser.add_argument("--bins", type=int, default=24)
     parser.add_argument("--min-occupied-bins", type=int, default=5)
+    parser.add_argument("--aggregation", choices=("point-weighted", "equal-run"),
+                        default="point-weighted")
     parser.add_argument("--bootstrap", type=int, default=2000)
     parser.add_argument("--block-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=20260901)
