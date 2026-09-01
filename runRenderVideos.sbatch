@@ -68,13 +68,17 @@ done
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sbb-video-${SLURM_JOB_ID}.XXXXXX")"
 trap 'rm -rf -- "${WORK_DIR}"' EXIT
-cp "${PP_SOURCE}/Video.py" "${PP_SOURCE}/render_pair_video.py" "${WORK_DIR}/"
+cp "${PP_SOURCE}/Video.py" "${PP_SOURCE}/render_pair_video.py" "${PP_SOURCE}"/*.c "${WORK_DIR}/"
 
-qcc -O2 -Wall -disable-dimensions "${PP_SOURCE}/getFacetFull.c" -o "${WORK_DIR}/getFacet" -lm
-qcc -O2 -Wall -disable-dimensions "${PP_SOURCE}/getData.c" -o "${WORK_DIR}/getData" -lm
-qcc -O2 -Wall -disable-dimensions "${PP_SOURCE}/getBase.c" -o "${WORK_DIR}/getBase" -lm
-qcc -O2 -Wall -disable-dimensions "${PP_SOURCE}/getView2D.c" -o "${WORK_DIR}/getView2D" \
+# qcc's parser is brittle with long GPFS source paths. Compile copied sources
+# from the short node-local work directory, matching the successful solver path.
+pushd "${WORK_DIR}" >/dev/null
+qcc -O2 -Wall -disable-dimensions getFacetFull.c -o getFacet -lm
+qcc -O2 -Wall -disable-dimensions getData.c -o getData -lm
+qcc -O2 -Wall -disable-dimensions getBase.c -o getBase -lm
+qcc -O2 -Wall -disable-dimensions getView2D.c -o getView2D \
     -L"${BASILISK}/gl" -lglutils -lfb_tiny -lm
+popd >/dev/null
 
 SNAPSHOT_COUNT="$(find "${CASE_REAL}/intermediate" -maxdepth 1 -type f -name 'snapshot-*' -printf . | wc -c)"
 ZERO_COUNT="$(find "${CASE_REAL}/intermediate" -maxdepth 1 -type f -name 'snapshot-*' -size 0 -printf . | wc -c)"
