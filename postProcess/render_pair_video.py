@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import csv
 import glob
 import math
 import multiprocessing as mp
@@ -46,7 +47,7 @@ matplotlib.rcParams["font.family"] = "serif"
 matplotlib.rcParams["mathtext.fontset"] = "cm"
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 GREEN = (0.0, 0.5, 0.0)
 
@@ -288,43 +289,12 @@ def render_frame(task: FrameTask) -> str:
         )
         right.set(xlim=(-config.rmax, config.rmax), ylim=(config.zbot, config.ztop))
         right.axis("off")
-        # Reserve a stable text band. Labels are added with Pillow after the
-        # Matplotlib render because concurrent Matplotlib text can lose glyphs.
-        figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.82, wspace=0.14)
+        # Keep frames text-free under full-node rendering. Time, kinetic
+        # energy and refinement metadata are written once in the parent.
+        figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.965, wspace=0.14)
         temporary = f"{task.target}.tmp.{os.getpid()}"
         try:
             figure.savefig(temporary, format="png", dpi=120)
-            # Pillow's embedded font avoids concurrent FreeType/fontconfig
-            # reads, which can silently lose glyphs at full-node process counts.
-            title_font = ImageFont.load_default(size=28)
-            panel_font = ImageFont.load_default(size=23)
-            with Image.open(temporary) as rendered:
-                annotated = rendered.convert("RGB")
-            draw = ImageDraw.Draw(annotated)
-            width, _ = annotated.size
-            draw.text(
-                (width // 2, 22),
-                f"t/tau_g = {task.time:.4f}    ke = {task.kinetic_energy:.3f}"
-                f"    maxlevel = {task.maxlevel}",
-                fill="black",
-                font=title_font,
-                anchor="ma",
-            )
-            draw.text(
-                (int(0.27 * width), 80),
-                "interface + jet-base marker",
-                fill="black",
-                font=panel_font,
-                anchor="ma",
-            )
-            draw.text(
-                (int(0.73 * width), 80),
-                "interface + adaptive mesh",
-                fill="black",
-                font=panel_font,
-                anchor="ma",
-            )
-            annotated.save(temporary, format="PNG")
             os.replace(temporary, task.target)
         finally:
             plt.close(figure)
@@ -372,6 +342,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     frames_dir = os.path.abspath(args.frames_dir or os.path.join(case_dir, "Video_pair"))
     os.makedirs(frames_dir, exist_ok=True)
     tasks = discover_tasks(case_dir, frames_dir, args.max_frames)
+    metadata = os.path.join(frames_dir, "frame-metadata.csv")
+    temporary_metadata = f"{metadata}.tmp.{os.getpid()}"
+    with open(temporary_metadata, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["frame", "time", "kinetic_energy", "maxlevel", "snapshot"])
+        for task in tasks:
+            writer.writerow(
+                [
+                    task.index,
+                    f"{task.time:.9g}",
+                    f"{task.kinetic_energy:.9g}",
+                    task.maxlevel,
+                    os.path.basename(task.snapshot),
+                ]
+            )
+    os.replace(temporary_metadata, metadata)
     config = RenderConfig(
         case_dir=case_dir,
         helper_dir=helper_dir,
