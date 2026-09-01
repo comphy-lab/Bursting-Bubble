@@ -12,25 +12,28 @@
 # =============================================================================
 # Full-node interface-facet extraction for one completed simulation case.
 #
-# Required environment: CASEDIR, OUT, T0.
+# Required environment: CASEDIR, OUT, T0, SOURCE_ROOT.
 # Optional: PRE_LO, RMAX (0.6), MAX_LOG_GAP (1e-3), MAX_FRAMES, FORCE (0|1).
 # Submit from the Bursting-Bubble run root so CASEDIR remains under its
 # simulationCases/ tree and OUT remains under postprocessed/.  The script may
-# live in a separate, immutable source checkout; SOURCE_ROOT can override the
-# repository inferred from this script's location.
+# live in a separate, immutable source checkout below postprocess-source/.
 # =============================================================================
 set -euo pipefail
 
 : "${CASEDIR:?CASEDIR must be set}"
 : "${OUT:?OUT must be set}"
 : "${T0:?T0 must be set}"
+: "${SOURCE_ROOT:?SOURCE_ROOT must name the immutable source checkout}"
 
 RUN_ROOT="${RUN_ROOT:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 RUN_REAL="$(realpath "${RUN_ROOT}")"
-SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SOURCE_REAL="$(realpath "${SOURCE_ROOT:-${SCRIPT_ROOT}}")"
+SOURCE_REAL="$(realpath "${SOURCE_ROOT}")"
 CASE_REAL="$(realpath "${CASEDIR}")"
 OUT_REAL="$(realpath -m "${OUT}")"
+[[ "${SOURCE_REAL}" == "${RUN_REAL}"/postprocess-source/* ]] || {
+    echo "SOURCE_ROOT must be below ${RUN_REAL}/postprocess-source" >&2
+    exit 2
+}
 [[ "${CASE_REAL}" == "${RUN_REAL}"/simulationCases/* ]] || {
     echo "CASEDIR must be below ${RUN_REAL}/simulationCases" >&2
     exit 2
