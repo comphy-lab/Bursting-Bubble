@@ -290,11 +290,14 @@ def render_frame(task: FrameTask) -> str:
         right.set(xlim=(-config.rmax, config.rmax), ylim=(config.zbot, config.ztop))
         right.axis("off")
         right.set_title("interface + adaptive mesh", fontsize=12)
+        # Equal-aspect axes can otherwise expand into the title area for some
+        # interface geometries. Reserve one fixed band for all video frames.
+        figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.86, wspace=0.14)
         figure.suptitle(
             rf"$t/\tau_\gamma = {task.time:.4f}$    ke $= {task.kinetic_energy:.3f}$"
             rf"    maxlevel $= {task.maxlevel}$",
             fontsize=14,
-            y=0.97,
+            y=0.965,
         )
         temporary = f"{task.target}.tmp.{os.getpid()}"
         try:
