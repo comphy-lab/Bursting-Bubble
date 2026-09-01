@@ -46,7 +46,7 @@ matplotlib.rcParams["font.family"] = "serif"
 matplotlib.rcParams["mathtext.fontset"] = "cm"
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 GREEN = (0.0, 0.5, 0.0)
 
@@ -288,20 +288,42 @@ def render_frame(task: FrameTask) -> str:
         )
         right.set(xlim=(-config.rmax, config.rmax), ylim=(config.zbot, config.ztop))
         right.axis("off")
-        # Axes-attached titles can move or clip when equal-aspect boxes adjust
-        # to different interface geometries. Put all labels in figure space.
+        # Reserve a stable text band. Labels are added with Pillow after the
+        # Matplotlib render because concurrent Matplotlib text can lose glyphs.
         figure.subplots_adjust(left=0.035, right=0.965, bottom=0.045, top=0.82, wspace=0.14)
-        figure.text(0.27, 0.865, "interface + jet-base marker", ha="center", fontsize=12)
-        figure.text(0.73, 0.865, "interface + adaptive mesh", ha="center", fontsize=12)
-        figure.suptitle(
-            rf"$t/\tau_\gamma = {task.time:.4f}$    ke $= {task.kinetic_energy:.3f}$"
-            rf"    maxlevel $= {task.maxlevel}$",
-            fontsize=14,
-            y=0.965,
-        )
         temporary = f"{task.target}.tmp.{os.getpid()}"
         try:
             figure.savefig(temporary, format="png", dpi=120)
+            font_path = os.environ.get("VIDEO_FONT_PATH", "DejaVuSerif.ttf")
+            title_font = ImageFont.truetype(font_path, 28)
+            panel_font = ImageFont.truetype(font_path, 23)
+            with Image.open(temporary) as rendered:
+                annotated = rendered.convert("RGB")
+            draw = ImageDraw.Draw(annotated)
+            width, _ = annotated.size
+            draw.text(
+                (width // 2, 22),
+                f"t/τγ = {task.time:.4f}    ke = {task.kinetic_energy:.3f}"
+                f"    maxlevel = {task.maxlevel}",
+                fill="black",
+                font=title_font,
+                anchor="ma",
+            )
+            draw.text(
+                (int(0.27 * width), 80),
+                "interface + jet-base marker",
+                fill="black",
+                font=panel_font,
+                anchor="ma",
+            )
+            draw.text(
+                (int(0.73 * width), 80),
+                "interface + adaptive mesh",
+                fill="black",
+                font=panel_font,
+                anchor="ma",
+            )
+            annotated.save(temporary, format="PNG")
             os.replace(temporary, task.target)
         finally:
             plt.close(figure)
