@@ -32,8 +32,13 @@ import tempfile
 
 # Best-effort worker isolation: per-process matplotlib cache dir and single-thread
 # BLAS/OMP. Must run before "import matplotlib" so the settings take effect.
-os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), f"mpl_{os.getpid()}"))
+os.environ["MPLCONFIGDIR"] = os.path.join(tempfile.gettempdir(), f"mpl_{os.getpid()}")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ["TEXMFVAR"] = os.path.join(tempfile.gettempdir(), f"texmf-var_{os.getpid()}")
+os.environ["TEXMFCONFIG"] = os.path.join(tempfile.gettempdir(), f"texmf-config_{os.getpid()}")
 
 import argparse
 import multiprocessing as mp
@@ -269,7 +274,9 @@ def parse_arguments() -> RuntimeConfig:
 
     # nGFS caps the frame count; 0 (the default) = all snapshots found on disk
     n_found = len(discover_snapshots(args.caseToProcess))
-    n_snapshots = args.nGFS if args.nGFS > 0 else n_found
+    if n_found == 0:
+        parser.error(f"No snapshot-* files found below {args.caseToProcess}/intermediate")
+    n_snapshots = min(args.nGFS, n_found) if args.nGFS > 0 else n_found
 
     return RuntimeConfig(
         cpus=args.cpus,
@@ -421,9 +428,16 @@ def discover_snapshots(case_dir: str):
     key = os.path.abspath(case_dir)
     if key not in _SNAPSHOT_CACHE:
         paths = glob.glob(os.path.join(case_dir, "intermediate", "snapshot-*"))
-        _SNAPSHOT_CACHE[key] = sorted(
+        snapshots = sorted(
             (float(p.rsplit("snapshot-", 1)[-1]), p) for p in paths
         )
+        times = [time for time, _ in snapshots]
+        if len(times) != len(set(times)):
+            raise ValueError(f"Duplicate snapshot times found below {case_dir}/intermediate")
+        empty = [path for _, path in snapshots if os.path.getsize(path) == 0]
+        if empty:
+            raise ValueError(f"Zero-byte snapshot found: {empty[0]}")
+        _SNAPSHOT_CACHE[key] = snapshots
     return _SNAPSHOT_CACHE[key]
 
 
@@ -571,17 +585,22 @@ def plot_snapshot(
         style=style,
     )
 
-    plt.savefig(snapshot.target, bbox_inches="tight")
-    plt.close(fig)
+    temporary = f"{snapshot.target}.tmp.{os.getpid()}"
+    try:
+        plt.savefig(temporary, format="png", bbox_inches="tight")
+        os.replace(temporary, snapshot.target)
+    finally:
+        plt.close(fig)
+        if os.path.exists(temporary):
+            os.remove(temporary)
 
 
-def process_timestep(index: int, config: RuntimeConfig, style: PlotStyle) -> None:
+def process_timestep(snapshot: SnapshotInfo, config: RuntimeConfig, style: PlotStyle) -> None:
     """
-    Worker executed for every timestep index.
+    Worker executed for one parent-discovered snapshot.
 
     Performs availability checks, loads helper outputs, and calls plot_snapshot.
     """
-    snapshot = build_snapshot_info(index, config)
     if not os.path.exists(snapshot.source):
         log_status(f"Missing: {os.path.basename(snapshot.source)}", level="WARN")
         return
@@ -657,9 +676,19 @@ def main():
     log_status(f"Processing case: {config.case_dir}")
     log_status(f"Domain: R=[{config.rmin:.2f},{config.rmax:.2f}], Z=[{config.zmin:.2f},{config.zmax:.2f}]")
 
-    with mp.Pool(processes=config.cpus) as pool:
+    tasks = [build_snapshot_info(index, config) for index in range(config.n_snapshots)]
+    worker_count = min(config.cpus, len(tasks))
+    with mp.get_context("spawn").Pool(processes=worker_count) as pool:
         worker = partial(process_timestep, config=config, style=PLOT_STYLE)
-        pool.map(worker, range(config.n_snapshots))
+        pool.map(worker, tasks, chunksize=1)
+
+    missing = [
+        task.target
+        for task in tasks
+        if not os.path.isfile(task.target) or os.path.getsize(task.target) == 0
+    ]
+    if missing:
+        raise RuntimeError(f"Frame generation incomplete; first missing frame: {missing[0]}")
 
     if not config.skip_video_encode:  # encode video unless skipped
         encode_video(config)
