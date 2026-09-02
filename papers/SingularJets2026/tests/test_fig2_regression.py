@@ -36,9 +36,25 @@ def test_canonical_window_is_metadata_backed():
     assert flux.CONE_FIT_WINDOW == (0.005, 0.023952)
 
 
-def test_figure_legend_matches_archived_focus_caps():
-    assert figure_v2.SHORT_LEGEND_LABELS[r"L13"] == r"Level 13, focus 12"
-    assert figure_v2.SHORT_LEGEND_LABELS[r"L14"] == r"Level 14, focus 12"
+def test_figure_legend_uses_pre_post_inception_pairs():
+    expected = {
+        r"(12,13)": r"$(12,13)$",
+        r"(12,14)": r"$(12,14)$",
+        r"(13,15)": r"$(13,15)$",
+        r"(14,15)": r"$(14,15)$",
+        r"(15,15)": r"$(15,15)$",
+        r"(14,16)": r"$(14,16)$",
+    }
+    assert {run.label for run in flux.RUNS} == set(expected)
+    assert [(run.focus, run.level) for run in flux.RUNS] == [
+        (12, 13),
+        (12, 14),
+        (13, 15),
+        (14, 15),
+        (15, 15),
+        (14, 16),
+    ]
+    assert {label: figure_v2.SHORT_LEGEND_LABELS[label] for label in expected} == expected
 
 
 def test_panel_a_metadata_matches_archive_schema():

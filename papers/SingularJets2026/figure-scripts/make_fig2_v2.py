@@ -50,11 +50,12 @@ flux = load_script_module("fig2_flux_scalings", SCRIPT_DIR / "make_fig2_flux_sca
 SHORT_LEGEND_LABELS = {
     rf"cone ($\alpha={flux.ALPHA:.3f}$)": rf"present theory, $\alpha={flux.ALPHA:.3f}$",
     r"inertio-capillary": r"inertio-capillary, $\alpha=2/3$",
-    r"L13": r"Level 13, focus 12",
-    r"L14": r"Level 14, focus 12",
-    r"L15, focus 13": r"Level 15, focus 13",
-    r"L15, focus 14": r"Level 15, focus 14",
-    r"L15, focus 15": r"Level 15, focus 15",
+    r"(12,13)": r"$(12,13)$",
+    r"(12,14)": r"$(12,14)$",
+    r"(13,15)": r"$(13,15)$",
+    r"(14,15)": r"$(14,15)$",
+    r"(15,15)": r"$(15,15)$",
+    r"(14,16)": r"$(14,16)$",
 }
 
 
@@ -378,10 +379,18 @@ def build_figure(args: argparse.Namespace) -> None:
     legend_top = 0.160
     theory_legend_ax = fig.add_axes([0.405, 0.020, 0.342, legend_top - 0.020])
     theory_legend_ax.axis("off")
-    symbol_left_legend_ax = fig.add_axes([0.658, 0.098, 0.172, legend_top - 0.098])
+    symbol_left_legend_ax = fig.add_axes([0.695, 0.062, 0.145, legend_top - 0.062])
     symbol_left_legend_ax.axis("off")
-    symbol_right_legend_ax = fig.add_axes([0.828, 0.062, 0.167, legend_top - 0.062])
+    symbol_right_legend_ax = fig.add_axes([0.845, 0.062, 0.150, legend_top - 0.062])
     symbol_right_legend_ax.axis("off")
+    fig.text(
+        0.695,
+        0.173,
+        r"Levels (pre-, post-inception)",
+        ha="left",
+        va="bottom",
+        fontsize=flux.APS["LegendFont"],
+    )
     ax_b = fig.add_axes([0.430, 0.325, 0.258, 0.600])
     ax_c = fig.add_axes([0.735, 0.325, 0.255, 0.600])
 
@@ -455,8 +464,8 @@ def build_figure(args: argparse.Namespace) -> None:
         borderaxespad=0.0,
     )
     symbol_left_legend_ax.legend(
-        handles[3:5],
-        labels[3:5],
+        handles[3:6],
+        labels[3:6],
         loc="upper left",
         bbox_to_anchor=(0.0, 1.0),
         ncol=1,
@@ -468,8 +477,8 @@ def build_figure(args: argparse.Namespace) -> None:
         borderaxespad=0.0,
     )
     symbol_right_legend_ax.legend(
-        handles[5:],
-        labels[5:],
+        handles[6:],
+        labels[6:],
         loc="upper left",
         bbox_to_anchor=(0.0, 1.0),
         ncol=1,

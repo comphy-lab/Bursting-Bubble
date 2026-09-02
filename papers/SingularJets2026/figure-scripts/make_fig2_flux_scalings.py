@@ -71,6 +71,7 @@ LEVEL_COLOURS = {
     13: "#0072B2",
     14: "#D55E00",
     15: "#009E73",
+    16: "#CC79A7",
 }
 GREY = "#666666"
 LIGHT_GREY = "#d9d9d9"
@@ -92,11 +93,12 @@ class RunSpec:
 
 
 RUNS = (
-    RunSpec("3013_L13_log.txt", r"L13", 13, None, "o"),
-    RunSpec("4015_L14_log.txt", r"L14", 14, None, "s"),
-    RunSpec("5001_L15_focus13_log.txt", r"L15, focus 13", 15, 13, "D"),
-    RunSpec("5003_L15_focus14_log.txt", r"L15, focus 14", 15, 14, "P"),
-    RunSpec("5008_L15_focus15_log.txt", r"L15, focus 15", 15, 15, "X"),
+    RunSpec("3013_L13_log.txt", r"(12,13)", 13, 12, "o"),
+    RunSpec("4015_L14_log.txt", r"(12,14)", 14, 12, "s"),
+    RunSpec("5001_L15_focus13_log.txt", r"(13,15)", 15, 13, "D"),
+    RunSpec("5003_L15_focus14_log.txt", r"(14,15)", 15, 14, "P"),
+    RunSpec("5008_L15_focus15_log.txt", r"(15,15)", 15, 15, "X"),
+    RunSpec("6001_L16_focus14_log.txt", r"(14,16)", 16, 14, "^"),
 )
 
 COLUMNS = (
