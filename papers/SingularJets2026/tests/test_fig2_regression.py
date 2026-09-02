@@ -36,6 +36,11 @@ def test_canonical_window_is_metadata_backed():
     assert flux.CONE_FIT_WINDOW == (0.005, 0.023952)
 
 
+def test_figure_legend_matches_archived_focus_caps():
+    assert figure_v2.SHORT_LEGEND_LABELS[r"L13"] == r"Level 13, focus 12"
+    assert figure_v2.SHORT_LEGEND_LABELS[r"L14"] == r"Level 14, focus 12"
+
+
 def test_panel_a_metadata_matches_archive_schema():
     assert figure_2a.FIG2A_METADATA["regular_grid"]["columns"] == list(
         figure_2a.Field.__dataclass_fields__

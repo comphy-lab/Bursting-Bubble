@@ -50,8 +50,8 @@ flux = load_script_module("fig2_flux_scalings", SCRIPT_DIR / "make_fig2_flux_sca
 SHORT_LEGEND_LABELS = {
     rf"cone ($\alpha={flux.ALPHA:.3f}$)": rf"present theory, $\alpha={flux.ALPHA:.3f}$",
     r"inertio-capillary": r"inertio-capillary, $\alpha=2/3$",
-    r"L13": r"Level 13, focus 13",
-    r"L14": r"Level 14, focus 13",
+    r"L13": r"Level 13, focus 12",
+    r"L14": r"Level 14, focus 12",
     r"L15, focus 13": r"Level 15, focus 13",
     r"L15, focus 14": r"Level 15, focus 14",
     r"L15, focus 15": r"Level 15, focus 15",
