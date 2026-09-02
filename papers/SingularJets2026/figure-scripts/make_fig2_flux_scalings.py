@@ -67,11 +67,13 @@ LINE = {
     "markeredgewidth": 0.28,
 }
 
-LEVEL_COLOURS = {
-    13: "#0072B2",
-    14: "#D55E00",
-    15: "#009E73",
-    16: "#CC79A7",
+PAIR_COLOURS = {
+    (12, 13): "#7BB7D9",  # pre-12 blue, lighter post-13 shade
+    (12, 14): "#0072B2",  # pre-12 blue, darker post-14 shade
+    (13, 15): "#E69F00",  # pre-13 orange
+    (14, 15): "#49B58F",  # pre-14 green, lighter post-15 shade
+    (14, 16): "#007A59",  # pre-14 green, darker post-16 shade
+    (15, 15): "#CC79A7",  # pre-15 purple
 }
 GREY = "#666666"
 LIGHT_GREY = "#d9d9d9"
@@ -89,16 +91,16 @@ class RunSpec:
 
     @property
     def colour(self) -> str:
-        return LEVEL_COLOURS[self.level]
+        return PAIR_COLOURS[(self.focus, self.level)]
 
 
 RUNS = (
     RunSpec("3013_L13_log.txt", r"(12,13)", 13, 12, "o"),
-    RunSpec("4015_L14_log.txt", r"(12,14)", 14, 12, "s"),
-    RunSpec("5001_L15_focus13_log.txt", r"(13,15)", 15, 13, "D"),
-    RunSpec("5003_L15_focus14_log.txt", r"(14,15)", 15, 14, "P"),
-    RunSpec("5008_L15_focus15_log.txt", r"(15,15)", 15, 15, "X"),
+    RunSpec("4015_L14_log.txt", r"(12,14)", 14, 12, "o"),
+    RunSpec("5001_L15_focus13_log.txt", r"(13,15)", 15, 13, "s"),
+    RunSpec("5003_L15_focus14_log.txt", r"(14,15)", 15, 14, "^"),
     RunSpec("6001_L16_focus14_log.txt", r"(14,16)", 16, 14, "^"),
+    RunSpec("5008_L15_focus15_log.txt", r"(15,15)", 15, 15, "D"),
 )
 
 COLUMNS = (
@@ -366,11 +368,7 @@ def optimise_cone_fit_window(
 
 
 def marker_alpha(run: RunSpec) -> float:
-    if run.level == 15 and run.focus == 15:
-        return 0.94
-    if run.level == 15:
-        return 0.74
-    return 0.48
+    return 1.0
 
 
 def draw_theory(

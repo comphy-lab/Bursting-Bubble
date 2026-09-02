@@ -31,7 +31,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = Path(__file__).resolve().parent
 APS_DOUBLE_COL = 6.75
-FIG_HEIGHT = 2.62
+FIG_HEIGHT = 2.78
 
 
 def load_script_module(name: str, path: Path):
@@ -155,6 +155,7 @@ def draw_flux_panel(
     cone_fit_window: tuple[float, float],
     show_labels: bool,
     resample_markers: bool = True,
+    marker_target: int = 36,
 ) -> None:
     ax.axvspan(*cone_fit_window, color=flux.LIGHT_GREY, alpha=0.22, lw=0, zorder=0)
     draw_theory_v2(
@@ -168,7 +169,9 @@ def draw_flux_panel(
 
     for run, series in series_by_run:
         if resample_markers:
-            idx = flux.log_bin_indices(series["r_j"], series[quantity], target=52)
+            idx = flux.log_bin_indices(
+                series["r_j"], series[quantity], target=marker_target
+            )
         else:
             idx = np.arange(len(series["r_j"]), dtype=int)
         ax.plot(
@@ -377,20 +380,10 @@ def build_figure(args: argparse.Namespace) -> None:
     draw_panel_a(fig, (0.014, 0.105, 0.365, 0.790), args)
 
     legend_top = 0.160
-    theory_legend_ax = fig.add_axes([0.405, 0.020, 0.342, legend_top - 0.020])
+    theory_legend_ax = fig.add_axes([0.405, 0.025, 0.310, legend_top - 0.025])
     theory_legend_ax.axis("off")
-    symbol_left_legend_ax = fig.add_axes([0.695, 0.062, 0.145, legend_top - 0.062])
-    symbol_left_legend_ax.axis("off")
-    symbol_right_legend_ax = fig.add_axes([0.845, 0.062, 0.150, legend_top - 0.062])
-    symbol_right_legend_ax.axis("off")
-    fig.text(
-        0.695,
-        0.173,
-        r"Levels (pre-, post-inception)",
-        ha="left",
-        va="bottom",
-        fontsize=flux.APS["LegendFont"],
-    )
+    symbol_legend_ax = fig.add_axes([0.740, 0.025, 0.255, 0.125])
+    symbol_legend_ax.axis("off")
     ax_b = fig.add_axes([0.430, 0.325, 0.258, 0.600])
     ax_c = fig.add_axes([0.735, 0.325, 0.255, 0.600])
 
@@ -463,31 +456,24 @@ def build_figure(args: argparse.Namespace) -> None:
         labelspacing=0.32,
         borderaxespad=0.0,
     )
-    symbol_left_legend_ax.legend(
-        handles[3:6],
-        labels[3:6],
+    pair_handles = handles[3:]
+    pair_labels = labels[3:]
+    row_major_order = (0, 3, 1, 4, 2, 5)
+    symbol_legend_ax.legend(
+        [pair_handles[index] for index in row_major_order],
+        [pair_labels[index] for index in row_major_order],
         loc="upper left",
         bbox_to_anchor=(0.0, 1.0),
-        ncol=1,
+        ncol=3,
         frameon=False,
         fontsize=flux.APS["LegendFont"],
-        handlelength=0.55,
-        handletextpad=0.12,
-        labelspacing=0.30,
+        handlelength=0.45,
+        handletextpad=0.08,
+        columnspacing=0.35,
+        labelspacing=0.20,
         borderaxespad=0.0,
-    )
-    symbol_right_legend_ax.legend(
-        handles[6:],
-        labels[6:],
-        loc="upper left",
-        bbox_to_anchor=(0.0, 1.0),
-        ncol=1,
-        frameon=False,
-        fontsize=flux.APS["LegendFont"],
-        handlelength=0.55,
-        handletextpad=0.12,
-        labelspacing=0.30,
-        borderaxespad=0.0,
+        title=r"Levels $(\ell_{\rm pre},\ell_{\rm post})$",
+        title_fontsize=flux.APS["LegendFont"],
     )
 
     atomic_savefig(fig, args.output, dpi=300)
@@ -525,7 +511,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--interp-marker-target",
         type=int,
-        default=52,
+        default=36,
         help="Log-binned Q_j marker count used before sampling interpolated We_j.",
     )
     parser.add_argument(

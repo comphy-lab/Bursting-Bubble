@@ -51,10 +51,20 @@ def test_figure_legend_uses_pre_post_inception_pairs():
         (12, 14),
         (13, 15),
         (14, 15),
-        (15, 15),
         (14, 16),
+        (15, 15),
     ]
     assert {label: figure_v2.SHORT_LEGEND_LABELS[label] for label in expected} == expected
+
+
+def test_figure_styles_encode_pre_level_then_post_shade():
+    by_pair = {(run.focus, run.level): run for run in flux.RUNS}
+    assert by_pair[(12, 13)].marker == by_pair[(12, 14)].marker == "o"
+    assert by_pair[(14, 15)].marker == by_pair[(14, 16)].marker == "^"
+    assert len({run.marker for run in flux.RUNS}) == 4
+    assert by_pair[(12, 13)].colour != by_pair[(12, 14)].colour
+    assert by_pair[(14, 15)].colour != by_pair[(14, 16)].colour
+    assert set(flux.PAIR_COLOURS) == set(by_pair)
 
 
 def test_panel_a_metadata_matches_archive_schema():
