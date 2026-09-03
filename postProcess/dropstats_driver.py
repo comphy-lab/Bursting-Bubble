@@ -251,8 +251,19 @@ def main():
             St_over_Sb=sum(m["S"] for m in rising) / Sb,
             Vt_over_Vb=sum(m["V"] for m in rising) / Vb,
             Ekt_over_Esb=sum(m["Ek"] for m in rising) / Sb),
-        mass_closure_max_residual=max(
+        # Vtot - V is liquid outside the main body, i.e. the detached volume.
+        # It grows as drops are emitted and is physics, not error. It was once
+        # named mass_closure_max_residual, which invited exactly the wrong
+        # reading: an absolute 0.04 on a pool of 1880 looks alarming next to a
+        # relative tolerance and is in fact 2e-5.
+        detached_volume_max_abs=max(
             abs(m["Vtot"] - m["V"]) for m in mains) if mains else None,
+        # The real closure test: drift of the total liquid volume against its
+        # initial value. Nothing physical removes liquid from the domain here,
+        # so any drift is solver or reduction error.
+        mass_closure_max_rel=(
+            max(abs(m["Vtot"] - mains[0]["Vtot"]) for m in mains)
+            / mains[0]["Vtot"]) if mains and mains[0]["Vtot"] else None,
         n_transient_tracks=len(tracks) - len(measured),
         per_drop=[dict(n=m["n"], track=m["track"], Rd_over_R0=m["Rd"],
                        vz_over_Vc=m["vz"], sphericity=m["sphericity"],
