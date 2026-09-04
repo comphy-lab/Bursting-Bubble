@@ -126,6 +126,14 @@ struct SimulationParams {
                                   Only ever sets the latch, never clears it;
                                   a drillstate file, when present, is read
                                   first. Default 0. */
+  int tipMetricsLog;         /**< 1 = write the versioned per-step axis-tip
+                                  curvature/velocity sidecar `tip_metrics.log`;
+                                  the established 11-column `log` is unchanged. */
+  int drillHoldMaxUntilTipPinch; /**< 1 = hold the post-inception AMR ceiling at
+                                      MAXlevel until the tip-pinch latch fires,
+                                      so the requested level can reach the tip. */
+  int drillStopAtTipPinch;    /**< 1 = stop cleanly after logging and dumping the
+                                  first persistent tip-pinch state. */
 };
 
 /**
@@ -180,6 +188,9 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
   p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
   p->drillAssumeJet = 0;        // don't assume a formed jet on restore
+  p->tipMetricsLog = 0;         // keep the extra per-step diagnostic opt-in
+  p->drillHoldMaxUntilTipPinch = 0;
+  p->drillStopAtTipPinch = 0;
 }
 
 /**
@@ -224,6 +235,9 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
   else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
   else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
+  else if (strcmp(key, "tipMetricsLog")       == 0) p->tipMetricsLog = atoi(value);
+  else if (strcmp(key, "drillHoldMaxUntilTipPinch") == 0) p->drillHoldMaxUntilTipPinch = atoi(value);
+  else if (strcmp(key, "drillStopAtTipPinch") == 0) p->drillStopAtTipPinch = atoi(value);
   else return 0;
   return 1;
 }
@@ -465,6 +479,29 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: Invalid tsnap (tsnap = %g, tmax = %g)\n", p->tsnap, p->tmax);
     valid = 0;
   }
+  if (p->tipMetricsLog != 0 && p->tipMetricsLog != 1) {
+    fprintf(stderr, "ERROR: tipMetricsLog (%d) must be 0 or 1\n",
+            p->tipMetricsLog);
+    valid = 0;
+  }
+  if (p->drillHoldMaxUntilTipPinch != 0 && p->drillHoldMaxUntilTipPinch != 1) {
+    fprintf(stderr, "ERROR: drillHoldMaxUntilTipPinch (%d) must be 0 or 1\n",
+            p->drillHoldMaxUntilTipPinch);
+    valid = 0;
+  }
+  if (p->drillStopAtTipPinch != 0 && p->drillStopAtTipPinch != 1) {
+    fprintf(stderr, "ERROR: drillStopAtTipPinch (%d) must be 0 or 1\n",
+            p->drillStopAtTipPinch);
+    valid = 0;
+  }
+  if ((p->drillHoldMaxUntilTipPinch || p->drillStopAtTipPinch) && !p->drillAMR) {
+    fprintf(stderr, "ERROR: tip-pinch hold/stop controls require drillAMR=1\n");
+    valid = 0;
+  }
+  if ((p->drillHoldMaxUntilTipPinch || p->drillStopAtTipPinch) && !p->tipMetricsLog) {
+    fprintf(stderr, "ERROR: tip-pinch hold/stop controls require tipMetricsLog=1\n");
+    valid = 0;
+  }
   // Drill trigger consistency (only meaningful for the drill solver, but a
   // malformed value should still fail fast rather than silently mis-refine).
   if (p->drillAMR) {
@@ -558,6 +595,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  gas-wisp removal:       OFF\n");
     if (p->drillAssumeJet)
       fprintf(fp, "  assume jet on restore:  ON\n");
+    fprintf(fp, "  tip metrics sidecar:    %s\n", p->tipMetricsLog ? "ON" : "OFF");
+    fprintf(fp, "  hold MAXlevel to pinch: %s\n",
+            p->drillHoldMaxUntilTipPinch ? "ON" : "OFF");
+    fprintf(fp, "  stop at tip pinch:      %s\n", p->drillStopAtTipPinch ? "ON" : "OFF");
   } else {
     fprintf(fp, "  drillAMR:               OFF (pinned at MAXlevel = %d)\n", p->MAXlevel);
   }

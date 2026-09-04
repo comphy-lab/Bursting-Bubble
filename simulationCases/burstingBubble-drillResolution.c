@@ -218,6 +218,16 @@ int tipPinchSteps = 0; // consecutive n>1 steps toward the tipPinched latch
 double g_rbase = -1000., g_zbase = -1000.;
 double g_qjet = -1000., g_ql = -1000.;
 
+// Optional axis-tip sidecar state, computed in drillProbe from the same
+// curvature field and connected-component labels used by the AMR trigger.
+// tip_status: 0 no axis facet, 1 ambiguous owner, 2 curvature unavailable,
+// 3 one valid axis-tip owner cell.
+double g_ztip = -1000., g_rtip = -1000.;
+double g_ztipCell = -1000., g_rtipCell = -1000.;
+double g_kappaTip = -1000., g_uzTip = -1000., g_urTip = -1000.;
+double g_deltaTip = -1000., g_fTip = -1000.;
+int g_tipLevel = -1, g_tipStatus = 0, g_liquidComponents = 0;
+
 // Physical parameters (set from params in main):
 //   Oh  -> Ohnesorge number (liquid)
 //   Oha -> Ohnesorge number (gas) = OhRatio * Oh
@@ -249,6 +259,7 @@ Geometry-tuned for case 1000: origin(-6,0), L0=10, free surface near z=0.
 #define ZSURF_CURV 0.0     // max|k| search restricted below this axial level
 #define R_AXIS_K   0.05    // inception latch: max|k| point must be near the axis
 #define AXIS_BAND  0.04    // inception latch: lowest point must be off the axis
+#define AXIS_TOLERANCE 1e-10 // reconstructed PLIC endpoint lies on r = 0
 
 // Robust arm/fire reconnection latch (case-1006 lesson; see drillProbe):
 #define ARM_BAND    0.005  // base pinned on-axis (final singular approach)
@@ -570,21 +581,74 @@ event drillProbe(i++) {
   /**
   ### Candidates (MPI-safe argmin/argmax, identical to the reference probe)
   */
-  double zlow = HUGE, kmax = -1.;
-  foreach(reduction(min:zlow) reduction(max:kmax)) {
+  double zlow = HUGE, kmax = -1., ztipCell = -HUGE;
+  foreach(reduction(min:zlow) reduction(max:kmax) reduction(max:ztipCell)) {
     if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || dtag[] != MainPhase || y > RCAV) continue;
     if (x < zlow) zlow = x;
     if (x < ZSURF_CURV && KAPPA[] != nodata) {
       double ak = fabs(KAPPA[]);
       if (ak > kmax) kmax = ak;
     }
+    if (params.tipMetricsLog && y <= Delta) {
+      coord normal = interface_normal(point, f);
+      double alpha = plane_alpha(f[], normal);
+      coord segment[2];
+      if (facets(normal, alpha, segment) == 2)
+        for (int endpoint = 0; endpoint < 2; endpoint++) {
+          double radius = y + segment[endpoint].y*Delta;
+          double tolerance = AXIS_TOLERANCE*max(1., Delta);
+          if (fabs(radius) <= tolerance && x > ztipCell)
+            ztipCell = x;
+        }
+    }
   }
   double rlow = HUGE, zk = HUGE;
-  foreach(reduction(min:rlow) reduction(min:zk)) {
+  int tipOwners = 0, tipValid = 0;
+  double ztipSum = 0., rtipSum = 0., ztipCellSum = 0., rtipCellSum = 0.;
+  double kappaTipSum = 0., uzTipSum = 0., urTipSum = 0.;
+  double deltaTipSum = 0., fTipSum = 0., tipLevelSum = 0.;
+  foreach(reduction(min:rlow) reduction(min:zk)
+          reduction(+:tipOwners) reduction(+:tipValid)
+          reduction(+:ztipSum) reduction(+:rtipSum)
+          reduction(+:ztipCellSum) reduction(+:rtipCellSum)
+          reduction(+:kappaTipSum) reduction(+:uzTipSum) reduction(+:urTipSum)
+          reduction(+:deltaTipSum) reduction(+:fTipSum) reduction(+:tipLevelSum)) {
     if (f[] <= 1e-6 || f[] >= 1. - 1e-6 || dtag[] != MainPhase || y > RCAV) continue;
     if (zlow != HUGE && x == zlow && y < rlow) rlow = y;
     if (kmax >= 0. && x < ZSURF_CURV && KAPPA[] != nodata
         && fabs(KAPPA[]) == kmax && x < zk) zk = x;
+    if (params.tipMetricsLog && ztipCell != -HUGE && x == ztipCell && y <= Delta) {
+      coord normal = interface_normal(point, f);
+      double alpha = plane_alpha(f[], normal);
+      coord segment[2];
+      double zaxis = -HUGE, raxis = HUGE;
+      if (facets(normal, alpha, segment) == 2)
+        for (int endpoint = 0; endpoint < 2; endpoint++) {
+          double z = x + segment[endpoint].x*Delta;
+          double radius = y + segment[endpoint].y*Delta;
+          double tolerance = AXIS_TOLERANCE*max(1., Delta);
+          if (fabs(radius) <= tolerance && z > zaxis) {
+            zaxis = z;
+            raxis = radius;
+          }
+        }
+      if (zaxis != -HUGE) {
+        tipOwners++;
+        ztipSum += zaxis;
+        rtipSum += raxis;
+        if (KAPPA[] != nodata) {
+          tipValid++;
+          ztipCellSum += x;
+          rtipCellSum += y;
+          kappaTipSum += KAPPA[];
+          uzTipSum += u.x[];
+          urTipSum += u.y[];
+          deltaTipSum += Delta;
+          fTipSum += f[];
+          tipLevelSum += level;
+        }
+      }
+    }
   }
   double rk = HUGE;
   foreach(reduction(min:rk)) {
@@ -596,6 +660,14 @@ event drillProbe(i++) {
   if (rlow == HUGE) rlow = -1000.;
   if (kmax < 0. || zk == HUGE) { zk = -1000.; rk = -1000.; }
   if (rk == HUGE) rk = -1000.;
+
+  int tipStatus = 0;
+  if (params.tipMetricsLog) {
+    if (ztipCell == -HUGE) tipStatus = 0;
+    else if (tipOwners != 1) tipStatus = 1;
+    else if (tipValid != 1) tipStatus = 2;
+    else tipStatus = 3;
+  }
 
   /**
   ### Inception latch + probe selection (identical to the reference)
@@ -632,7 +704,9 @@ event drillProbe(i++) {
       if (tipPinchSteps >= LATCH_STEPS) tipPinched = 1;
     }
 
-    if (tipPinched && drillRelaxLevel > 0) {
+    if (params.drillHoldMaxUntilTipPinch && jetFormed && !tipPinched) {
+      Ltarget = MAXlevel;                     // explicitly resolve the tip
+    } else if (tipPinched && drillRelaxLevel > 0) {
       Ltarget = drillRelaxLevel;              // run the post-pinch tail cheaply
     } else {
       double s     = jetFormed ? rb : (kmax > 0. ? 1.0 / kmax : -1.0);
@@ -818,6 +892,17 @@ event drillProbe(i++) {
   */
   g_zb = zb; g_rb = rb; g_jetFormed = jetFormed;
   g_zbase = zbase; g_rbase = rbase; g_qjet = qjet; g_ql = ql;
+  g_tipStatus = tipStatus; g_liquidComponents = n;
+  if (tipStatus == 3) {
+    g_ztip = ztipSum; g_rtip = rtipSum;
+    g_ztipCell = ztipCellSum; g_rtipCell = rtipCellSum;
+    g_kappaTip = kappaTipSum; g_uzTip = uzTipSum; g_urTip = urTipSum;
+    g_deltaTip = deltaTipSum; g_tipLevel = (int) tipLevelSum; g_fTip = fTipSum;
+  } else {
+    g_ztip = g_rtip = g_ztipCell = g_rtipCell = -1000.;
+    g_kappaTip = g_uzTip = g_urTip = g_deltaTip = g_fTip = -1000.;
+    g_tipLevel = -1;
+  }
 }
 
 /**
@@ -909,6 +994,46 @@ event logWriting(i++) {
     fprintf(ferr, "%d %.6e %.8f %.6e %d %.6e %.6e %.6e %.6e %.6e %.6e\n",
             i, dt, t, ke, maxlevelLocal, rb, zb, rbase, zbase, qjet, ql);
 
+    /**
+    The tip metric uses a separate versioned sidecar. Extending `log` would
+    break historical consumers that require exactly eleven numeric columns.
+    A segment header is appended once per executable start, including restart
+    continuations; the schema header is written only for a new file. */
+    if (params.tipMetricsLog) {
+      static int tipLogStarted = 0;
+      FILE *tipfp = fopen("tip_metrics.log", "a+");
+      if (!tipfp) {
+        fprintf(ferr, "Cannot open tip_metrics.log\n");
+        return 1;
+      }
+      if (!tipLogStarted) {
+        fseek(tipfp, 0, SEEK_END);
+        if (ftell(tipfp) == 0) {
+          fprintf(tipfp, "# tip-metrics-v1\n");
+          fprintf(tipfp, "# i dt t jet_formed tip_pinched liquid_components tip_status "
+                  "z_tip r_tip z_cell r_cell kappa_mean u_z_tip u_r_tip speed_tip "
+                  "delta_tip level_tip f_tip r_base z_base q_jet q_l\n");
+        }
+        fprintf(tipfp,
+                "# segment case=%d Oh=%.17g Bo=%.17g pre_level=%d post_level=%d "
+                "hold_max=%d stop_at_pinch=%d start_i=%d start_t=%.17g\n",
+                params.CaseNo, Oh, Bond, drillMaxlevelFocus, MAXlevel,
+                params.drillHoldMaxUntilTipPinch, params.drillStopAtTipPinch,
+                i, t);
+        tipLogStarted = 1;
+      }
+      double tipSpeed = g_tipStatus == 3
+        ? sqrt(sq(g_uzTip) + sq(g_urTip)) : -1000.;
+      fprintf(tipfp,
+              "%d %.17g %.17g %d %d %d %d %.17g %.17g %.17g %.17g "
+              "%.17g %.17g %.17g %.17g %.17g %d %.17g %.17g %.17g %.17g %.17g\n",
+              i, dt, t, jetFormed, tipPinched, g_liquidComponents, g_tipStatus,
+              g_ztip, g_rtip, g_ztipCell, g_rtipCell, g_kappaTip,
+              g_uzTip, g_urTip, tipSpeed, g_deltaTip, g_tipLevel, g_fTip,
+              rbase, zbase, qjet, ql);
+      fclose(tipfp);
+    }
+
     assert(ke > -1e-10);
 
     // Blow-up gate, now a knob (params.keStopMax, historical default 1e2).
@@ -934,6 +1059,12 @@ event logWriting(i++) {
       fp = fopen("log", "a");
       fprintf(fp, "kinetic energy too small now! Stopping!\n");
       fclose(fp);
+      return 1;
+    }
+
+    if (params.drillStopAtTipPinch && tipPinched) {
+      fprintf(ferr, "Persistent tip pinch logged; stopping short-window run cleanly\n");
+      dump(file = dumpFile);
       return 1;
     }
   }

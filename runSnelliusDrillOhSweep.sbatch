@@ -32,7 +32,9 @@
 # Required env (via --export): CASE_NO, OH
 # Optional env (defaults shown): MAXLEVEL=13, BOND=1e-3, TMAX=1.5,
 #   DRILL_MAXLEVEL_START=8, DRILL_MAXLEVEL_FOCUS=<MAXLEVEL-1>,
-#   DRILL_RELAX_LEVEL=10, DRILL_REMOVE_GAS_SIZE=3, KE_STOP_MAX=1e4
+#   DRILL_RELAX_LEVEL=10, DRILL_REMOVE_GAS_SIZE=3, KE_STOP_MAX=1e4,
+#   TIP_METRICS_LOG=0, DRILL_HOLD_MAX_UNTIL_TIP_PINCH=0,
+#   DRILL_STOP_AT_TIP_PINCH=0, DRILL_TSNAP_STAGES=1
 # =============================================================================
 
 set -euo pipefail
@@ -46,7 +48,18 @@ DRILL_MAXLEVEL_START="${DRILL_MAXLEVEL_START:-8}"
 DRILL_MAXLEVEL_FOCUS="${DRILL_MAXLEVEL_FOCUS:-$((MAXLEVEL - 1))}"
 DRILL_RELAX_LEVEL="${DRILL_RELAX_LEVEL:-10}"
 DRILL_REMOVE_GAS_SIZE="${DRILL_REMOVE_GAS_SIZE:-3}"
+DRILL_TSNAP_STAGES="${DRILL_TSNAP_STAGES:-1}"
+TIP_METRICS_LOG="${TIP_METRICS_LOG:-0}"
+DRILL_HOLD_MAX_UNTIL_TIP_PINCH="${DRILL_HOLD_MAX_UNTIL_TIP_PINCH:-0}"
+DRILL_STOP_AT_TIP_PINCH="${DRILL_STOP_AT_TIP_PINCH:-0}"
 KE_STOP_MAX="${KE_STOP_MAX:-1e4}"
+[[ "${CASE_NO}" =~ ^[0-9]{4}$ ]] || { echo "CASE_NO must be four digits" >&2; exit 2; }
+[[ "${MAXLEVEL}" =~ ^[0-9]+$ ]] || { echo "MAXLEVEL must be a nonnegative integer" >&2; exit 2; }
+[[ "${DRILL_MAXLEVEL_START}" =~ ^[0-9]+$ ]] || { echo "DRILL_MAXLEVEL_START must be a nonnegative integer" >&2; exit 2; }
+[[ "${DRILL_MAXLEVEL_FOCUS}" =~ ^-?[0-9]+$ ]] || { echo "DRILL_MAXLEVEL_FOCUS must be an integer" >&2; exit 2; }
+for flag in DRILL_TSNAP_STAGES TIP_METRICS_LOG DRILL_HOLD_MAX_UNTIL_TIP_PINCH DRILL_STOP_AT_TIP_PINCH; do
+  [[ "${!flag}" == 0 || "${!flag}" == 1 ]] || { echo "${flag} must be 0 or 1" >&2; exit 2; }
+done
 # staged-tsnap floor: 2^(start-MAXlevel), so the fast jet window near
 # inception is never under-sampled at the target resolution
 DRILL_TSNAP_MIN_FACTOR=$(python3 -c "print(2**(${DRILL_MAXLEVEL_START}-${MAXLEVEL}))")
@@ -87,7 +100,18 @@ export PATH="${BASILISK}:${PATH}"
 
 # --- Case directory + params ---------------------------------------------
 CASE_DIR="${SCRIPT_DIR}/simulationCases/${CASE_NO}"
-mkdir -p "${CASE_DIR}"
+if [[ -e "${CASE_DIR}" ]]; then
+  [[ -d "${CASE_DIR}" ]] || {
+    echo "ERROR: case path exists and is not a directory: ${CASE_DIR}" >&2
+    exit 2
+  }
+  [[ -z "$(find "${CASE_DIR}" -mindepth 1 -maxdepth 1 -print -quit)" ]] || {
+    echo "ERROR: case directory is not empty; refusing an implicit restart: ${CASE_DIR}" >&2
+    exit 2
+  }
+else
+  mkdir "${CASE_DIR}"
+fi
 cp "${SCRIPT_DIR}/simulationCases/burstingBubble-drillResolution.c" "${CASE_DIR}/"
 
 cat > "${CASE_DIR}/case.params" <<PARAMS
@@ -112,10 +136,13 @@ drillMaxlevelStart=${DRILL_MAXLEVEL_START}
 drillNcellsK=5
 drillNcellsJet=5
 drillRelaxLevel=${DRILL_RELAX_LEVEL}
-drillTsnapStages=1
+drillTsnapStages=${DRILL_TSNAP_STAGES}
 drillTsnapMinFactor=${DRILL_TSNAP_MIN_FACTOR}
 drillMaxlevelFocus=${DRILL_MAXLEVEL_FOCUS}
 drillRemoveGasSize=${DRILL_REMOVE_GAS_SIZE}
+tipMetricsLog=${TIP_METRICS_LOG}
+drillHoldMaxUntilTipPinch=${DRILL_HOLD_MAX_UNTIL_TIP_PINCH}
+drillStopAtTipPinch=${DRILL_STOP_AT_TIP_PINCH}
 keStopMax=${KE_STOP_MAX}
 PARAMS
 echo "Wrote ${CASE_DIR}/case.params:"

@@ -35,6 +35,14 @@ from typing import Sequence
 import numpy as np
 
 
+ONLINE_COLUMNS = (
+    "i", "dt", "time", "jet_formed", "tip_pinched", "liquid_components",
+    "tip_status", "z_tip", "r_tip", "z_cell", "r_cell", "kappa_mean",
+    "u_z_tip", "u_r_tip", "speed_tip", "delta_tip", "level_tip", "f_tip",
+    "r_base", "z_base", "q_jet", "q_l",
+)
+
+
 def cutoff_exponents(alpha: float) -> tuple[float, float, float]:
     """Return exponents for `r_m`, `R_m/ell_mu`, and `We_kappa`."""
     if not math.isfinite(alpha) or alpha <= 0.5:
@@ -45,8 +53,49 @@ def cutoff_exponents(alpha: float) -> tuple[float, float, float]:
     return radius, normalised_radius, weber
 
 
+def read_online_metrics(path: Path) -> dict[str, np.ndarray]:
+    """Read valid, connected, pre-pinch rows from `tip_metrics.log`."""
+    raw: list[dict[str, float]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if len(fields) != len(ONLINE_COLUMNS):
+            raise ValueError(
+                f"Expected {len(ONLINE_COLUMNS)} tip-log columns in {path}, found {len(fields)}"
+            )
+        values = np.asarray([float(field) for field in fields])
+        if not np.all(np.isfinite(values)):
+            raise ValueError(f"Non-finite tip-log row in {path}")
+        row = dict(zip(ONLINE_COLUMNS, values, strict=True))
+        if row["jet_formed"] == 1 and row["tip_pinched"] == 0 and row["tip_status"] == 3:
+            raw.append(row)
+    if not raw:
+        raise ValueError(f"No valid connected pre-pinch tip rows in {path}")
+    output = {name: np.asarray([row[name] for row in raw]) for name in ONLINE_COLUMNS}
+    kappa = np.abs(output["kappa_mean"])
+    output["apex_radius"] = 2.0 / kappa
+    output["apex_radius_cells"] = output["apex_radius"] / output["delta_tip"]
+    output["we_apex_uz"] = output["u_z_tip"]**2 * output["apex_radius"]
+    output["we_apex_speed"] = output["speed_tip"]**2 * output["apex_radius"]
+    output["tip_cell_offset_cells"] = np.hypot(
+        output["z_cell"] - output["z_tip"], output["r_cell"] - output["r_tip"]
+    ) / output["delta_tip"]
+    return output
+
+
 def read_metrics(path: Path) -> dict[str, np.ndarray]:
-    """Read finite numeric columns from one extractor CSV."""
+    """Read finite metrics from an extractor CSV or online sidecar log."""
+    with path.open(encoding="utf-8") as probe:
+        first = probe.readline()
+    if first.strip() == "# tip-metrics-v1":
+        output = read_online_metrics(path)
+        required = {
+            "time", "z_tip", "apex_radius", "apex_radius_cells", "we_apex_uz",
+            "we_apex_speed", "u_z_tip", "delta_tip", "tip_cell_offset_cells",
+        }
+        return {name: output[name] for name in required}
+
     with path.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:

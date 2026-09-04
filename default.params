@@ -180,3 +180,18 @@ drillRemoveGasSize=0
 # state automatically from `drillstate`; this knob only ever SETS the latch,
 # never clears it. Keep 0 unless restarting an old post-inception dump.
 drillAssumeJet=0
+
+# Write `tip_metrics.log` at every solver step without changing the established
+# 11-column `log`. The sidecar records the connected main interface's axis-tip
+# curvature, velocity, local Delta/level, topology latches and base observables.
+tipMetricsLog=0
+
+# Hold the post-inception AMR ceiling at MAXlevel until the first persistent
+# tip-pinch event. Use only with tipMetricsLog=1 so the actual tip-cell level is
+# recorded and can be checked against the requested ceiling.
+drillHoldMaxUntilTipPinch=0
+
+# Stop cleanly after the first persistent tip-pinch state has been logged and a
+# restart dump written. This avoids computing an irrelevant long tail in
+# short-window incipient-tip sweeps.
+drillStopAtTipPinch=0

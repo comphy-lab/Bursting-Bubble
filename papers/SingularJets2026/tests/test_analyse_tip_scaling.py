@@ -16,7 +16,7 @@ PAPER_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = PAPER_ROOT / "tip-curvature/analyse_tip_scaling.py"
 sys.path.insert(0, str(SCRIPT.parent))
 
-from analyse_tip_scaling import cutoff_exponents, summarise_series  # noqa: E402
+from analyse_tip_scaling import cutoff_exponents, read_metrics, summarise_series  # noqa: E402
 
 
 def write_metrics(path: Path, radius_cells: tuple[float, ...] = (5.0, 4.0, 6.0)) -> None:
@@ -130,3 +130,24 @@ def test_cli_writes_json_and_two_figure_formats(tmp_path: Path) -> None:
     assert json.loads(output_json.read_text())["series"][0]["minimum_is_resolved"]
     assert output_stem.with_suffix(".pdf").stat().st_size > 0
     assert output_stem.with_suffix(".png").stat().st_size > 0
+
+
+def test_online_log_filters_invalid_and_pinched_rows(tmp_path: Path) -> None:
+    path = tmp_path / "tip_metrics.log"
+    path.write_text(
+        "# tip-metrics-v1\n"
+        "# segment case=6401\n"
+        # valid connected pre-pinch row
+        "1 1e-6 0.5 1 0 1 3 1.0 0 0.9995 0.0005 100 10 0 10 0.001 14 0.5 0.1 0 1 2\n"
+        # valid geometry but already pinched: excluded
+        "2 1e-6 0.51 1 1 2 3 1.1 0 1.0995 0.0005 200 9 0 9 0.001 14 0.5 0.2 0 1 2\n"
+        # missing tip: excluded
+        "3 1e-6 0.52 1 0 1 0 -1000 -1000 -1000 -1000 -1000 -1000 -1000 -1000 -1000 -1 -1000 0.2 0 1 2\n"
+    )
+
+    data = read_metrics(path)
+
+    assert data["time"].tolist() == [0.5]
+    assert data["apex_radius"].tolist() == [0.02]
+    assert data["apex_radius_cells"].tolist() == [20.0]
+    assert data["we_apex_uz"].tolist() == [2.0]
