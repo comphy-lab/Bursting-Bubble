@@ -195,7 +195,15 @@ def summarise_series(
         "radius_theory_factor": oh**radius_exponent,
         "weber_theory_factor": oh**weber_exponent,
     }
-    data.update({"tau": tau, "selected": selected, "resolved": resolved, "z_speed": z_speed})
+    data.update(
+        {
+            "tau": tau,
+            "selected": selected,
+            "resolved": resolved,
+            "z_speed": z_speed,
+            "kinematic_relative_mismatch": crosscheck,
+        }
+    )
     return summary, data
 
 
@@ -281,6 +289,7 @@ def plot_report(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import LogLocator, NullFormatter
 
     configure_matplotlib(use_tex)
     fig, axes = plt.subplots(2, 2, figsize=(6.75, 5.4))
@@ -308,33 +317,53 @@ def plot_report(
         ),
         key=lambda row: float(row["oh"]),
     )
-    if valid:
+    if len(valid) >= 2:
         oh = np.asarray([float(row["oh"]) for row in valid])
         radius = np.asarray([float(row["normalised_apex_radius"]) for row in valid])
         weber = np.asarray([float(row["we_apex_uz"]) for row in valid])
         axes[1, 0].plot(oh, radius, "o", color="#0072B2", ms=5, label="resolved DNS")
         axes[1, 1].plot(oh, weber, "o", color="#D55E00", ms=5, label="resolved DNS")
-        if len(valid) >= 2:
-            rcomp = comparison["normalised_apex_radius"]
-            wcomp = comparison["we_apex_uz"]
-            rfactor = np.asarray([float(row["radius_theory_factor"]) for row in valid])
-            wfactor = np.asarray([float(row["weber_theory_factor"]) for row in valid])
-            axes[1, 0].plot(oh, float(rcomp["conical_prefactor"])*rfactor, "-", color="black",
-                            lw=1.2, label="conical shape")
-            axes[1, 0].axhline(float(rcomp["constant_prefactor"]), color="0.45", ls="--",
-                               lw=1.0, label="inertio-capillary")
-            axes[1, 1].plot(oh, float(wcomp["conical_prefactor"])*wfactor, "-", color="black",
-                            lw=1.2, label="conical shape")
-            axes[1, 1].axhline(float(wcomp["constant_prefactor"]), color="0.45", ls="--",
-                               lw=1.0, label="inertio-capillary")
+        rcomp = comparison["normalised_apex_radius"]
+        wcomp = comparison["we_apex_uz"]
+        rfactor = np.asarray([float(row["radius_theory_factor"]) for row in valid])
+        wfactor = np.asarray([float(row["weber_theory_factor"]) for row in valid])
+        axes[1, 0].plot(oh, float(rcomp["conical_prefactor"])*rfactor, "-", color="black",
+                        lw=1.2, label="conical shape")
+        axes[1, 0].axhline(float(rcomp["constant_prefactor"]), color="0.45", ls="--",
+                           lw=1.0, label="inertio-capillary")
+        axes[1, 1].plot(oh, float(wcomp["conical_prefactor"])*wfactor, "-", color="black",
+                        lw=1.2, label="conical shape")
+        axes[1, 1].axhline(float(wcomp["constant_prefactor"]), color="0.45", ls="--",
+                           lw=1.0, label="inertio-capillary")
+        axes[1, 0].set(xlabel=r"$Oh$", ylabel=r"$R_{\kappa,\min}/\ell_\mu$")
+        axes[1, 1].set(xlabel=r"$Oh$", ylabel=r"$We_{\kappa,\min}$")
+    else:
+        for colour, summary, data in zip(colours, summaries, arrays, strict=True):
+            chosen = data["selected"]
+            resolved = chosen & data["resolved"]
+            unresolved = chosen & ~data["resolved"]
+            label = str(summary["label"])
+            axes[1, 0].plot(data["tau"][resolved], data["apex_radius_cells"][resolved],
+                            color=colour, lw=1.2, label=label)
+            axes[1, 0].plot(data["tau"][unresolved], data["apex_radius_cells"][unresolved],
+                            "x", color=colour, ms=3.5, mew=0.8)
+            velocity_valid = resolved & (data["kinematic_relative_mismatch"] <= 0.02)
+            axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["u_z_tip"][velocity_valid]),
+                            color=colour, lw=1.2, label=r"$|u_{z,\mathrm{tip}}|$")
+            axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["z_speed"][velocity_valid]),
+                            "--", color="0.35", lw=1.0, label=r"$|\mathrm{d}z_{\mathrm{tip}}/\mathrm{d}t|$")
+        axes[1, 0].axhline(float(summaries[0]["min_cells"]), color="0.45", ls="--",
+                           lw=1.0, label="resolution gate")
+        axes[1, 0].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$R_\kappa/\Delta_{\mathrm{tip}}$")
+        axes[1, 1].set(xlabel=r"$\tau=t-t_0$", ylabel="tip speed")
 
     axes[0, 0].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$R_\kappa/\ell_\mu$")
     axes[0, 1].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$We_\kappa=u_{z,\mathrm{tip}}^2R_\kappa$")
-    axes[1, 0].set(xlabel=r"$Oh$", ylabel=r"$R_{\kappa,\min}/\ell_\mu$")
-    axes[1, 1].set(xlabel=r"$Oh$", ylabel=r"$We_{\kappa,\min}$")
     for index, axis in enumerate(axes.flat):
         axis.set_xscale("log")
         axis.set_yscale("log")
+        axis.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10)*0.1))
+        axis.xaxis.set_minor_formatter(NullFormatter())
         axis.tick_params(which="major", direction="out", labelsize=8, width=0.8, length=4)
         axis.tick_params(which="minor", direction="out", width=0.6, length=2)
         for spine in axis.spines.values():
