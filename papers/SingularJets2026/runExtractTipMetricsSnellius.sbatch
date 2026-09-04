@@ -6,7 +6,6 @@
 #SBATCH --cpus-per-task=192
 #SBATCH --time=04:00:00
 #SBATCH --partition=genoa
-#SBATCH --exclusive
 #SBATCH --output=slurm-tip-metrics-%x-%j.out
 #SBATCH --error=slurm-tip-metrics-%x-%j.err
 
