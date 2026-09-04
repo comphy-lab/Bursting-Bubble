@@ -83,7 +83,7 @@ def validate(
     minimum_cells_value = math.nan
     rebounded = False
     if valid:
-        radii = np.asarray([2.0 / abs(row["kappa_mean"]) for row in valid])
+        radii = np.asarray([1.0 / abs(row["kappa_mean"]) for row in valid])
         cells = np.asarray(
             [radius / row["delta_tip"] for radius, row in zip(radii, valid, strict=True)]
         )
@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--target-level", type=int, required=True)
     parser.add_argument("--min-valid-rows", type=int, default=50)
-    parser.add_argument("--min-cells", type=float, default=4.0)
+    parser.add_argument("--min-cells", type=float, default=2.0)
     parser.add_argument("--rebound-factor", type=float, default=1.1)
     parser.add_argument("--rebound-rows", type=int, default=20)
     parser.add_argument("--output-json", type=Path, required=True)

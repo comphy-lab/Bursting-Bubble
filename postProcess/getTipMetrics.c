@@ -8,10 +8,10 @@ geometric tip. Its owning interfacial cell supplies the axisymmetric mean
 curvature and cell-centred velocity; the helper refuses to substitute a nearby
 cell when the curvature is unavailable.
 
-For a locally spherical or paraboloidal axisymmetric apex, the two principal
-curvatures are equal and the corresponding apex radius is
-$R_\kappa=2/|\kappa|$. The helper emits the raw mean curvature as well as the
-local grid spacing so downstream analysis can reject grid-limited values.
+The helper emits the raw axisymmetric curvature returned by Basilisk and the
+local grid spacing. The project diagnostic uses $R_\kappa=1/|\kappa|$.
+Downstream code may also report $2/|\kappa|$ under an explicitly named
+equal-principal-curvature convention, but it is not the default quantity.
 This operational quantity is not assumed to equal the theoretical minimum jet
 radius $R_m$; that identification requires a separate convergence test.
 

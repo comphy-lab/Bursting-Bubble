@@ -24,10 +24,8 @@ def write_metrics(path: Path, radius_cells: tuple[float, ...] = (5.0, 4.0, 6.0))
     fieldnames = [
         "time",
         "z_tip",
-        "apex_radius",
-        "apex_radius_cells",
-        "we_apex_uz",
-        "we_apex_speed",
+        "inverse_mean_curvature",
+        "speed_tip",
         "u_z_tip",
         "delta_tip",
         "tip_cell_offset_cells",
@@ -40,10 +38,8 @@ def write_metrics(path: Path, radius_cells: tuple[float, ...] = (5.0, 4.0, 6.0))
             {
                 "time": time,
                 "z_tip": time * 10.0,
-                "apex_radius": radius,
-                "apex_radius_cells": cells,
-                "we_apex_uz": 100.0 * radius,
-                "we_apex_speed": 100.0 * radius,
+                "inverse_mean_curvature": radius,
+                "speed_tip": 10.0,
                 "u_z_tip": 10.0,
                 "delta_tip": 0.001,
                 "tip_cell_offset_cells": 0.5,
@@ -78,7 +74,7 @@ def test_summary_selects_resolved_interior_minimum(tmp_path: Path) -> None:
     assert summary["minimum_is_resolved"] is True
     assert summary["minimum_is_window_boundary"] is False
     assert math.isclose(float(summary["measurement_time"]), 0.51)
-    assert math.isclose(float(summary["apex_radius"]), 0.004)
+    assert math.isclose(float(summary["curvature_radius"]), 0.004)
     assert np.all(arrays["resolved"])
     assert float(summary["median_tip_kinematic_relative_mismatch"]) < 1e-12
 
@@ -148,6 +144,6 @@ def test_online_log_filters_invalid_and_pinched_rows(tmp_path: Path) -> None:
     data = read_metrics(path)
 
     assert data["time"].tolist() == [0.5]
-    assert data["apex_radius"].tolist() == [0.02]
-    assert data["apex_radius_cells"].tolist() == [20.0]
-    assert data["we_apex_uz"].tolist() == [2.0]
+    assert data["curvature_radius"].tolist() == [0.01]
+    assert data["curvature_radius_cells"].tolist() == [10.0]
+    assert data["we_curvature_uz"].tolist() == [1.0]

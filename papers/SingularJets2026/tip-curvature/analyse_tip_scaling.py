@@ -3,7 +3,7 @@ r"""
 # Diagnose tip-curvature and curvature-Weber scaling
 
 Compare extracted tip metrics across $Oh$ and refinement. The script first
-checks whether the measured apex radius spans a configurable number of local
+checks whether the inverse-curvature radius spans a configurable number of local
 cells. It then reports the minimum radius inside a common post-inception time
 window, rejects it from model comparison when grid- or window-boundary-limited,
 and compares two fixed-shape hypotheses with fitted prefactors:
@@ -18,7 +18,7 @@ $\alpha=\alpha[\beta(Oh)]$ varies between series, the conical prediction is
 evaluated pointwise rather than represented as one global power law.
 
 This is a diagnostic comparison. It does not establish that the measured
-$R_\kappa=2/|\kappa|$ is the theoretical cutoff radius $R_m$.
+$R_\kappa=1/|\kappa|$ is the theoretical cutoff radius $R_m$.
 """
 
 from __future__ import annotations
@@ -74,10 +74,10 @@ def read_online_metrics(path: Path) -> dict[str, np.ndarray]:
         raise ValueError(f"No valid connected pre-pinch tip rows in {path}")
     output = {name: np.asarray([row[name] for row in raw]) for name in ONLINE_COLUMNS}
     kappa = np.abs(output["kappa_mean"])
-    output["apex_radius"] = 2.0 / kappa
-    output["apex_radius_cells"] = output["apex_radius"] / output["delta_tip"]
-    output["we_apex_uz"] = output["u_z_tip"]**2 * output["apex_radius"]
-    output["we_apex_speed"] = output["speed_tip"]**2 * output["apex_radius"]
+    output["curvature_radius"] = 1.0 / kappa
+    output["curvature_radius_cells"] = output["curvature_radius"] / output["delta_tip"]
+    output["we_curvature_uz"] = output["u_z_tip"]**2 * output["curvature_radius"]
+    output["we_curvature_speed"] = output["speed_tip"]**2 * output["curvature_radius"]
     output["tip_cell_offset_cells"] = np.hypot(
         output["z_cell"] - output["z_tip"], output["r_cell"] - output["r_tip"]
     ) / output["delta_tip"]
@@ -91,8 +91,9 @@ def read_metrics(path: Path) -> dict[str, np.ndarray]:
     if first.strip() == "# tip-metrics-v1":
         output = read_online_metrics(path)
         required = {
-            "time", "z_tip", "apex_radius", "apex_radius_cells", "we_apex_uz",
-            "we_apex_speed", "u_z_tip", "delta_tip", "tip_cell_offset_cells",
+            "time", "z_tip", "curvature_radius", "curvature_radius_cells",
+            "we_curvature_uz", "we_curvature_speed", "u_z_tip", "delta_tip",
+            "tip_cell_offset_cells",
         }
         return {name: output[name] for name in required}
 
@@ -103,10 +104,8 @@ def read_metrics(path: Path) -> dict[str, np.ndarray]:
     required = {
         "time",
         "z_tip",
-        "apex_radius",
-        "apex_radius_cells",
-        "we_apex_uz",
-        "we_apex_speed",
+        "inverse_mean_curvature",
+        "speed_tip",
         "u_z_tip",
         "delta_tip",
         "tip_cell_offset_cells",
@@ -120,6 +119,10 @@ def read_metrics(path: Path) -> dict[str, np.ndarray]:
         if not np.all(np.isfinite(values)):
             raise ValueError(f"Non-finite {name} in {path}")
         output[name] = values
+    output["curvature_radius"] = output["inverse_mean_curvature"]
+    output["curvature_radius_cells"] = output["curvature_radius"] / output["delta_tip"]
+    output["we_curvature_uz"] = output["u_z_tip"]**2 * output["curvature_radius"]
+    output["we_curvature_speed"] = output["speed_tip"]**2 * output["curvature_radius"]
     order = np.argsort(output["time"])
     if np.any(np.diff(output["time"][order]) <= 0.0):
         raise ValueError(f"Times are not unique and increasing in {path}")
@@ -151,12 +154,12 @@ def summarise_series(
     if np.count_nonzero(selected) < 3:
         raise ValueError(f"Fewer than three rows in tau window for {label}")
     resolved = (
-        (data["apex_radius_cells"] >= min_cells)
+        (data["curvature_radius_cells"] >= min_cells)
         & (data["tip_cell_offset_cells"] <= max_tip_offset_cells)
     )
     admissible = selected & resolved
     raw_indices = np.flatnonzero(selected)
-    raw_minimum = raw_indices[np.argmin(data["apex_radius"][selected])]
+    raw_minimum = raw_indices[np.argmin(data["curvature_radius"][selected])]
     measurement = raw_minimum
 
     z_speed = np.gradient(data["z_tip"], data["time"], edge_order=1)
@@ -166,7 +169,7 @@ def summarise_series(
     selected_positions = np.flatnonzero(selected)
     minimum_position = int(np.flatnonzero(selected_positions == measurement)[0])
     boundary_minimum = minimum_position in {0, len(selected_positions) - 1}
-    radius = float(data["apex_radius"][measurement])
+    radius = float(data["curvature_radius"][measurement])
     summary: dict[str, object] = {
         "label": label,
         "oh": oh,
@@ -184,11 +187,11 @@ def summarise_series(
         "minimum_is_window_boundary": boundary_minimum,
         "measurement_time": float(data["time"][measurement]),
         "measurement_tau": float(tau[measurement]),
-        "apex_radius": radius,
-        "apex_radius_cells": float(data["apex_radius_cells"][measurement]),
-        "normalised_apex_radius": radius / oh**2,
-        "we_apex_uz": float(data["we_apex_uz"][measurement]),
-        "we_apex_speed": float(data["we_apex_speed"][measurement]),
+        "curvature_radius": radius,
+        "curvature_radius_cells": float(data["curvature_radius_cells"][measurement]),
+        "normalised_curvature_radius": radius / oh**2,
+        "we_curvature_uz": float(data["we_curvature_uz"][measurement]),
+        "we_curvature_speed": float(data["we_curvature_speed"][measurement]),
         "median_tip_kinematic_relative_mismatch": float(np.median(crosscheck[selected])),
         "radius_exponent": radius_exponent,
         "weber_exponent": weber_exponent,
@@ -226,8 +229,8 @@ def model_comparison(summaries: Sequence[dict[str, object]]) -> dict[str, object
     ]
     result: dict[str, object] = {"resolved_series_count": len(valid)}
     for observable, factor_name in (
-        ("normalised_apex_radius", "radius_theory_factor"),
-        ("we_apex_uz", "weber_theory_factor"),
+        ("normalised_curvature_radius", "radius_theory_factor"),
+        ("we_curvature_uz", "weber_theory_factor"),
     ):
         values = np.asarray([float(row[observable]) for row in valid])
         conical = np.asarray([float(row[factor_name]) for row in valid])
@@ -299,13 +302,13 @@ def plot_report(
         resolved = chosen & data["resolved"]
         unresolved = chosen & ~data["resolved"]
         label = str(summary["label"])
-        axes[0, 0].plot(data["tau"][resolved], data["apex_radius"][resolved] / float(summary["oh"])**2,
+        axes[0, 0].plot(data["tau"][resolved], data["curvature_radius"][resolved] / float(summary["oh"])**2,
                         color=colour, lw=1.2, label=label)
-        axes[0, 0].plot(data["tau"][unresolved], data["apex_radius"][unresolved] / float(summary["oh"])**2,
+        axes[0, 0].plot(data["tau"][unresolved], data["curvature_radius"][unresolved] / float(summary["oh"])**2,
                         "x", color=colour, ms=3.5, mew=0.8)
-        axes[0, 1].plot(data["tau"][resolved], data["we_apex_uz"][resolved],
+        axes[0, 1].plot(data["tau"][resolved], data["we_curvature_uz"][resolved],
                         color=colour, lw=1.2, label=label)
-        axes[0, 1].plot(data["tau"][unresolved], data["we_apex_uz"][unresolved],
+        axes[0, 1].plot(data["tau"][unresolved], data["we_curvature_uz"][unresolved],
                         "x", color=colour, ms=3.5, mew=0.8)
 
     valid = sorted(
@@ -319,12 +322,12 @@ def plot_report(
     )
     if len(valid) >= 2:
         oh = np.asarray([float(row["oh"]) for row in valid])
-        radius = np.asarray([float(row["normalised_apex_radius"]) for row in valid])
-        weber = np.asarray([float(row["we_apex_uz"]) for row in valid])
+        radius = np.asarray([float(row["normalised_curvature_radius"]) for row in valid])
+        weber = np.asarray([float(row["we_curvature_uz"]) for row in valid])
         axes[1, 0].plot(oh, radius, "o", color="#0072B2", ms=5, label="resolved DNS")
         axes[1, 1].plot(oh, weber, "o", color="#D55E00", ms=5, label="resolved DNS")
-        rcomp = comparison["normalised_apex_radius"]
-        wcomp = comparison["we_apex_uz"]
+        rcomp = comparison["normalised_curvature_radius"]
+        wcomp = comparison["we_curvature_uz"]
         rfactor = np.asarray([float(row["radius_theory_factor"]) for row in valid])
         wfactor = np.asarray([float(row["weber_theory_factor"]) for row in valid])
         axes[1, 0].plot(oh, float(rcomp["conical_prefactor"])*rfactor, "-", color="black",
@@ -343,9 +346,9 @@ def plot_report(
             resolved = chosen & data["resolved"]
             unresolved = chosen & ~data["resolved"]
             label = str(summary["label"])
-            axes[1, 0].plot(data["tau"][resolved], data["apex_radius_cells"][resolved],
+            axes[1, 0].plot(data["tau"][resolved], data["curvature_radius_cells"][resolved],
                             color=colour, lw=1.2, label=label)
-            axes[1, 0].plot(data["tau"][unresolved], data["apex_radius_cells"][unresolved],
+            axes[1, 0].plot(data["tau"][unresolved], data["curvature_radius_cells"][unresolved],
                             "x", color=colour, ms=3.5, mew=0.8)
             velocity_valid = resolved & (data["kinematic_relative_mismatch"] <= 0.02)
             axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["u_z_tip"][velocity_valid]),
@@ -353,7 +356,9 @@ def plot_report(
             axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["z_speed"][velocity_valid]),
                             "--", color="0.35", lw=1.0, label=r"$|\mathrm{d}z_{\mathrm{tip}}/\mathrm{d}t|$")
         axes[1, 0].axhline(float(summaries[0]["min_cells"]), color="0.45", ls="--",
-                           lw=1.0, label="resolution gate")
+                           lw=1.0, label="analysis gate")
+        axes[1, 0].axhline(1.0, color="0.65", ls=":", lw=1.0,
+                           label=r"empirical $\Delta$ floor")
         axes[1, 0].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$R_\kappa/\Delta_{\mathrm{tip}}$")
         axes[1, 1].set(xlabel=r"$\tau=t-t_0$", ylabel="tip speed")
 
@@ -391,7 +396,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="series label, Oh, level, inception time, alpha and extractor CSV",
     )
     parser.add_argument("--tau-window", nargs=2, type=float, default=(0.0, 0.01))
-    parser.add_argument("--min-cells", type=float, default=4.0)
+    parser.add_argument(
+        "--min-cells", type=float, default=2.0,
+        help="analysis-quality threshold for R_kappa=1/abs(kappa) (default: 2)",
+    )
     parser.add_argument("--max-tip-offset-cells", type=float, default=1.0)
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--output-stem", type=Path, required=True)

@@ -24,7 +24,7 @@ def metric_row(
     status: int = 3,
 ) -> str:
     """Return one syntactically valid online-log row."""
-    kappa = 2.0 / radius
+    kappa = 1.0 / radius
     values = (
         index,
         1.0e-6,

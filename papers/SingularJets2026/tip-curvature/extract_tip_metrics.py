@@ -6,9 +6,10 @@ Run `getTipMetrics` once per Basilisk snapshot and install one deterministic
 CSV plus a provenance manifest. Worker processes share one precompiled helper;
 no compilation or plotting occurs inside the snapshot loop.
 
-The raw helper curvature is the axisymmetric mean curvature. Derived columns
-use the locally spherical/paraboloidal apex relation
-$R_\kappa=2/|\kappa|$ and report $R_\kappa/\Delta$ explicitly. The output is a
+The raw helper curvature is the axisymmetric curvature returned by Basilisk.
+The project quantity is $R_\kappa=1/|\kappa|$; an explicitly named
+`equal_principal_radius=2/|kappa|` is retained for the alternative spherical-
+apex convention. Both report their ratio to $\Delta$. The output is a
 resolution diagnostic, not proof that $R_\kappa$ equals the theoretical cutoff
 radius $R_m$.
 """
@@ -62,11 +63,13 @@ OUTPUT_COLUMNS = (
     "snapshot",
     *RAW_COLUMNS,
     "inverse_mean_curvature",
-    "apex_radius",
+    "curvature_radius",
+    "equal_principal_radius",
     "kappa_delta",
-    "apex_radius_cells",
-    "we_apex_uz",
-    "we_apex_speed",
+    "curvature_radius_cells",
+    "equal_principal_radius_cells",
+    "we_curvature_uz",
+    "we_curvature_speed",
     "tip_cell_offset",
     "tip_cell_offset_cells",
 )
@@ -150,17 +153,19 @@ def parse_helper_output(stderr: str, snapshot: Path) -> dict[str, float | int | 
     if kappa <= 0.0 or delta <= 0.0:
         raise RuntimeError(f"Nonpositive curvature magnitude or grid spacing for {snapshot}")
     inverse = 1.0 / kappa
-    apex_radius = 2.0 * inverse
+    equal_principal_radius = 2.0 * inverse
     uz_tip = float(row["u_z_tip"])
     speed_tip = float(row["speed_tip"])
     row.update(
         {
             "inverse_mean_curvature": inverse,
-            "apex_radius": apex_radius,
+            "curvature_radius": inverse,
+            "equal_principal_radius": equal_principal_radius,
             "kappa_delta": kappa * delta,
-            "apex_radius_cells": apex_radius / delta,
-            "we_apex_uz": uz_tip**2 * apex_radius,
-            "we_apex_speed": speed_tip**2 * apex_radius,
+            "curvature_radius_cells": inverse / delta,
+            "equal_principal_radius_cells": equal_principal_radius / delta,
+            "we_curvature_uz": uz_tip**2 * inverse,
+            "we_curvature_speed": speed_tip**2 * inverse,
             "tip_cell_offset": math.hypot(
                 float(row["z_cell"]) - float(row["z_tip"]),
                 float(row["r_cell"]) - float(row["r_tip"]),
@@ -281,7 +286,7 @@ def extract_case(
         staged_manifest = staging / manifest_path.name
         atomic_write_text(staged_csv, csv_payload(rows))
         manifest = {
-            "schema_version": 1,
+            "schema_version": 2,
             "case": str(case),
             "configuration": {
                 "max_frames": max_frames,
@@ -289,10 +294,11 @@ def extract_case(
                 "time_min": time_min,
             },
             "definition": {
-                "apex_radius": "2/abs(axisymmetric mean curvature)",
+                "curvature_radius": "1/abs(Basilisk axisymmetric curvature)",
+                "equal_principal_radius": "2/abs(Basilisk axisymmetric curvature)",
                 "tip": "highest near-axis facet endpoint on largest liquid component",
-                "we_apex_speed": "speed_tip**2 * apex_radius",
-                "we_apex_uz": "u_z_tip**2 * apex_radius",
+                "we_curvature_speed": "speed_tip**2 * curvature_radius",
+                "we_curvature_uz": "u_z_tip**2 * curvature_radius",
             },
             "provenance": provenance,
             "helper": str(helper),

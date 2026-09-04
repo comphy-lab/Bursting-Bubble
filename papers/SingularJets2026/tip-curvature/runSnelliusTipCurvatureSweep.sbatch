@@ -12,8 +12,9 @@
 
 # One logarithmic-Oh short-window curvature case per array task. Submit tasks
 # 0 and 6 first as endpoint smokes. Their post-run acceptance gate exits
-# nonzero unless the requested tip level is reached and a resolved, interior,
-# rebounding pre-pinch minimum is present; only then release the remaining
+# nonzero unless the requested tip level is reached and an interior, rebounding
+# pre-pinch minimum exceeds the two-cell inverse-curvature analysis gate; only
+# then release the remaining
 # array indices through an afterok dependency.
 set -euo pipefail
 
@@ -58,7 +59,7 @@ python3 "${VALIDATOR}" \
     --log "${ROOT}/simulationCases/${CASE_NO}/tip_metrics.log" \
     --target-level "${POST_LEVEL}" \
     --min-valid-rows 50 \
-    --min-cells 4 \
+    --min-cells 2 \
     --rebound-factor 1.1 \
     --rebound-rows 20 \
     --output-json "${ROOT}/simulationCases/${CASE_NO}/tip_metrics_gate.json"

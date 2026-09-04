@@ -109,9 +109,10 @@ def test_serial_and_parallel_outputs_are_byte_identical(tmp_path: Path) -> None:
     with (serial / "tip_metrics.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == 4
-    assert float(rows[0]["apex_radius"]) == 0.02
-    assert float(rows[0]["apex_radius_cells"]) == 20.0
-    assert float(rows[0]["we_apex_uz"]) == 2.0
+    assert float(rows[0]["curvature_radius"]) == 0.01
+    assert float(rows[0]["equal_principal_radius"]) == 0.02
+    assert float(rows[0]["curvature_radius_cells"]) == 10.0
+    assert float(rows[0]["we_curvature_uz"]) == 1.0
     assert float(rows[0]["tip_cell_offset_cells"]) == 0.5
 
 
@@ -135,6 +136,7 @@ def test_manifest_records_scientific_provenance(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["schema_version"] == 2
     assert manifest["row_count"] == 4
     assert manifest["provenance"] == {
         "bond": 0.0,
