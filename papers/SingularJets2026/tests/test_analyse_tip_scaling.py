@@ -16,7 +16,13 @@ PAPER_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = PAPER_ROOT / "tip-curvature/analyse_tip_scaling.py"
 sys.path.insert(0, str(SCRIPT.parent))
 
-from analyse_tip_scaling import cutoff_exponents, read_metrics, summarise_series  # noqa: E402
+from analyse_tip_scaling import (  # noqa: E402
+    cutoff_exponents,
+    format_log_decade,
+    format_plain_tick,
+    read_metrics,
+    summarise_series,
+)
 
 
 def write_metrics(path: Path, radius_cells: tuple[float, ...] = (5.0, 4.0, 6.0)) -> None:
@@ -61,6 +67,14 @@ def test_cutoff_exponents_pin_0629_and_two_thirds() -> None:
     assert math.isclose(ic_radius, 2.0)
     assert math.isclose(ic_normalised, 0.0, abs_tol=1e-14)
     assert math.isclose(ic_weber, 0.0, abs_tol=1e-14)
+
+
+def test_tick_formatters_are_explicit_and_unambiguous() -> None:
+    assert format_log_decade(1.0e-6) == "1e-6"
+    assert format_log_decade(1.0e3) == "1e+3"
+    assert format_log_decade(2.0e-3) == ""
+    assert format_plain_tick(0.4) == "0.4"
+    assert format_plain_tick(260.0) == "260"
 
 
 def test_summary_selects_resolved_interior_minimum(tmp_path: Path) -> None:

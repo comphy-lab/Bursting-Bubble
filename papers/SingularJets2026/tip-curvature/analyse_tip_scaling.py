@@ -274,10 +274,28 @@ def configure_matplotlib(use_tex: bool) -> None:
             "text.usetex": use_tex,
             "text.latex.preamble": r"\usepackage{amsmath}",
             "axes.linewidth": 1.0,
+            "axes.labelsize": 10,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
         }
     )
+
+
+def format_log_decade(value: float, _position: float | None = None) -> str:
+    """Render a logarithmic decade as an unambiguous ``1e+/-N`` label."""
+    if not math.isfinite(value) or value <= 0.0:
+        return ""
+    exponent = int(round(math.log10(value)))
+    if not math.isclose(value, 10.0**exponent, rel_tol=1.0e-8):
+        return ""
+    return f"1e{exponent:+d}"
+
+
+def format_plain_tick(value: float, _position: float | None = None) -> str:
+    """Render compact decimal labels without an implicit exponent offset."""
+    if not math.isfinite(value):
+        return ""
+    return f"{value:.3g}"
 
 
 def plot_report(
@@ -292,10 +310,11 @@ def plot_report(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.ticker import LogLocator, NullFormatter
+    from matplotlib.lines import Line2D
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 
     configure_matplotlib(use_tex)
-    fig, axes = plt.subplots(2, 2, figsize=(6.75, 5.4))
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.7))
     colours = plt.get_cmap("viridis")(np.linspace(0.12, 0.88, len(summaries)))
     for colour, summary, data in zip(colours, summaries, arrays, strict=True):
         chosen = data["selected"]
@@ -340,7 +359,10 @@ def plot_report(
                            lw=1.0, label="inertio-capillary")
         axes[1, 0].set(xlabel=r"$Oh$", ylabel=r"$R_{\kappa,\min}/\ell_\mu$")
         axes[1, 1].set(xlabel=r"$Oh$", ylabel=r"$We_{\kappa,\min}$")
+        time_axes = (axes[0, 0], axes[0, 1])
+        log_y_axes = tuple(axes.flat)
     else:
+        velocity_handles: list[Line2D] = []
         for colour, summary, data in zip(colours, summaries, arrays, strict=True):
             chosen = data["selected"]
             resolved = chosen & data["resolved"]
@@ -350,33 +372,96 @@ def plot_report(
                             color=colour, lw=1.2, label=label)
             axes[1, 0].plot(data["tau"][unresolved], data["curvature_radius_cells"][unresolved],
                             "x", color=colour, ms=3.5, mew=0.8)
-            velocity_valid = resolved & (data["kinematic_relative_mismatch"] <= 0.02)
-            axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["u_z_tip"][velocity_valid]),
-                            color=colour, lw=1.2, label=r"$|u_{z,\mathrm{tip}}|$")
-            axes[1, 1].plot(data["tau"][velocity_valid], np.abs(data["z_speed"][velocity_valid]),
-                            "--", color="0.35", lw=1.0, label=r"$|\mathrm{d}z_{\mathrm{tip}}/\mathrm{d}t|$")
+            kinematic = chosen & (data["kinematic_relative_mismatch"] <= 0.02)
+            resolved_velocity = kinematic & data["resolved"]
+            unresolved_velocity = kinematic & ~data["resolved"]
+            axes[1, 1].plot(
+                data["tau"][resolved_velocity],
+                np.abs(data["u_z_tip"][resolved_velocity]),
+                color=colour,
+                lw=1.2,
+            )
+            axes[1, 1].plot(
+                data["tau"][unresolved_velocity],
+                np.abs(data["u_z_tip"][unresolved_velocity]),
+                "x",
+                color=colour,
+                ms=3.5,
+                mew=0.8,
+            )
+            axes[1, 1].plot(
+                data["tau"][resolved_velocity],
+                np.abs(data["z_speed"][resolved_velocity]),
+                "--",
+                color=colour,
+                alpha=0.65,
+                lw=1.0,
+            )
+            velocity_handles.append(Line2D([], [], color=colour, lw=1.2, label=label))
         axes[1, 0].axhline(float(summaries[0]["min_cells"]), color="0.45", ls="--",
                            lw=1.0, label="analysis gate")
         axes[1, 0].axhline(1.0, color="0.65", ls=":", lw=1.0,
                            label=r"empirical $\Delta$ floor")
-        axes[1, 0].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$R_\kappa/\Delta_{\mathrm{tip}}$")
-        axes[1, 1].set(xlabel=r"$\tau=t-t_0$", ylabel="tip speed")
+        velocity_handles.extend(
+            (
+                Line2D([], [], color="0.35", ls="--", lw=1.0,
+                       label=r"$|\mathrm{d}z_{\mathrm{tip}}/\mathrm{d}t|$"),
+                Line2D([], [], color="0.35", marker="x", ls="", ms=4,
+                       label="outside analysis gate"),
+            )
+        )
+        axes[1, 1].legend(handles=velocity_handles, frameon=False, fontsize=7.5,
+                          loc="upper right")
+        axes[1, 0].set(ylabel=r"$R_\kappa/\Delta_{\mathrm{tip}}$")
+        axes[1, 1].set(ylabel="tip speed")
+        time_axes = tuple(axes.flat)
+        log_y_axes = (axes[0, 0], axes[1, 0])
 
-    axes[0, 0].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$R_\kappa/\ell_\mu$")
-    axes[0, 1].set(xlabel=r"$\tau=t-t_0$", ylabel=r"$We_\kappa=u_{z,\mathrm{tip}}^2R_\kappa$")
-    for index, axis in enumerate(axes.flat):
+    axes[0, 0].set(ylabel=r"$R_\kappa/\ell_\mu$")
+    axes[0, 1].set(ylabel=r"$We_\kappa=u_{z,\mathrm{tip}}^2R_\kappa$")
+    for axis in time_axes:
         axis.set_xscale("log")
-        axis.set_yscale("log")
+        axis.set_xlabel(r"time after inception, $\tau$")
+        axis.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0,)))
+        axis.xaxis.set_major_formatter(FuncFormatter(format_log_decade))
         axis.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10)*0.1))
         axis.xaxis.set_minor_formatter(NullFormatter())
-        axis.tick_params(which="major", direction="out", labelsize=8, width=0.8, length=4)
+
+    time_values = [
+        data["tau"][data["selected"] & (data["tau"] > 0.0)]
+        for data in arrays
+    ]
+    time_min = min(float(np.min(values)) for values in time_values if values.size)
+    time_max = max(float(np.max(values)) for values in time_values if values.size)
+    for axis in time_axes:
+        axis.set_xlim(time_min, time_max)
+
+    for axis in log_y_axes:
+        axis.set_yscale("log")
+        axis.yaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, 2.0, 3.0, 4.0, 6.0)))
+        axis.yaxis.set_major_formatter(FuncFormatter(format_plain_tick))
+        axis.yaxis.set_minor_formatter(NullFormatter())
+
+    if len(valid) < 2:
+        axes[0, 1].set_yscale("linear")
+        axes[0, 1].set_ylim(bottom=0.0)
+        axes[0, 1].yaxis.set_major_formatter(FuncFormatter(format_plain_tick))
+        axes[1, 1].set_yscale("linear")
+        axes[1, 1].yaxis.set_major_formatter(FuncFormatter(format_plain_tick))
+
+    for index, axis in enumerate(axes.flat):
+        axis.tick_params(which="major", direction="out", labelsize=8.5, width=0.8, length=4)
         axis.tick_params(which="minor", direction="out", width=0.6, length=2)
         for spine in axis.spines.values():
             spine.set_linewidth(1.0)
         axis.text(0.02, 0.96, f"({chr(97 + index)})", transform=axis.transAxes,
-                  ha="left", va="top", fontsize=10)
-        if axis.lines:
-            axis.legend(frameon=False, fontsize=8)
+                  ha="left", va="top", fontsize=10.5)
+        if axis.lines and axis is not axes[1, 1]:
+            if axis is axes[1, 0] and len(valid) < 2:
+                axis.legend(frameon=False, fontsize=7.5, loc="upper left",
+                            bbox_to_anchor=(0.02, 0.88))
+            else:
+                axis.legend(frameon=False, fontsize=7.5)
     fig.tight_layout()
     output_stem.parent.mkdir(parents=True, exist_ok=True)
     for suffix in (".pdf", ".png"):
