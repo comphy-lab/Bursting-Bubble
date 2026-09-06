@@ -72,6 +72,20 @@ struct SimulationParams {
                               selection accounts for it, and the first VE
                               campaign lost seven runs to exactly that
                               omission. 0 disables the condition. */
+  double CFLconform;     /**< Largest log-conformation increment permitted in
+                              one explicit step. The Psi update is forward
+                              Euler and is then exponentiated, so an increment
+                              of order 1 multiplies A by e in a single step.
+                              The axisymmetric hoop source 2*u_r/r is
+                              unbounded by anything else in the timestep
+                              selection: the advective CFL sees the
+                              metric-weighted face velocity, which carries a
+                              factor r and vanishes exactly where that rate
+                              diverges. Case 2330 (De=0.02) died that way at
+                              t=0.54267 with the elastic-wave condition
+                              satisfied and saturated. 0 disables (the
+                              behaviour of every run to date); 0.1 is the
+                              measurement-supported value. See two-phaseVE.h. */
   double dtmax;          /**< Ceiling on the timestep; surface tension reduces it
                               to the capillary-wave limit each step (adaptive dt) */
   double TOLERANCE;      /**< Poisson/viscous solver convergence tolerance */
@@ -114,6 +128,23 @@ struct SimulationParams {
   double drillTsnapMinFactor;/**< Floor on the staged snapshot interval as a
                                   fraction of tsnap (guards against a snapshot
                                   storm when start is far below MAXlevel) */
+  int drillMinlevelJet;      /**< Post-inception FLOOR on the drilled ceiling:
+                                  once the inception latch has fired, the ramp
+                                  may not coarsen below this level. Counterpart
+                                  to drillMaxlevelFocus (the PRE-inception cap).
+                                  The ramp is driven by the tracked jet-base
+                                  radius r_b; if the main body's deepest
+                                  interfacial point relocates off-axis for any
+                                  reason (a tip fragment detaching from the
+                                  main tag is enough), r_b jumps from ~Delta/2
+                                  to O(0.1) and the ramp coarsens one level per
+                                  step to drillMaxlevelStart. At that level the
+                                  slender jet cannot be represented, so the
+                                  tracked feature can never reappear and the
+                                  coarsening is irreversible — case 2331 lost
+                                  level 12 at t = 0.477 and ran the remaining
+                                  1.02 capillary times at level 8. <=0 disables
+                                  (the pre-2331 behaviour). */
   int drillMaxlevelFocus;    /**< Pre-inception cap on the demanded level. The
                                   cavity-focus collapse is a genuine singularity:
                                   chasing it beyond the level that safely steps
@@ -180,6 +211,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   // Adaptive time
   p->CFL = 0.1;
   p->CFLelastic = 0.25;  // margin demonstrated to cross the cavity-focus instant
+  p->CFLconform = 0.0;   // OFF by default: a strict no-op for existing cases
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
   p->keStopMax = 1.0e2;    // historical blow-up gate (ad hoc; see struct note)
@@ -198,6 +230,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillRelaxLevel = -1;      // relaxation disabled by default
   p->drillTsnapStages = 1;
   p->drillTsnapMinFactor = 0.1;
+  p->drillMinlevelJet = -1;     // no post-inception floor by default
   p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
   p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
   p->drillAssumeJet = 0;        // don't assume a formed jet on restore
@@ -235,6 +268,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "AErr")            == 0) p->AErr = atof(value);
   else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
   else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = atof(value);
+  else if (strcmp(key, "CFLconform")      == 0) p->CFLconform = atof(value);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
   else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
@@ -248,6 +282,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
   else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
   else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
+  else if (strcmp(key, "drillMinlevelJet")    == 0) p->drillMinlevelJet = atoi(value);
   else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
   else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
   else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
@@ -493,6 +528,11 @@ static inline int validate_params(const struct SimulationParams *p) {
             p->CFLelastic);
     valid = 0;
   }
+  if (p->CFLconform < 0 || p->CFLconform > 1) {
+    fprintf(stderr, "ERROR: CFLconform must be in [0, 1] (0 disables) (CFLconform = %g)\n",
+            p->CFLconform);
+    valid = 0;
+  }
   if (p->dtmax <= 0) {
     fprintf(stderr, "ERROR: dtmax must be positive (dtmax = %g)\n", p->dtmax);
     valid = 0;
@@ -537,6 +577,12 @@ static inline int validate_params(const struct SimulationParams *p) {
         (p->drillMaxlevelFocus < p->drillMaxlevelStart || p->drillMaxlevelFocus > p->MAXlevel)) {
       fprintf(stderr, "ERROR: drillMaxlevelFocus (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
               p->drillMaxlevelFocus, p->drillMaxlevelStart, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillMinlevelJet > 0 &&
+        (p->drillMinlevelJet < p->drillMaxlevelStart || p->drillMinlevelJet > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillMinlevelJet (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
+              p->drillMinlevelJet, p->drillMaxlevelStart, p->MAXlevel);
       valid = 0;
     }
     if (p->drillRemoveGasSize < 0) {
@@ -589,6 +635,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
     fprintf(fp, "  CFL (elastic wave):     %g\n", p->CFLelastic);
   else
     fprintf(fp, "  CFL (elastic wave):     DISABLED\n");
+  if (p->CFLconform > 0)
+    fprintf(fp, "  CFL (conformation):     %g\n", p->CFLconform);
+  else
+    fprintf(fp, "  CFL (conformation):     DISABLED\n");
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);
   fprintf(fp, "  Solver TOLERANCE:       %g\n", p->TOLERANCE);
   fprintf(fp, "  ke stop gates (min/max): %g / %g\n", p->keStopMin, p->keStopMax);
@@ -610,6 +660,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  focus (pre-incept) cap: %d\n", p->drillMaxlevelFocus);
     else
       fprintf(fp, "  focus (pre-incept) cap: disabled\n");
+    if (p->drillMinlevelJet > 0)
+      fprintf(fp, "  jet (post-incept) floor: %d\n", p->drillMinlevelJet);
+    else
+      fprintf(fp, "  jet (post-incept) floor: disabled\n");
     if (p->drillRemoveGasSize > 0)
       fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
     else

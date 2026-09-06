@@ -222,3 +222,100 @@ event stability (i++)
   if (dtelastic < dtmax)
     dtmax = dtelastic;
 }
+
+/**
+## Conformation-source stability condition
+
+The elastic-wave condition above bounds the speed at which a *stretched*
+polymer transmits information. It says nothing about how fast the
+log-conformation update itself is allowed to change `Psi = log A`, and that is
+a separate explicit source. `log-conform-viscoelastic-scalar-2D.h` advances
+`Psi` with forward Euler,
+$$
+\Psi^{n+1} = \Psi^n + \Delta t\,\bigl[2\mathbf{B} + (\Omega\Psi - \Psi\Omega)\bigr],
+\qquad
+\Psi_{\theta\theta}^{n+1} = \Psi_{\theta\theta}^n + \Delta t\,\frac{2u_r}{r},
+$$
+and then exponentiates. An increment of order unity therefore multiplies the
+conformation by `e` in a single step. The relaxation is not the hazard: it is
+integrated analytically (`intFactor = exp(-dt/lambda)`), so it is
+unconditionally stable and small `lambda` is harmless in itself.
+
+The axisymmetric hoop term is the one nothing bounded. Its rate is `2 u_r / r`,
+evaluated in the first cell off the axis at `r = Delta/2`, and the advective
+CFL is blind to it: `timestep()` sees the metric-weighted face velocity, which
+carries a factor `r` and so vanishes exactly where this rate diverges.
+
+Measured on case 2330 (`De = 0.02`, `Ec = 0.009`, `Oh = 0.024`, level 12), which
+blew up at `t = 0.54267` with `ke` going from 4.61 to 4.15e11 in one step. The
+peak per-step increment sits in one on-axis interfacial cell at
+`(z, r) = (-1.638, Delta/2)` and grows
+
+| t | dt | max abs dPsi_qq |
+|---|----|-----------------|
+| 0.500 | 2.00e-5 | 0.029 |
+| 0.520 | 2.94e-5 | 0.119 |
+| 0.540 | 4.00e-5 | 0.123 |
+| 0.541 | 4.17e-5 | 0.262 |
+| 0.542 | 4.17e-5 | 0.525 |
+
+reaching order unity within the ~16 steps that remained. At the same instants
+the elastic-wave condition was SATISFIED and saturated (`dt/dt_elastic` = 0.97
+to 0.99), so it neither caused nor caught this.
+
+The `De` dependence is indirect but decisive, and explains why only the lowest
+`De` on the line died. At fixed `Ec` a weaker polymer stretches less, so the
+elastic-wave limit is looser and `dt` is larger: at `t = 0.542`,
+`max tr(A)` = 2.2e4 for `De = 0.02` against 1.7e5 for `De = 0.055` and 1.8e5
+for `De = 0.1`, giving `dt` = 4.17e-5 against 1.41e-5. Combined with a ~20x
+larger local hoop rate, the resulting increment is
+`0.53` (`De = 0.02`) against `0.0078` (`De = 0.055`) and `0.0011`
+(`De = 0.1`) — a factor of 480 across the line, monotone in `De`. The elastic
+condition was incidentally protecting the higher-`De` cases from a constraint
+it does not represent.
+
+`CFL_conform` is that missing bound: the largest log-conformation increment
+permitted in one step. `0` disables it, which is the pre-existing behaviour
+exactly, so no completed run is affected. `0.1` is the value the measurements
+support — it is inert for the cases that already ran (it would have allowed
+`dt <= 1.8e-4` for case 2314 at `t = 0.542`, an order of magnitude above the
+1.41e-5 that case was taking) and cuts case 2330's step by 5.3x at the instant
+it failed. It is a bound on the increment, not a proof of stability; the
+velocity-gradient terms are included alongside the hoop term because they are
+the same class of explicit source, though only the hoop term is measured here
+to have reached order unity.
+
+The condition is restricted to cells carrying polymer (`Gp > 0`), matching the
+elastic-wave condition: that is where a corrupted `A` feeds the momentum
+equation through `T = Gp (A - I)`.
+*/
+
+double CFL_conform = 0.;
+
+event stability (i++)
+{
+  if (CFL_conform <= 0.)
+    return 0;
+  double dtconf = HUGE;
+  foreach (reduction(min:dtconf)) {
+    if (Gp[] <= 0.)
+      continue;
+    double g = 0.;
+#if AXI
+    g = fabs (2.*u.y[])/max (y, 1e-20);          // hoop stretch, dPsi_qq
+#endif
+    double exx = fabs (u.x[1] - u.x[-1])/Delta;  // = |2 du_x/dx|
+    double eyy = fabs (u.y[0,1] - u.y[0,-1])/Delta;
+    double exy = (fabs (u.x[0,1] - u.x[0,-1]) +
+                  fabs (u.y[1] - u.y[-1]))/(2.*Delta);
+    if (exx > g) g = exx;
+    if (eyy > g) g = eyy;
+    if (exy > g) g = exy;
+    if (g > 0. && isfinite (g)) {
+      double dtg = CFL_conform/g;
+      if (dtg < dtconf) dtconf = dtg;
+    }
+  }
+  if (dtconf < dtmax)
+    dtmax = dtconf;
+}

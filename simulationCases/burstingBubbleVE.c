@@ -154,6 +154,7 @@ int main(int argc, char *argv[]) {
   */
   CFL = params.CFL;
   CFL_elastic = params.CFLelastic;   // elastic-wave limit, see two-phaseVE.h
+  CFL_conform = params.CFLconform;   // conformation-source limit, see two-phaseVE.h
   DT = params.dtmax;
   TOLERANCE = params.TOLERANCE;
 
