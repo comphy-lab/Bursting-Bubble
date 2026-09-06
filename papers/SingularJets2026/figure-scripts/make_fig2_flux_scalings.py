@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Fig. 2 scaffold from the Oh=0.03 grid-convergence logs.
+"""Build Fig. 2 from refinement-comparison logs near Oh=0.03.
 
 Paper notation differs from the solver-column names:
   Q_j  = 2*pi*q_jet
@@ -70,10 +70,13 @@ LINE = {
 PAIR_COLOURS = {
     (12, 13): "#7BB7D9",  # pre-12 blue, lighter post-13 shade
     (12, 14): "#0072B2",  # pre-12 blue, darker post-14 shade
+    (13, 14): "#F2BF66",  # pre-13 orange, lighter post-14 shade
     (13, 15): "#E69F00",  # pre-13 orange
     (14, 15): "#49B58F",  # pre-14 green, lighter post-15 shade
     (14, 16): "#007A59",  # pre-14 green, darker post-16 shade
     (15, 15): "#CC79A7",  # pre-15 purple
+    (15, 16): "#8F3973",  # pre-15 purple, darker post-16 shade
+    (16, 16): "#666666",  # explicitly labelled lower-level topology bridge
 }
 GREY = "#666666"
 LIGHT_GREY = "#d9d9d9"
@@ -96,11 +99,14 @@ class RunSpec:
 
 RUNS = (
     RunSpec("3013_L13_log.txt", r"(12,13)", 13, 12, "o"),
-    RunSpec("4015_L14_log.txt", r"(12,14)", 14, 12, "o"),
+    RunSpec("6203_L14_focus12_log.txt", r"(12,14)", 14, 12, "o"),
+    RunSpec("6202_L14_focus13_log.txt", r"(13,14)", 14, 13, "s"),
     RunSpec("5001_L15_focus13_log.txt", r"(13,15)", 15, 13, "s"),
     RunSpec("5003_L15_focus14_log.txt", r"(14,15)", 15, 14, "^"),
     RunSpec("6001_L16_focus14_log.txt", r"(14,16)", 16, 14, "^"),
     RunSpec("5008_L15_focus15_log.txt", r"(15,15)", 15, 15, "D"),
+    RunSpec("6318_L16_focus15_log.txt", r"(15,16)", 16, 15, "D"),
+    RunSpec("6327_L16_bridged_log.txt", r"(16\to14,16)", 16, 16, "X"),
 )
 
 COLUMNS = (
@@ -138,8 +144,8 @@ def configure_matplotlib(use_tex: bool = True) -> None:
 
 def literature_label() -> str:
     if USE_TEX:
-        return r"Gordillo \& Blanco-Rodr\'iguez 2023 [27]"
-    return "Gordillo & Blanco-Rodríguez 2023 [27]"
+        return r"Gordillo \& Blanco-Rodr\'iguez 2023"
+    return "Gordillo & Blanco-Rodríguez 2023"
 
 
 def read_log(path: Path) -> dict[str, np.ndarray]:

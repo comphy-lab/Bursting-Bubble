@@ -21,17 +21,164 @@
     "expected_point_counts": {
       "reference_window_raw": 1777,
       "reference_window_interpolated_panel_c": 35
+    },
+    "completed_runs": [
+      {
+        "terminal_case": 6202,
+        "log": "data-Oh-0.03/6202_L14_focus13_log.txt",
+        "sha256": "60e711aebde67bc87423707ca66790413a400e57e86fc23a610e5695fc03bb3f",
+        "rows": 9019,
+        "Oh": 0.03,
+        "Bo": 0,
+        "bridged": false,
+        "segments": [
+          {
+            "case": "6202",
+            "lower_exclusive": null,
+            "upper_inclusive": null,
+            "log_rows": 9019,
+            "snapshots": 631,
+            "log_sha256": "6f9dd61122171c87faceacb06eb90eb57ae1f4e458f99969611a041561473bfd"
+          }
+        ],
+        "source_csv_sha256": "bae530e10ab426e46c8fde169aec5bcf550896962ef42906ae1d9a4176492c07"
+      },
+      {
+        "terminal_case": 6203,
+        "log": "data-Oh-0.03/6203_L14_focus12_log.txt",
+        "sha256": "3af94c325d1a69193dad6ccaa6ea7978e2dd806971d3dbe97d3b8ac0a4489edb",
+        "rows": 13688,
+        "Oh": 0.030314,
+        "Bo": 0,
+        "bridged": false,
+        "segments": [
+          {
+            "case": "6203",
+            "lower_exclusive": null,
+            "upper_inclusive": null,
+            "log_rows": 13688,
+            "snapshots": 734,
+            "log_sha256": "f33495d6d284aaeb000707ff66c81f92028cdce73e42f9ca2c17ef25fcd7a4f5"
+          }
+        ],
+        "source_csv_sha256": "8beb89e6b875168ee4de4e1c6c1642888b2dab936786fa817758fcc9078e5aec"
+      },
+      {
+        "terminal_case": 6318,
+        "log": "data-Oh-0.03/6318_L16_focus15_log.txt",
+        "sha256": "411e49e5586a247595382b0cf83b0b27dbfbfbccf61f92cdf8011ca8571751ca",
+        "rows": 16640,
+        "Oh": 0.03,
+        "Bo": 0,
+        "bridged": false,
+        "segments": [
+          {
+            "case": "6303",
+            "lower_exclusive": null,
+            "upper_inclusive": 0.493672,
+            "log_rows": 3215,
+            "snapshots": 192,
+            "log_sha256": "21bd9103166277f95bc90e99021dd39ea229de8c677741ed9fb3a6f9b825a5c2"
+          },
+          {
+            "case": "6315",
+            "lower_exclusive": 0.493672,
+            "upper_inclusive": 0.494284,
+            "log_rows": 2675,
+            "snapshots": 585,
+            "log_sha256": "5ff9bd23d5d542577b95acbc527a65a115c4d3524685f571820c2a8bd1ed635a"
+          },
+          {
+            "case": "6317",
+            "lower_exclusive": 0.494284,
+            "upper_inclusive": 0.49999629,
+            "log_rows": 6751,
+            "snapshots": 2774,
+            "log_sha256": "91b1dd778c51bdfed85bcb1e8d6dea95b719551ddfbf0be1ef744be749d73836"
+          },
+          {
+            "case": "6318",
+            "lower_exclusive": 0.49999629,
+            "upper_inclusive": null,
+            "log_rows": 4000,
+            "snapshots": 401,
+            "log_sha256": "4a4ae54504adcd8ffd4f800dad25a1aee19a86bbd6288792328164205668820a"
+          }
+        ],
+        "source_csv_sha256": "083e83a9445a08b4a49cd923876a1a61b2b791f2d5d7dd9e304d248aa8552b87"
+      },
+      {
+        "terminal_case": 6327,
+        "log": "data-Oh-0.03/6327_L16_bridged_log.txt",
+        "sha256": "1cdf829978729673507378648adbd5bbc30899678dde1597434480063cd416b1",
+        "rows": 17001,
+        "Oh": 0.03,
+        "Bo": 0,
+        "bridged": true,
+        "segments": [
+          {
+            "case": "6304",
+            "lower_exclusive": null,
+            "upper_inclusive": 0.493906,
+            "log_rows": 4725,
+            "snapshots": 198,
+            "log_sha256": "04a1b04e6008e9557be6bd21c01643f003d1b26a75bac2a16b0c29216e1053d1"
+          },
+          {
+            "case": "6316",
+            "lower_exclusive": 0.493906,
+            "upper_inclusive": 0.497088,
+            "log_rows": 4123,
+            "snapshots": 3139,
+            "log_sha256": "955ad01acb18888bd19094e564b77424a467d02748d56726f3e51985c3387e90"
+          },
+          {
+            "case": "6326",
+            "lower_exclusive": 0.497088,
+            "upper_inclusive": 0.49879609,
+            "log_rows": 4399,
+            "snapshots": 1697,
+            "log_sha256": "5ae2c386f1e643f6332a93e971564aaf9e6fff4cac0d0dfe4c9131ba02bb3b07"
+          },
+          {
+            "case": "6327",
+            "lower_exclusive": 0.49879609,
+            "upper_inclusive": null,
+            "log_rows": 3755,
+            "snapshots": 401,
+            "log_sha256": "4197404acc852af689d0842de8a6e9811ed63d89ca660f66b7391f6a3c0153d1"
+          }
+        ],
+        "source_csv_sha256": "2ed2956c26cc88cdbfc1c98ce0de6cc9a916076c47960150c10d2bfb7bcd0079"
+      }
+    ],
+    "replaced_case": {
+      "old": 4015,
+      "new": 6203,
+      "reason": "Completed repeat at identical declared parameters; previous log retained for comparison."
     }
   },
   "figure_2a": {
     "case": 5003,
-    "snapshots": ["0.492500", "0.494219", "0.496719", "0.499844"],
+    "snapshots": [
+      "0.492500",
+      "0.494219",
+      "0.496719",
+      "0.499844"
+    ],
     "regular_grid": {
       "zmin": -1.72,
       "zmax": -0.82,
       "rmax": 0.58,
       "nr": 190,
-      "columns": ["z", "r", "f", "uz", "ur", "speed"]
+      "columns": [
+        "z",
+        "r",
+        "f",
+        "uz",
+        "ur",
+        "speed"
+      ]
     }
   }
 }

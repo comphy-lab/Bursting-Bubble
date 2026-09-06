@@ -52,10 +52,13 @@ SHORT_LEGEND_LABELS = {
     r"inertio-capillary": r"inertio-capillary, $\alpha=2/3$",
     r"(12,13)": r"$(12,13)$",
     r"(12,14)": r"$(12,14)$",
+    r"(13,14)": r"$(13,14)$",
     r"(13,15)": r"$(13,15)$",
     r"(14,15)": r"$(14,15)$",
     r"(15,15)": r"$(15,15)$",
     r"(14,16)": r"$(14,16)$",
+    r"(15,16)": r"$(15,16)$",
+    r"(16\to14,16)": r"$(16\!\to\!14,16)$",
 }
 
 
@@ -379,10 +382,10 @@ def build_figure(args: argparse.Namespace) -> None:
 
     draw_panel_a(fig, (0.014, 0.105, 0.365, 0.790), args)
 
-    legend_top = 0.160
+    legend_top = 0.195
     theory_legend_ax = fig.add_axes([0.405, 0.025, 0.310, legend_top - 0.025])
     theory_legend_ax.axis("off")
-    symbol_legend_ax = fig.add_axes([0.740, 0.025, 0.255, 0.125])
+    symbol_legend_ax = fig.add_axes([0.735, 0.012, 0.263, 0.185])
     symbol_legend_ax.axis("off")
     ax_b = fig.add_axes([0.430, 0.325, 0.258, 0.600])
     ax_c = fig.add_axes([0.735, 0.325, 0.255, 0.600])
@@ -432,7 +435,7 @@ def build_figure(args: argparse.Namespace) -> None:
     ax_b.set_ylim(0.01, 4.0)
     ax_c.set_ylim(0.75, 260.0)
     ax_b.yaxis.set_label_coords(-0.155, 0.5)
-    ax_c.yaxis.set_label_coords(-0.190, 0.5)
+    ax_c.yaxis.set_label_coords(-0.170, 0.5)
 
     fig.text(0.006, 0.875, r"(a)", ha="left", va="bottom",
              fontsize=flux.APS["PanelFont"], fontweight="bold")
@@ -458,7 +461,10 @@ def build_figure(args: argparse.Namespace) -> None:
     )
     pair_handles = handles[3:]
     pair_labels = labels[3:]
-    row_major_order = (0, 3, 1, 4, 2, 5)
+    # Matplotlib fills legend columns first; display the ordered runs by rows.
+    legend_rows = (len(pair_handles) + 2) // 3
+    row_major_order = [index for column in range(3) for row in range(legend_rows)
+                       if (index := row * 3 + column) < len(pair_handles)]
     symbol_legend_ax.legend(
         [pair_handles[index] for index in row_major_order],
         [pair_labels[index] for index in row_major_order],

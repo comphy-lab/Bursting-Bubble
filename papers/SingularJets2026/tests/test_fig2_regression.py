@@ -40,19 +40,25 @@ def test_figure_legend_uses_pre_post_inception_pairs():
     expected = {
         r"(12,13)": r"$(12,13)$",
         r"(12,14)": r"$(12,14)$",
+        r"(13,14)": r"$(13,14)$",
         r"(13,15)": r"$(13,15)$",
         r"(14,15)": r"$(14,15)$",
-        r"(15,15)": r"$(15,15)$",
         r"(14,16)": r"$(14,16)$",
+        r"(15,15)": r"$(15,15)$",
+        r"(15,16)": r"$(15,16)$",
+        r"(16\to14,16)": r"$(16\!\to\!14,16)$",
     }
     assert {run.label for run in flux.RUNS} == set(expected)
     assert [(run.focus, run.level) for run in flux.RUNS] == [
         (12, 13),
         (12, 14),
+        (13, 14),
         (13, 15),
         (14, 15),
         (14, 16),
         (15, 15),
+        (15, 16),
+        (16, 16),
     ]
     assert {label: figure_v2.SHORT_LEGEND_LABELS[label] for label in expected} == expected
 
@@ -60,11 +66,26 @@ def test_figure_legend_uses_pre_post_inception_pairs():
 def test_figure_styles_encode_pre_level_then_post_shade():
     by_pair = {(run.focus, run.level): run for run in flux.RUNS}
     assert by_pair[(12, 13)].marker == by_pair[(12, 14)].marker == "o"
+    assert by_pair[(13, 14)].marker == by_pair[(13, 15)].marker == "s"
     assert by_pair[(14, 15)].marker == by_pair[(14, 16)].marker == "^"
-    assert len({run.marker for run in flux.RUNS}) == 4
+    assert by_pair[(15, 15)].marker == by_pair[(15, 16)].marker == "D"
+    assert by_pair[(16, 16)].marker == "X"
+    assert len({run.marker for run in flux.RUNS}) == 5
     assert by_pair[(12, 13)].colour != by_pair[(12, 14)].colour
+    assert by_pair[(13, 14)].colour != by_pair[(13, 15)].colour
     assert by_pair[(14, 15)].colour != by_pair[(14, 16)].colour
+    assert by_pair[(15, 15)].colour != by_pair[(15, 16)].colour
+    assert by_pair[(16, 16)].colour == flux.GREY
     assert set(flux.PAIR_COLOURS) == set(by_pair)
+
+
+def test_new_level_14_and_bridged_runs_have_explicit_provenance_labels():
+    by_label = {run.label: run for run in flux.RUNS}
+    assert by_label[r"(12,14)"].filename == "6203_L14_focus12_log.txt"
+
+    bridge = by_label[r"(16\to14,16)"]
+    assert bridge.filename == "6327_L16_bridged_log.txt"
+    assert (bridge.focus, bridge.level, bridge.marker) == (16, 16, "X")
 
 
 def test_panel_a_metadata_matches_archive_schema():
