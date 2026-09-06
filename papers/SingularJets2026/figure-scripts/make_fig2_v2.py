@@ -435,7 +435,7 @@ def build_figure(args: argparse.Namespace) -> None:
     ax_b.set_ylim(0.01, 4.0)
     ax_c.set_ylim(0.75, 260.0)
     ax_b.yaxis.set_label_coords(-0.155, 0.5)
-    ax_c.yaxis.set_label_coords(-0.170, 0.5)
+    ax_c.yaxis.set_label_coords(-0.153, 0.5)
 
     fig.text(0.006, 0.875, r"(a)", ha="left", va="bottom",
              fontsize=flux.APS["PanelFont"], fontweight="bold")
