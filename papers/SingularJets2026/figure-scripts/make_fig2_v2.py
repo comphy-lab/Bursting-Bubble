@@ -4,12 +4,14 @@
 Panel (a) shows the four-frame velocity/streamline diagnostic. Panel (b)
 uses the approved Q_j processing from make_fig2_flux_scalings.py. Panel (c)
 first constructs an intermediate Q_j branch and then evaluates
-We_j = Q_j^2/(pi^2 r_j^3).
+We_j = Q_j^2/(pi^2 r_j^3), with the approved empirical base-grid ceiling
+applied to its extrapolated r_j-to-zero limit.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import sys
 from pathlib import Path
@@ -21,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
+from matplotlib.lines import Line2D
 from scipy.interpolate import PchipInterpolator
 
 from capsule_utils import atomic_savefig
@@ -46,6 +49,10 @@ def load_script_module(name: str, path: Path):
 
 fig2a = load_script_module("fig2a_streamlines", SCRIPT_DIR / "make_fig2a_streamlines.py")
 flux = load_script_module("fig2_flux_scalings", SCRIPT_DIR / "make_fig2_flux_scalings.py")
+GRID_WE_METADATA = flux.FIG2_METADATA["grid_informed_weber"]
+GRID_WE_CASES = {
+    str(item["case"]): item for item in GRID_WE_METADATA["cases"]
+}
 
 SHORT_LEGEND_LABELS = {
     rf"cone ($\alpha={flux.ALPHA:.3f}$)": rf"present theory, $\alpha={flux.ALPHA:.3f}$",
@@ -82,6 +89,136 @@ def tune_flux_style() -> None:
             "markeredgewidth": 0.22,
         }
     )
+
+
+def case_id(run) -> str:
+    """Return the four-digit case identifier encoded in a run filename."""
+    return run.filename.split("_", 1)[0]
+
+
+def grid_informed_runs():
+    """Return the eight unbridged runs used by the empirical grid correlation."""
+    excluded = {str(case) for case in GRID_WE_METADATA["excluded_cases"]}
+    runs = tuple(run for run in flux.RUNS if case_id(run) not in excluded)
+    if {case_id(run) for run in runs} != set(GRID_WE_CASES):
+        raise RuntimeError("Figure 2 grid-informed case set differs from metadata")
+    return runs
+
+
+def grid_weber_ceiling(level: int) -> float:
+    """Evaluate the fixed eight-case correlation without refitting it."""
+    correlation = GRID_WE_METADATA["correlation"]
+    delta = float(correlation["domain_size_over_R"]) / 2**level
+    return float(correlation["prefactor"] * delta ** correlation["exponent"])
+
+
+def cap_flux(radius, volume_flux, weber_ceiling):
+    """Apply the empirical Weber ceiling through the equivalent flux bound."""
+    radius = np.asarray(radius, dtype=float)
+    volume_flux = np.asarray(volume_flux, dtype=float)
+    if np.any(~np.isfinite(radius)) or np.any(radius <= 0.0):
+        raise ValueError("Grid-informed Weber processing requires positive finite radii")
+    if np.any(~np.isfinite(volume_flux)) or np.any(volume_flux < 0.0):
+        raise ValueError("Grid-informed Weber processing requires finite outward flux")
+    if not np.isfinite(weber_ceiling) or weber_ceiling <= 0.0:
+        raise ValueError("Grid-informed Weber ceiling must be positive and finite")
+    return np.minimum(
+        volume_flux, np.pi * radius**1.5 * np.sqrt(weber_ceiling)
+    )
+
+
+def apply_grid_informed_weber_caps(
+    series_by_run,
+    prefactors,
+    q_slope: float,
+    blend_start_r: float,
+    data_dir: Path = flux.DEFAULT_DATA_DIR,
+):
+    """Cap the existing constrained-Q series and verify its hidden r->0 limit."""
+    adjusted = []
+    diagnostics = []
+    we_slope = 2.0 * q_slope - 3.0
+    display_minimum = float(GRID_WE_METADATA["display"]["x_limits"][0])
+    for (run, series), (same_run, q_prefactor) in zip(
+        series_by_run, prefactors, strict=True
+    ):
+        if run != same_run:
+            raise RuntimeError("Q-interpolation prefactor order differs from run order")
+        case = case_id(run)
+        evidence = GRID_WE_CASES[case]
+        source = data_dir / run.filename
+        if hashlib.sha256(source.read_bytes()).hexdigest() != evidence["sha256"]:
+            raise RuntimeError(f"Figure 2 source hash differs for case {case}")
+        level = int(evidence["base_level_at_native_peak"])
+        maximum_weber = grid_weber_ceiling(level)
+        capped_q = cap_flux(series["r_j"], series["Q_j"], maximum_weber)
+        capped_weber = np.minimum(series["We_j"], maximum_weber)
+        capped_line_flux = capped_q / (np.pi * series["r_j"])
+        if not np.allclose(
+            capped_weber,
+            capped_q**2 / (np.pi**2 * series["r_j"] ** 3),
+            rtol=1.0e-12,
+        ):
+            raise RuntimeError(f"Flux and Weber caps disagree for case {case}")
+        changed = capped_weber < series["We_j"]
+        if np.any(changed & (series["r_j"] >= display_minimum)):
+            raise RuntimeError("Empirical grid cap became active in the displayed range")
+
+        we_prefactor = q_prefactor**2 / np.pi**2
+        saturation_radius = float((maximum_weber / we_prefactor) ** (1.0 / we_slope))
+        if not 1.0e-6 < saturation_radius < blend_start_r:
+            raise RuntimeError(f"Unexpected saturation radius for case {case}")
+        for test_radius in (1.0e-8, 1.0e-12):
+            original_q = q_prefactor * test_radius**q_slope
+            limited_q = cap_flux([test_radius], [original_q], maximum_weber)[0]
+            if not np.isclose(
+                limited_q**2 / (np.pi**2 * test_radius**3),
+                maximum_weber,
+                rtol=1.0e-12,
+            ):
+                raise RuntimeError(f"r_j-to-zero limit check failed for case {case}")
+        adjusted.append(
+            (
+                run,
+                {
+                    "r_j": series["r_j"].copy(),
+                    "Q_j": capped_q,
+                    "q_j": capped_line_flux,
+                    "We_j": capped_weber,
+                },
+            )
+        )
+        diagnostics.append(
+            {
+                "case": case,
+                "level": level,
+                "weber_ceiling": maximum_weber,
+                "saturation_radius": saturation_radius,
+                "displayed_values_changed": int(
+                    np.count_nonzero(changed & (series["r_j"] >= display_minimum))
+                ),
+            }
+        )
+    return adjusted, diagnostics
+
+
+def grid_legend_runs(runs):
+    """Order the legend by measured peak-base level, then numerical pair."""
+    return sorted(
+        runs,
+        key=lambda run: (
+            int(GRID_WE_CASES[case_id(run)]["base_level_at_native_peak"]),
+            run.focus,
+            run.level,
+            int(case_id(run)),
+        ),
+    )
+
+
+def grid_legend_label(run) -> str:
+    """Append the independently established native-peak base level."""
+    level = int(GRID_WE_CASES[case_id(run)]["base_level_at_native_peak"])
+    return rf"${run.label}_{{{level}}}$"
 
 
 def load_streamline_fields(args: argparse.Namespace):
@@ -372,9 +509,10 @@ def build_figure(args: argparse.Namespace) -> None:
     flux.configure_matplotlib(use_tex=not args.no_tex)
     tune_flux_style()
 
+    runs = grid_informed_runs()
     series_by_run = [
         (run, flux.processed_series(flux.read_log(args.data_dir / run.filename)))
-        for run in flux.RUNS
+        for run in runs
     ]
 
     fig = plt.figure(figsize=(APS_DOUBLE_COL, FIG_HEIGHT))
@@ -400,6 +538,13 @@ def build_figure(args: argparse.Namespace) -> None:
         args.interp_blend_start_r,
         args.interp_marker_target,
     )
+    we_series_by_run, grid_diagnostics = apply_grid_informed_weber_caps(
+        we_series_by_run,
+        q_prefactors,
+        q_slope,
+        args.interp_blend_start_r,
+        data_dir=args.data_dir,
+    )
     resample_we_markers = False
     print(
         "Q_j interpolation prefactors for "
@@ -409,6 +554,13 @@ def build_figure(args: argparse.Namespace) -> None:
     )
     for run, prefactor in q_prefactors:
         print(f"  {SHORT_LEGEND_LABELS.get(run.label, run.label)}: A = {prefactor:.6g}")
+    print("Grid-informed Weber limits (inactive in the displayed range):")
+    for item in grid_diagnostics:
+        print(
+            f"  case {item['case']}: L_B={item['level']} "
+            f"We_max={item['weber_ceiling']:.6g} "
+            f"r_sat={item['saturation_radius']:.6g}"
+        )
 
     draw_flux_panel(
         ax_b,
@@ -433,9 +585,38 @@ def build_figure(args: argparse.Namespace) -> None:
     )
 
     ax_b.set_ylim(0.01, 4.0)
-    ax_c.set_ylim(0.75, 260.0)
+    ax_c.set_xlim(*GRID_WE_METADATA["display"]["x_limits"])
+    ax_c.set_ylim(*GRID_WE_METADATA["display"]["y_limits"])
+    ax_c.set_xticks(
+        [0.005, 0.01, 0.1, 1.0],
+        [r"$0.005$", r"$10^{-2}$", r"$10^{-1}$", r"$10^0$"],
+    )
+    ax_c.get_xticklabels()[0].set_fontsize(6.0)
+    ax_c.get_xticklabels()[0].set_ha("right")
     ax_b.yaxis.set_label_coords(-0.155, 0.5)
     ax_c.yaxis.set_label_coords(-0.153, 0.5)
+
+    grid_information = [r"$L_B:\ \Delta_b/R\ \mapsto\ We_{\max}$"]
+    for level in (13, 14, 15):
+        delta = GRID_WE_METADATA["correlation"]["domain_size_over_R"] / 2**level
+        grid_information.append(
+            rf"${level}:\ {delta/1e-3:.3f}\!\times\!10^{{-3}}\ \mapsto\ "
+            rf"{grid_weber_ceiling(level):.0f}$"
+        )
+    grid_information.extend(
+        [r"Grid caps; inactive in this range", r"$L_B$: base level at native peak"]
+    )
+    ax_c.text(
+        0.045,
+        0.40,
+        "\n".join(grid_information),
+        transform=ax_c.transAxes,
+        fontsize=4.7,
+        ha="left",
+        va="top",
+        linespacing=1.35,
+        bbox={"facecolor": "none", "edgecolor": "none", "pad": 0},
+    )
 
     fig.text(0.006, 0.875, r"(a)", ha="left", va="bottom",
              fontsize=flux.APS["PanelFont"], fontweight="bold")
@@ -444,8 +625,8 @@ def build_figure(args: argparse.Namespace) -> None:
     fig.text(0.690, 0.875, r"(c)", ha="left", va="bottom",
              fontsize=flux.APS["PanelFont"], fontweight="bold")
 
-    handles, labels = ax_b.get_legend_handles_labels()
-    labels = [SHORT_LEGEND_LABELS.get(label, label) for label in labels]
+    handles, raw_labels = ax_b.get_legend_handles_labels()
+    labels = [SHORT_LEGEND_LABELS.get(label, label) for label in raw_labels]
     theory_legend_ax.legend(
         handles[:3],
         labels[:3],
@@ -459,27 +640,38 @@ def build_figure(args: argparse.Namespace) -> None:
         labelspacing=0.32,
         borderaxespad=0.0,
     )
-    pair_handles = handles[3:]
-    pair_labels = labels[3:]
-    # Matplotlib fills legend columns first; display the ordered runs by rows.
-    legend_rows = (len(pair_handles) + 2) // 3
-    row_major_order = [index for column in range(3) for row in range(legend_rows)
-                       if (index := row * 3 + column) < len(pair_handles)]
+    handle_by_label = dict(zip(raw_labels[3:], handles[3:]))
+    ordered_runs = grid_legend_runs(runs)
+    groups = [
+        [
+            run
+            for run in ordered_runs
+            if GRID_WE_CASES[case_id(run)]["base_level_at_native_peak"] == level
+        ]
+        for level in (13, 14, 15)
+    ]
+    if [len(group) for group in groups] != [3, 2, 3]:
+        raise RuntimeError("Grid-informed legend groups must have sizes 3, 2, 3")
+    legend_slots = [group + [None] * (3 - len(group)) for group in groups]
+    column_slots = [
+        legend_slots[row][column] for column in range(3) for row in range(3)
+    ]
+    blank = Line2D([], [], linestyle="none", marker="None", color="none")
     symbol_legend_ax.legend(
-        [pair_handles[index] for index in row_major_order],
-        [pair_labels[index] for index in row_major_order],
+        [handle_by_label[run.label] if run is not None else blank for run in column_slots],
+        [grid_legend_label(run) if run is not None else "" for run in column_slots],
         loc="upper left",
         bbox_to_anchor=(0.0, 1.0),
         ncol=3,
         frameon=False,
-        fontsize=flux.APS["LegendFont"],
+        fontsize=5.7,
         handlelength=0.45,
         handletextpad=0.08,
         columnspacing=0.35,
         labelspacing=0.20,
         borderaxespad=0.0,
-        title=r"Levels $(\ell_{\rm pre},\ell_{\rm post})$",
-        title_fontsize=flux.APS["LegendFont"],
+        title=r"Levels $(L_{\rm pre},L_{\rm post})_{L_B}$",
+        title_fontsize=6.2,
     )
 
     atomic_savefig(fig, args.output, dpi=300)

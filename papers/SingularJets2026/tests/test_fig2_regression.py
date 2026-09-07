@@ -164,6 +164,75 @@ def test_interpolated_panel_c_prefactor(series_by_run):
     assert np.count_nonzero(in_window) == counts["reference_window_interpolated_panel_c"]
 
 
+def test_grid_informed_panel_c_uses_fixed_eight_case_correlation(series_by_run):
+    metadata = flux.FIG2_METADATA["grid_informed_weber"]
+    assert metadata["correlation"]["prefactor"] == 18.443063423658373
+    assert metadata["correlation"]["exponent"] == -0.3741726680979101
+    assert metadata["correlation"]["fit_cases"] == [
+        3013, 6203, 6202, 5001, 5003, 6001, 5008, 6318
+    ]
+    assert metadata["excluded_cases"] == [6327]
+    assert metadata["display"] == {
+        "x_limits": [0.005, 1.0],
+        "y_limits": [0.75, 260.0],
+        "caps_active_in_displayed_range": False,
+        "interpretation": (
+            "The empirical grid caps constrain only the extrapolated r_j-to-zero "
+            "limit and do not establish DNS convergence."
+        ),
+    }
+
+    runs = figure_v2.grid_informed_runs()
+    assert [figure_v2.case_id(run) for run in figure_v2.grid_legend_runs(runs)] == [
+        "3013", "6202", "5001", "6203", "6001", "5003", "5008", "6318"
+    ]
+    assert [figure_v2.grid_weber_ceiling(level) for level in (13, 14, 15)] == pytest.approx(
+        [226.95719126891964, 294.1583256225993, 381.2574523385054], rel=1e-14
+    )
+
+    selected = [
+        item for item in series_by_run if figure_v2.case_id(item[0]) != "6327"
+    ]
+    q_slope = (3.0 * flux.ALPHA - 1.0) / flux.ALPHA
+    baseline, prefactors = figure_v2.build_interpolated_we_series(
+        selected,
+        q_slope,
+        flux.CONE_FIT_WINDOW,
+        anchor_r=0.1,
+        blend_start_r=0.005,
+        marker_target=52,
+    )
+    adjusted, diagnostics = figure_v2.apply_grid_informed_weber_caps(
+        baseline, prefactors, q_slope, blend_start_r=0.005
+    )
+    assert all(item["displayed_values_changed"] == 0 for item in diagnostics)
+    for (_, old), (_, new) in zip(baseline, adjusted, strict=True):
+        assert np.array_equal(old["r_j"], new["r_j"])
+        assert np.array_equal(old["Q_j"], new["Q_j"])
+        assert np.array_equal(old["We_j"], new["We_j"])
+
+    for evidence in metadata["cases"]:
+        path = CAPSULE / evidence["log"]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == evidence["sha256"]
+
+
+def test_grid_caps_validate_the_selected_data_directory(series_by_run, tmp_path):
+    selected = series_by_run[:1]
+    run = selected[0][0]
+    source = CAPSULE / "data-Oh-0.03" / run.filename
+    (tmp_path / run.filename).write_bytes(source.read_bytes() + b"\n")
+    q_slope = (3.0 * flux.ALPHA - 1.0) / flux.ALPHA
+    baseline, prefactors = figure_v2.build_interpolated_we_series(
+        selected, q_slope, flux.CONE_FIT_WINDOW,
+        anchor_r=0.1, blend_start_r=0.005, marker_target=36,
+    )
+    with pytest.raises(RuntimeError, match="source hash differs"):
+        figure_v2.apply_grid_informed_weber_caps(
+            baseline, prefactors, q_slope, blend_start_r=0.005,
+            data_dir=tmp_path,
+        )
+
+
 def test_default_panel_a_inputs_are_complete_and_offline(monkeypatch):
     monkeypatch.setattr(
         figure_2a.urllib.request,

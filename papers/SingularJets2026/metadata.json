@@ -22,6 +22,74 @@
       "reference_window_raw": 1777,
       "reference_window_interpolated_panel_c": 35
     },
+    "grid_informed_weber": {
+      "observable": "We_j=Q_j^2/(pi^2*r_j^3), with Q_j from the existing constrained interpolation",
+      "operation": "Q_grid=min(Q_existing,pi*r_j^(3/2)*sqrt(We_max(Delta_b))); equivalently We_grid=min(We_existing,We_max)",
+      "correlation": {
+        "formula": "We_max=18.443063423658373*(Delta_b/R)^(-0.3741726680979101)",
+        "prefactor": 18.443063423658373,
+        "exponent": -0.3741726680979101,
+        "domain_size_over_R": 10.0,
+        "fit_cases": [3013, 6203, 6202, 5001, 5003, 6001, 5008, 6318]
+      },
+      "display": {
+        "x_limits": [0.005, 1.0],
+        "y_limits": [0.75, 260.0],
+        "caps_active_in_displayed_range": false,
+        "interpretation": "The empirical grid caps constrain only the extrapolated r_j-to-zero limit and do not establish DNS convergence."
+      },
+      "excluded_cases": [6327],
+      "cases": [
+        {
+          "case": 3013,
+          "log": "data-Oh-0.03/3013_L13_log.txt",
+          "sha256": "88c578496bd35c927655807576039b1eff2fb9078c3e7571bd461cb8a74fe63f",
+          "base_level_at_native_peak": 13
+        },
+        {
+          "case": 6202,
+          "log": "data-Oh-0.03/6202_L14_focus13_log.txt",
+          "sha256": "60e711aebde67bc87423707ca66790413a400e57e86fc23a610e5695fc03bb3f",
+          "base_level_at_native_peak": 13
+        },
+        {
+          "case": 5001,
+          "log": "data-Oh-0.03/5001_L15_focus13_log.txt",
+          "sha256": "a1a7459847920cad2a896a2cf34da58c6f989c9eff592a7279a256bc03920f5a",
+          "base_level_at_native_peak": 13
+        },
+        {
+          "case": 6203,
+          "log": "data-Oh-0.03/6203_L14_focus12_log.txt",
+          "sha256": "3af94c325d1a69193dad6ccaa6ea7978e2dd806971d3dbe97d3b8ac0a4489edb",
+          "base_level_at_native_peak": 14
+        },
+        {
+          "case": 6001,
+          "log": "data-Oh-0.03/6001_L16_focus14_log.txt",
+          "sha256": "fa0f65069544007e6ef74d4874dd832f3fe343569d3dae3f6d34d66c45e8d2dc",
+          "base_level_at_native_peak": 14
+        },
+        {
+          "case": 5003,
+          "log": "data-Oh-0.03/5003_L15_focus14_log.txt",
+          "sha256": "87f42a6fdc230463d8b2eb73f0088dbaf8d61e30542e6526e0bc97ba4d9cf7ef",
+          "base_level_at_native_peak": 15
+        },
+        {
+          "case": 5008,
+          "log": "data-Oh-0.03/5008_L15_focus15_log.txt",
+          "sha256": "071eb00fe0d1e65f02a939455a20368868e6cb5f803be3d928cfa4b66b693d5f",
+          "base_level_at_native_peak": 15
+        },
+        {
+          "case": 6318,
+          "log": "data-Oh-0.03/6318_L16_focus15_log.txt",
+          "sha256": "411e49e5586a247595382b0cf83b0b27dbfbfbccf61f92cdf8011ca8571751ca",
+          "base_level_at_native_peak": 15
+        }
+      ]
+    },
     "completed_runs": [
       {
         "terminal_case": 6202,
