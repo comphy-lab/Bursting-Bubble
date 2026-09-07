@@ -45,9 +45,16 @@ inception, for the cone fit), the generated figure (the `reproduce-Oh*.sh` runne
   `bash reproduce-fig2-v2.sh`.  That runner first invokes the standalone
   `make_fig2a_streamlines.py` panel/subpanel renderer and then the separate
   `make_fig2_v2.py` full-figure compositor.  Both PDF and PNG outputs are
-  written atomically from the same Matplotlib figures. Panel (c) samples an interpolated $Q_j(r_j)$
-  branch before computing $We_j=Q_j^2/(\pi^2r_j^3)$ to avoid repeated $r_j$
-  markers.
+  written atomically from the same Matplotlib figures. Panels (b,c) use the
+  same representative native rows selected in logarithmic radius bins: each displayed $We_j$ is computed directly as
+  $Q_j^2/(\pi^2r_j^3)$ from its displayed $Q_j$ sample. For each run, samples
+  from the first post-reference descending requested-grid staircase that
+  takes the ceiling below the pre-inception cap onwards
+  are excluded as a numerical quality criterion; this cutoff is not assigned
+  a physical inception or pinch interpretation. The dash-dot black curve is a
+  phenomenological smooth crossover between the independently normalised cone
+  and Gordillo--Blanco--Rodriguez asymptotes; its fitted sharpness describes
+  this finite data window rather than a universal physical width.
   The supporting raw grid-convergence diagnostic is
   `data-Oh-0.03/gridconv3_Oh0.03_L13-L14-L15.{pdf,png}`, regenerated with
   `bash reproduce-Oh0.03.sh`.

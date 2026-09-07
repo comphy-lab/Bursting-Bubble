@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +11,7 @@ import pytest
 import make_fig2_flux_scalings as flux
 import make_fig2_v2 as figure_v2
 import make_fig2a_streamlines as figure_2a
+import fig2_crossover as crossover
 
 
 CAPSULE = Path(__file__).resolve().parents[1]
@@ -230,6 +232,176 @@ def test_grid_caps_validate_the_selected_data_directory(series_by_run, tmp_path)
         figure_v2.apply_grid_informed_weber_caps(
             baseline, prefactors, q_slope, blend_start_r=0.005,
             data_dir=tmp_path,
+        )
+
+
+def test_requested_grid_quality_cutoffs_match_recorded_first_cascades():
+    expected = {
+        "3013": (0.52722826, 0.52721467),
+        "6203": (0.51896609, 0.51896042),
+        "6202": (0.50184244, 0.50183919),
+        "5001": (0.50197278, 0.50197128),
+        "5003": None,
+        "6001": (0.5020375, 0.50203685),
+        "5008": None,
+        "6318": (0.49681699, 0.4968168),
+    }
+    for run in figure_v2.grid_informed_runs():
+        data = flux.read_log(CAPSULE / "data-Oh-0.03" / run.filename)
+        cut = crossover.first_refinement_loss(
+            data, run.focus, flux.reconnection_time(data)
+        )
+        case = figure_v2.case_id(run)
+        if expected[case] is None:
+            assert cut is None
+            continue
+        assert (cut.first_drop_time, cut.last_retained_time) == expected[case]
+        assert data["maxlevel"][cut.index - 1] > data["maxlevel"][cut.index]
+        if case == "5001":
+            assert np.array_equal(
+                data["maxlevel"][cut.index - 1:cut.index + 4],
+                [15.0, 14.0, 13.0, 12.0, 11.0],
+            )
+
+
+def test_requested_grid_quality_cutoff_rejects_malformed_staircases():
+    malformed = {
+        "t": np.array([0.5, 0.6, 0.7]),
+        "maxlevel": np.array([16.0, 14.0, 13.0]),
+    }
+    with pytest.raises(ValueError, match="multi-level jump"):
+        crossover.first_refinement_loss(malformed, pre_cap=15, reference_time=0.4)
+    malformed["t"] = np.array([0.5, 0.7, 0.6])
+    with pytest.raises(ValueError, match="strictly increasing"):
+        crossover.first_refinement_loss(malformed, pre_cap=15, reference_time=0.4)
+
+
+def test_panels_use_identical_native_rows_and_algebraic_weber_values():
+    retained, diagnostics = figure_v2.retained_native_series(
+        figure_v2.grid_informed_runs(), CAPSULE / "data-Oh-0.03"
+    )
+    sampled = figure_v2.paired_marker_series(retained, marker_target=36)
+    for (run, source), (sampled_run, markers) in zip(retained, sampled, strict=True):
+        assert run == sampled_run
+        indices = markers["source_index"]
+        assert np.array_equal(markers["r_j"], source["r_j"][indices])
+        assert np.array_equal(markers["Q_j"], source["Q_j"][indices])
+        assert np.allclose(
+            markers["We_j"],
+            markers["Q_j"] ** 2 / (np.pi**2 * markers["r_j"] ** 3),
+            rtol=1e-14,
+        )
+    assert next(item for item in diagnostics if item["case"] == "6318")[
+        "max_retained_radius"
+    ] == pytest.approx(0.04318237)
+    slope = 3.0 - 1.0 / flux.ALPHA
+    _, prefactors = figure_v2.build_interpolated_we_series(
+        retained, slope, flux.CONE_FIT_WINDOW,
+        anchor_r=0.1, blend_start_r=0.005, marker_target=36,
+    )
+    capped, _ = figure_v2.apply_grid_informed_weber_caps(
+        sampled, prefactors, slope, blend_start_r=0.005,
+    )
+    for (_, raw), (_, bounded) in zip(sampled, capped, strict=True):
+        for key in ("r_j", "Q_j", "We_j"):
+            assert np.array_equal(raw[key], bounded[key])
+
+
+def test_quality_cutoff_rejects_loss_without_a_retained_high_level():
+    data = {"t": np.array([0.3, 0.5, 0.6]), "maxlevel": np.array([15, 14, 13])}
+    with pytest.raises(ValueError, match="No post-reference high-level row"):
+        crossover.first_refinement_loss(data, pre_cap=15, reference_time=0.4)
+
+
+@pytest.mark.parametrize("edge", ["lower", "upper"])
+def test_crossover_rejects_an_optimizer_solution_at_a_search_bound(monkeypatch, edge):
+    retained, _ = figure_v2.retained_native_series(
+        figure_v2.grid_informed_runs(), CAPSULE / "data-Oh-0.03"
+    )
+    x = np.log(0.1) + 1e-6 if edge == "lower" else np.log(100.0) - 1e-6
+    monkeypatch.setattr(figure_v2, "minimize_scalar",
+                        lambda *_args, **_kwargs: SimpleNamespace(success=True, x=x, fun=0.))
+    with pytest.raises(RuntimeError, match="interior optimum"):
+        figure_v2.fit_crossover(retained)
+
+
+def test_smooth_crossover_fit_and_limiting_slopes():
+    retained, _ = figure_v2.retained_native_series(
+        figure_v2.grid_informed_runs(), CAPSULE / "data-Oh-0.03"
+    )
+    model = figure_v2.fit_crossover(retained)
+    for key, expected in {
+        "A": 22.645609844940875,
+        "B": 6.258019858709534,
+        "slope": 1.410174880763116,
+        "p": 4.393884530331989,
+        "rms_log_Q": 0.005340718908780963,
+        "intersection_radius": 0.04347813127641675,
+    }.items():
+        assert model[key] == pytest.approx(expected, rel=1e-12)
+    assert model["fit_window"] == (0.023952, 0.05203247)
+    assert model["fit_bins"] == 24
+    assert model["gb_cases"] == ["3013", "6203"]
+    radius = np.geomspace(1e-200, 1e200, 1001)
+    curve = crossover.crossover_flux(
+        radius, amplitude_cone=model["A"], amplitude_gb=model["B"],
+        cone_slope=model["slope"], sharpness=model["p"],
+    )
+    slope = crossover.crossover_log_slope(
+        radius, amplitude_cone=model["A"], amplitude_gb=model["B"],
+        cone_slope=model["slope"], sharpness=model["p"],
+    )
+    assert np.all(np.isfinite(curve)) and np.all(curve > 0.0)
+    assert np.all((slope >= 1.0) & (slope <= model["slope"]))
+    assert slope[0] == pytest.approx(model["slope"], rel=1e-12)
+    assert slope[-1] == pytest.approx(1.0, rel=1e-12)
+
+
+def test_crossover_honours_the_selected_cone_fit_window():
+    retained, _ = figure_v2.retained_native_series(
+        figure_v2.grid_informed_runs(), CAPSULE / "data-Oh-0.03"
+    )
+    selected_window = (0.006, 0.020)
+    model = figure_v2.fit_crossover(retained, selected_window)
+    expected = flux.reference_run_normalisation(
+        retained, "Q_j", 3.0 - 1.0 / flux.ALPHA, selected_window,
+    )
+    assert model["A"] == pytest.approx(expected, rel=1e-12)
+    assert model["fit_window"][0] == selected_window[1]
+
+
+def test_crossover_metadata_records_fit_and_quality_provenance():
+    with (CAPSULE / "metadata.json").open(encoding="utf-8") as handle:
+        metadata = json.load(handle)["figure_2"]
+    model = metadata["smooth_crossover"]
+    assert (model["A"], model["B"], model["p"]) == pytest.approx(
+        (22.645609844940875, 6.258019858709534, 4.393884530331989)
+    )
+    assert "5008" in model["A_provenance"]
+    assert "3013 and 6203" in model["B_provenance"]
+    assert "24 geometric-mean" in model["p_fit"]
+    assert metadata["displayed_markers"]["interpolation"] == "None"
+    assert "not a physical inception or pinch" in metadata["quality_cutoff"][
+        "interpretation"
+    ]
+
+
+def test_crossover_model_is_below_all_unchanged_display_caps():
+    radius = np.geomspace(0.005, 0.6, 320)
+    model = {
+        "A": 22.645609844940875,
+        "B": 6.258019858709534,
+        "slope": 1.410174880763116,
+        "p": 4.393884530331989,
+    }
+    volume_flux = crossover.crossover_flux(
+        radius, amplitude_cone=model["A"], amplitude_gb=model["B"],
+        cone_slope=model["slope"], sharpness=model["p"],
+    )
+    for level in (13, 14, 15):
+        assert np.array_equal(
+            figure_v2.cap_flux(radius, volume_flux, figure_v2.grid_weber_ceiling(level)),
+            volume_flux,
         )
 
 

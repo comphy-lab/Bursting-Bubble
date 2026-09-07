@@ -23,8 +23,8 @@
       "reference_window_interpolated_panel_c": 35
     },
     "grid_informed_weber": {
-      "observable": "We_j=Q_j^2/(pi^2*r_j^3), with Q_j from the existing constrained interpolation",
-      "operation": "Q_grid=min(Q_existing,pi*r_j^(3/2)*sqrt(We_max(Delta_b))); equivalently We_grid=min(We_existing,We_max)",
+      "observable": "We_j=Q_j^2/(pi^2*r_j^3); displayed markers use row-paired native Q_j samples",
+      "operation": "Q_grid=min(Q,pi*r_j^(3/2)*sqrt(We_max(Delta_b))); equivalently We_grid=min(We,We_max); applied to retained row pairs and available for model extrapolation at a specified base-grid level",
       "correlation": {
         "formula": "We_max=18.443063423658373*(Delta_b/R)^(-0.3741726680979101)",
         "prefactor": 18.443063423658373,
@@ -89,6 +89,39 @@
           "base_level_at_native_peak": 15
         }
       ]
+    },
+    "quality_cutoff": {
+      "criterion": "After the last r_base<0.005 branch reference, find the first requested maxlevel below the pre-inception cap, walk backwards over a strict one-level descending staircase, retain its last high-level row, and exclude the first decrease and all later rows.",
+      "interpretation": "Requested-grid numerical quality criterion; not a physical inception or pinch criterion.",
+      "cases": [
+        {"case": 3013, "first_excluded_time": 0.52722826, "last_retained_time": 0.52721467},
+        {"case": 6203, "first_excluded_time": 0.51896609, "last_retained_time": 0.51896042},
+        {"case": 6202, "first_excluded_time": 0.50184244, "last_retained_time": 0.50183919},
+        {"case": 5001, "first_excluded_time": 0.50197278, "last_retained_time": 0.50197128},
+        {"case": 5003, "first_excluded_time": null, "last_retained_time": null},
+        {"case": 6001, "first_excluded_time": 0.5020375, "last_retained_time": 0.50203685},
+        {"case": 5008, "first_excluded_time": null, "last_retained_time": null},
+        {"case": 6318, "first_excluded_time": 0.49681699, "last_retained_time": 0.4968168}
+      ]
+    },
+    "displayed_markers": {
+      "method": "Select indices once with log_bin_indices(r_j,Q_j,target=36), then derive Q_j, q_j and We_j from those same retained native rows.",
+      "interpolation": "None"
+    },
+    "smooth_crossover": {
+      "label": "smooth crossover model",
+      "formula": "Q_x=exp(-logaddexp(-p*log(A*r_j^s),-p*log(B*r_j))/p)",
+      "cone_slope_s": 1.410174880763116,
+      "A": 22.645609844940875,
+      "A_provenance": "Reference case 5008 geometric fixed-slope normalisation on inclusive 0.005<=r_j<=0.023952.",
+      "B": 6.258019858709534,
+      "B_provenance": "Equal-run geometric normalisation of retained Q_j/r_j in 0.11<=r_j<=0.19; only cases 3013 and 6203 have coverage.",
+      "p": 4.393884530331989,
+      "p_fit": "Sole positive fitted parameter; 24 geometric-mean log-radius bins of retained case 5008 on 0.023952<=r_j<=0.05203247; bounded log(p) optimisation over 0.1<=p<=100.",
+      "rms_log_Q": 0.005340718908780963,
+      "intersection_radius": 0.04347813127641675,
+      "window_sensitivity_p": [4.3300806386864386, 4.4356224427376505],
+      "interpretation": "Phenomenological interpolation over the stated finite fitting window; the sensitivity range is not a confidence interval or a universal physical width."
     },
     "completed_runs": [
       {

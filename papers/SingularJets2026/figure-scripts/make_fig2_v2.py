@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Build the two-column Fig. 2 v2 layout.
 
-Panel (a) shows the four-frame velocity/streamline diagnostic. Panel (b)
-uses the approved Q_j processing from make_fig2_flux_scalings.py. Panel (c)
-first constructs an intermediate Q_j branch and then evaluates
-We_j = Q_j^2/(pi^2 r_j^3), with the approved empirical base-grid ceiling
-applied to its extrapolated r_j-to-zero limit.
+Panel (a) shows the four-frame velocity/streamline diagnostic. Panels (b,c)
+show the same retained native rows, with We_j evaluated directly from each
+displayed Q_j sample. A phenomenological generalized-mean curve connects the
+cone and Gordillo--Blanco--Rodriguez asymptotes.
 """
 
 from __future__ import annotations
@@ -25,6 +24,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
 from scipy.interpolate import PchipInterpolator
+from scipy.optimize import minimize_scalar
 
 from capsule_utils import atomic_savefig
 
@@ -49,6 +49,8 @@ def load_script_module(name: str, path: Path):
 
 fig2a = load_script_module("fig2a_streamlines", SCRIPT_DIR / "make_fig2a_streamlines.py")
 flux = load_script_module("fig2_flux_scalings", SCRIPT_DIR / "make_fig2_flux_scalings.py")
+crossover = load_script_module("fig2_crossover", SCRIPT_DIR / "fig2_crossover.py")
+fitter = load_script_module("fit_alpha_grid_r1", SCRIPT_DIR / "fit_alpha_grid_r1.py")
 GRID_WE_METADATA = flux.FIG2_METADATA["grid_informed_weber"]
 GRID_WE_CASES = {
     str(item["case"]): item for item in GRID_WE_METADATA["cases"]
@@ -221,6 +223,104 @@ def grid_legend_label(run) -> str:
     return rf"${run.label}_{{{level}}}$"
 
 
+def retained_native_series(runs, data_dir: Path):
+    """Apply the requested-grid quality criterion before deriving jet series."""
+    retained = []
+    diagnostics = []
+    for run in runs:
+        data = flux.read_log(data_dir / run.filename)
+        reference_time = flux.reconnection_time(data)
+        cut = crossover.first_refinement_loss(data, run.focus, reference_time)
+        truncated = crossover.truncate_at_refinement_loss(data, cut)
+        if cut is not None and flux.reconnection_time(truncated) != reference_time:
+            raise RuntimeError(f"Quality cutoff changed branch reference for case {case_id(run)}")
+        series = flux.processed_series(truncated)
+        retained.append((run, series))
+        diagnostics.append(
+            {
+                "case": case_id(run),
+                "cut_time": None if cut is None else cut.first_drop_time,
+                "last_retained_time": None if cut is None else cut.last_retained_time,
+                "max_retained_radius": float(np.max(series["r_j"])),
+            }
+        )
+    return retained, diagnostics
+
+
+def paired_marker_series(series_by_run, marker_target: int = 36):
+    """Choose native Q rows once and use their algebraic Weber values."""
+    return [
+        (run, crossover.paired_log_samples(series, flux.log_bin_indices, marker_target))
+        for run, series in series_by_run
+    ]
+
+
+def fit_crossover(series_by_run, cone_fit_window=flux.CONE_FIT_WINDOW):
+    """Fit only the positive crossover sharpness; keep both amplitudes fixed."""
+    slope = 3.0 - 1.0 / flux.ALPHA
+    amplitude_cone = flux.reference_run_normalisation(
+        series_by_run, "Q_j", slope, cone_fit_window
+    )
+
+    run_log_amplitudes = []
+    gb_cases = []
+    for run, series in series_by_run:
+        in_window = (
+            (series["r_j"] >= flux.PRF_FIT_WINDOW[0])
+            & (series["r_j"] <= flux.PRF_FIT_WINDOW[1])
+        )
+        if np.any(in_window):
+            run_log_amplitudes.append(
+                float(np.mean(np.log(series["Q_j"][in_window] / series["r_j"][in_window])))
+            )
+            gb_cases.append(case_id(run))
+    if gb_cases != ["3013", "6203"]:
+        raise RuntimeError(f"Unexpected GB normalisation support: {gb_cases}")
+    amplitude_gb = float(np.exp(np.mean(run_log_amplitudes)))
+
+    reference = next(
+        series for run, series in series_by_run if case_id(run) == "5008"
+    )
+    fit_lower = cone_fit_window[1]
+    fit_upper = min(0.11, float(np.max(reference["r_j"])))
+    bins = fitter.log_radius_bins(
+        reference["r_j"], reference["Q_j"], lower=fit_lower,
+        upper=fit_upper, bins=24, label="5008", level=15,
+    )
+    if len(bins) != 24:
+        raise RuntimeError("The crossover fit requires all 24 radius bins")
+    radius = np.asarray([point.r_j for point in bins])
+    volume_flux = np.asarray([point.Q_j for point in bins])
+
+    def objective(log_sharpness: float) -> float:
+        predicted = crossover.crossover_flux(
+            radius,
+            amplitude_cone=amplitude_cone,
+            amplitude_gb=amplitude_gb,
+            cone_slope=slope,
+            sharpness=float(np.exp(log_sharpness)),
+        )
+        return float(np.mean((np.log(predicted) - np.log(volume_flux)) ** 2))
+
+    lower, upper = np.log(0.1), np.log(100.0)
+    fit = minimize_scalar(objective, bounds=(lower, upper), method="bounded")
+    boundary_margin = 1.0e-3 * (upper - lower)
+    if not fit.success or not lower + boundary_margin < fit.x < upper - boundary_margin:
+        raise RuntimeError("Crossover sharpness fit did not reach an interior optimum")
+    sharpness = float(np.exp(fit.x))
+    return {
+        "A": amplitude_cone,
+        "B": amplitude_gb,
+        "slope": slope,
+        "p": sharpness,
+        "rms_log_Q": float(np.sqrt(fit.fun)),
+        "intersection_radius": float((amplitude_gb / amplitude_cone) ** (1.0 / (slope - 1.0))),
+        "fit_window": (fit_lower, fit_upper),
+        "fit_bins": len(bins),
+        "gb_cases": gb_cases,
+    }
+
+
 def load_streamline_fields(args: argparse.Namespace):
     return fig2a.load_archived_inputs(args.fig2a_data_dir, tuple(args.snapshots))
 
@@ -288,19 +388,20 @@ def draw_panel_a(fig: plt.Figure, bbox: tuple[float, float, float, float], args:
 def draw_flux_panel(
     ax: plt.Axes,
     series_by_run,
+    theory_series_by_run,
+    model,
     quantity: str,
     ylabel: str,
     slopes: tuple[float, float, float],
     panel_label: str,
     cone_fit_window: tuple[float, float],
     show_labels: bool,
-    resample_markers: bool = True,
-    marker_target: int = 36,
 ) -> None:
     ax.axvspan(*cone_fit_window, color=flux.LIGHT_GREY, alpha=0.22, lw=0, zorder=0)
     draw_theory_v2(
         ax,
-        series_by_run=series_by_run,
+        series_by_run=theory_series_by_run,
+        model=model,
         quantity=quantity,
         slopes=slopes,
         show_labels=show_labels,
@@ -308,15 +409,9 @@ def draw_flux_panel(
     )
 
     for run, series in series_by_run:
-        if resample_markers:
-            idx = flux.log_bin_indices(
-                series["r_j"], series[quantity], target=marker_target
-            )
-        else:
-            idx = np.arange(len(series["r_j"]), dtype=int)
         ax.plot(
-            series["r_j"][idx],
-            series[quantity][idx],
+            series["r_j"],
+            series[quantity],
             linestyle="None",
             marker=run.marker,
             ms=flux.LINE["markersize"],
@@ -339,6 +434,7 @@ def draw_flux_panel(
 def draw_theory_v2(
     ax: plt.Axes,
     series_by_run,
+    model,
     quantity: str,
     slopes: tuple[float, float, float],
     show_labels: bool,
@@ -348,9 +444,7 @@ def draw_theory_v2(
     r_cone = np.geomspace(*flux.CONE_DRAW_WINDOW, 120)
     r_prf = np.geomspace(*flux.PRF_DRAW_WINDOW, 120)
 
-    cone_prefactor = flux.reference_run_normalisation(
-        series_by_run, quantity, cone_slope, cone_fit_window
-    )
+    cone_prefactor = model["A"] if quantity == "Q_j" else model["A"] ** 2 / np.pi**2
     ax.plot(
         r_cone,
         cone_prefactor * r_cone**cone_slope,
@@ -384,9 +478,7 @@ def draw_theory_v2(
             label=r"inertio-capillary" if show_labels else None,
         )
 
-    prf_prefactor = flux.run_weighted_normalisation(
-        series_by_run, quantity, prf_slope, flux.PRF_FIT_WINDOW
-    )
+    prf_prefactor = model["B"] if quantity == "Q_j" else model["B"] ** 2 / np.pi**2
     ax.plot(
         r_prf,
         prf_prefactor * r_prf**prf_slope,
@@ -395,6 +487,35 @@ def draw_theory_v2(
         lw=flux.LINE["theory_linewidth"] + 0.2,
         zorder=9,
         label=flux.literature_label() if show_labels else None,
+    )
+
+    model_radius = np.geomspace(0.005, flux.PRF_DRAW_WINDOW[1], 320)
+    model_q = crossover.crossover_flux(
+        model_radius,
+        amplitude_cone=model["A"],
+        amplitude_gb=model["B"],
+        cone_slope=model["slope"],
+        sharpness=model["p"],
+    )
+    # Verify inactivity without assigning a particular mesh to the continuum
+    # reference. Fixed-grid extrapolations use that grid's own empirical cap.
+    strictest_capped_q = cap_flux(
+        model_radius, model_q, min(grid_weber_ceiling(level) for level in (13, 14, 15))
+    )
+    if not np.array_equal(model_q, strictest_capped_q):
+        raise RuntimeError("The crossover reference exceeds a displayed grid ceiling")
+    model_y = (
+        model_q if quantity == "Q_j"
+        else model_q**2 / (np.pi**2 * model_radius**3)
+    )
+    ax.plot(
+        model_radius,
+        model_y,
+        color=flux.BLACK,
+        ls=(0, (2.0, 0.8, 0.45, 0.8)),
+        lw=flux.LINE["theory_linewidth"] + 0.1,
+        zorder=10,
+        label="smooth crossover model" if show_labels else None,
     )
 
 
@@ -510,10 +631,11 @@ def build_figure(args: argparse.Namespace) -> None:
     tune_flux_style()
 
     runs = grid_informed_runs()
-    series_by_run = [
-        (run, flux.processed_series(flux.read_log(args.data_dir / run.filename)))
-        for run in runs
-    ]
+    series_by_run, quality_diagnostics = retained_native_series(runs, args.data_dir)
+    marker_series_by_run = paired_marker_series(
+        series_by_run, marker_target=args.interp_marker_target
+    )
+    model = fit_crossover(series_by_run, tuple(args.cone_fit_window))
 
     fig = plt.figure(figsize=(APS_DOUBLE_COL, FIG_HEIGHT))
     fig.set_facecolor("white")
@@ -530,30 +652,29 @@ def build_figure(args: argparse.Namespace) -> None:
 
     q_slope = (3.0 * flux.ALPHA - 1.0) / flux.ALPHA
     we_slope = (3.0 * flux.ALPHA - 2.0) / flux.ALPHA
-    we_series_by_run, q_prefactors = build_interpolated_we_series(
-        series_by_run,
-        q_slope,
-        tuple(args.cone_fit_window),
-        args.interp_anchor_r,
-        args.interp_blend_start_r,
-        args.interp_marker_target,
-    )
-    we_series_by_run, grid_diagnostics = apply_grid_informed_weber_caps(
-        we_series_by_run,
+    q_prefactors = [
+        (run, flux.normalisation(series, "Q_j", q_slope, tuple(args.cone_fit_window)))
+        for run, series in series_by_run
+    ]
+    marker_series_by_run, grid_diagnostics = apply_grid_informed_weber_caps(
+        marker_series_by_run,
         q_prefactors,
         q_slope,
         args.interp_blend_start_r,
         data_dir=args.data_dir,
     )
-    resample_we_markers = False
+    print("Requested-grid quality cutoffs (numerical criterion):")
+    for item in quality_diagnostics:
+        print(
+            f"  case {item['case']}: cut={item['cut_time']} "
+            f"last={item['last_retained_time']} r_max={item['max_retained_radius']:.8g}"
+        )
     print(
-        "Q_j interpolation prefactors for "
-        f"Q_j ~ A*r_j^{q_slope:.6g} as r_j -> 0, "
-        f"blended to PCHIP data over "
-        f"{args.interp_blend_start_r:g} <= r_j <= {args.interp_anchor_r:g}:"
+        "Smooth crossover: "
+        f"A={model['A']:.15g} B={model['B']:.15g} p={model['p']:.15g} "
+        f"RMS(ln Q)={model['rms_log_Q']:.10g} "
+        f"r_x={model['intersection_radius']:.10g}"
     )
-    for run, prefactor in q_prefactors:
-        print(f"  {SHORT_LEGEND_LABELS.get(run.label, run.label)}: A = {prefactor:.6g}")
     print("Grid-informed Weber limits (inactive in the displayed range):")
     for item in grid_diagnostics:
         print(
@@ -564,7 +685,9 @@ def build_figure(args: argparse.Namespace) -> None:
 
     draw_flux_panel(
         ax_b,
+        marker_series_by_run,
         series_by_run,
+        model,
         "Q_j",
         r"$Q_j$",
         (q_slope, 1.5, 1.0),
@@ -574,14 +697,15 @@ def build_figure(args: argparse.Namespace) -> None:
     )
     draw_flux_panel(
         ax_c,
-        we_series_by_run,
+        marker_series_by_run,
+        series_by_run,
+        model,
         "We_j",
         r"$We_j$",
         (we_slope, 0.0, -1.0),
         r"(c)",
         tuple(args.cone_fit_window),
         show_labels=False,
-        resample_markers=resample_we_markers,
     )
 
     ax_b.set_ylim(0.01, 4.0)
@@ -628,8 +752,8 @@ def build_figure(args: argparse.Namespace) -> None:
     handles, raw_labels = ax_b.get_legend_handles_labels()
     labels = [SHORT_LEGEND_LABELS.get(label, label) for label in raw_labels]
     theory_legend_ax.legend(
-        handles[:3],
-        labels[:3],
+        handles[:4],
+        labels[:4],
         loc="upper left",
         bbox_to_anchor=(0.0, 1.0),
         ncol=1,
@@ -640,7 +764,7 @@ def build_figure(args: argparse.Namespace) -> None:
         labelspacing=0.32,
         borderaxespad=0.0,
     )
-    handle_by_label = dict(zip(raw_labels[3:], handles[3:]))
+    handle_by_label = dict(zip(raw_labels[4:], handles[4:]))
     ordered_runs = grid_legend_runs(runs)
     groups = [
         [
@@ -698,19 +822,19 @@ def parse_args() -> argparse.Namespace:
         "--interp-anchor-r",
         type=float,
         default=0.1,
-        help="Radius by which the Q_j interpolation has fully returned to the PCHIP data branch.",
+        help="Legacy interpolation anchor; not used to replace native displayed markers.",
     )
     parser.add_argument(
         "--interp-blend-start-r",
         type=float,
         default=0.005,
-        help="Radius below which the Q_j interpolation uses the asymptotic A*r_j^1.41 branch.",
+        help="Legacy asymptote boundary, retained for the small-radius grid-cap limit checks.",
     )
     parser.add_argument(
         "--interp-marker-target",
         type=int,
         default=36,
-        help="Log-binned Q_j marker count used before sampling interpolated We_j.",
+        help="Native Q_j marker target in logarithmic radius bins, shared by panels (b,c).",
     )
     parser.add_argument(
         "--cone-fit-window",
