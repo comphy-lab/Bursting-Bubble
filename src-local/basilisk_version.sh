@@ -18,7 +18,7 @@
 # ============================================================
 # Pin to a specific version for reproducibility
 # Update this value when upgrading Basilisk across the project
-BASILISK_REF="v2026-01-13"
+BASILISK_REF="v2026-08-30"
 
 # Installation script URL (from comphy-lab/basilisk-C)
 BASILISK_INSTALL_URL="https://raw.githubusercontent.com/comphy-lab/basilisk-C/main/reset_install_basilisk-ref-locked.sh"

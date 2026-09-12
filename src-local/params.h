@@ -25,7 +25,8 @@ CoMPhy Lab, Durham University
 #define PARAMS_H
 
 #include <ctype.h>      // isspace()
-#include <math.h>       // isfinite()
+#include <math.h>
+#include <limits.h>       // isfinite()
 #include <sys/stat.h>   // mkdir()
 #include <errno.h>      // errno
 
@@ -66,6 +67,26 @@ struct SimulationParams {
 
   // Adaptive TIME resolution
   double CFL;            /**< Advective CFL number */
+  double CFLelastic;     /**< Elastic-wave CFL safety factor. The polymeric
+                              stress supports a shear wave of speed
+                              sqrt(Gp*tr(A)/rho); nothing else in the timestep
+                              selection accounts for it, and the first VE
+                              campaign lost seven runs to exactly that
+                              omission. 0 disables the condition. */
+  double CFLconform;     /**< Largest log-conformation increment permitted in
+                              one explicit step. The Psi update is forward
+                              Euler and is then exponentiated, so an increment
+                              of order 1 multiplies A by e in a single step.
+                              The axisymmetric hoop source 2*u_r/r is
+                              unbounded by anything else in the timestep
+                              selection: the advective CFL sees the
+                              metric-weighted face velocity, which carries a
+                              factor r and vanishes exactly where that rate
+                              diverges. Case 2330 (De=0.02) died that way at
+                              t=0.54267 with the elastic-wave condition
+                              satisfied and saturated. 0 disables (the
+                              behaviour of every run to date); 0.1 is the
+                              measurement-supported value. See two-phaseVE.h. */
   double dtmax;          /**< Ceiling on the timestep; surface tension reduces it
                               to the capillary-wave limit each step (adaptive dt) */
   double TOLERANCE;      /**< Poisson/viscous solver convergence tolerance */
@@ -108,6 +129,23 @@ struct SimulationParams {
   double drillTsnapMinFactor;/**< Floor on the staged snapshot interval as a
                                   fraction of tsnap (guards against a snapshot
                                   storm when start is far below MAXlevel) */
+  int drillMinlevelJet;      /**< Post-inception FLOOR on the drilled ceiling:
+                                  once the inception latch has fired, the ramp
+                                  may not coarsen below this level. Counterpart
+                                  to drillMaxlevelFocus (the PRE-inception cap).
+                                  The ramp is driven by the tracked jet-base
+                                  radius r_b; if the main body's deepest
+                                  interfacial point relocates off-axis for any
+                                  reason (a tip fragment detaching from the
+                                  main tag is enough), r_b jumps from ~Delta/2
+                                  to O(0.1) and the ramp coarsens one level per
+                                  step to drillMaxlevelStart. At that level the
+                                  slender jet cannot be represented, so the
+                                  tracked feature can never reappear and the
+                                  coarsening is irreversible — case 2331 lost
+                                  level 12 at t = 0.477 and ran the remaining
+                                  1.02 capillary times at level 8. <=0 disables
+                                  (the pre-2331 behaviour). */
   int drillMaxlevelFocus;    /**< Pre-inception cap on the demanded level. The
                                   cavity-focus collapse is a genuine singularity:
                                   chasing it beyond the level that safely steps
@@ -173,6 +211,8 @@ static inline void set_default_params(struct SimulationParams *p) {
 
   // Adaptive time
   p->CFL = 0.1;
+  p->CFLelastic = 0.25;  // margin demonstrated to cross the cavity-focus instant
+  p->CFLconform = 0.0;   // OFF by default: a strict no-op for existing cases
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
   p->keStopMax = 1.0e2;    // historical blow-up gate (ad hoc; see struct note)
@@ -191,9 +231,49 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillRelaxLevel = -1;      // relaxation disabled by default
   p->drillTsnapStages = 1;
   p->drillTsnapMinFactor = 0.1;
+  p->drillMinlevelJet = -1;     // no post-inception floor by default
   p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
   p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
   p->drillAssumeJet = 0;        // don't assume a formed jet on restore
+}
+
+
+/**
+### param_f() and param_i()
+
+`atof` and `atoi` cannot fail. `atof("0.l")` is `0.0`, `atof("nan")` is NaN,
+and `atoi("1e3")` is `1`: a typo in a parameter file becomes a silently wrong
+control value. That is not hypothetical here — `CFLelastic`, `CFLconform` and
+`CFL` all treat a non-positive value as "disabled", so a mistyped CFL switches
+off a stability limiter and the run proceeds without it.
+
+These parse the whole token or refuse it: no trailing characters, no range
+error, and a finite result. They set `*ok = 0` and leave the destination alone
+on failure, so a rejected value never reaches the solver.
+*/
+static inline double param_f(const char *value, const char *key, int *ok) {
+  errno = 0;
+  char *end = NULL;
+  double v = strtod(value, &end);
+  if (end == value || (end && *end != '\0') || errno == ERANGE || !isfinite(v)) {
+    fprintf(stderr, "ERROR: parameter '%s' has a malformed number: '%s'\n", key, value);
+    *ok = 0;
+    return 0.;
+  }
+  return v;
+}
+
+static inline int param_i(const char *value, const char *key, int *ok) {
+  errno = 0;
+  char *end = NULL;
+  long v = strtol(value, &end, 10);
+  if (end == value || (end && *end != '\0') || errno == ERANGE ||
+      v < INT_MIN || v > INT_MAX) {
+    fprintf(stderr, "ERROR: parameter '%s' has a malformed integer: '%s'\n", key, value);
+    *ok = 0;
+    return 0;
+  }
+  return (int) v;
 }
 
 /**
@@ -210,41 +290,45 @@ key dispatch lives in exactly one place.
 */
 static inline int apply_param_kv(const char *key, const char *value,
                                  struct SimulationParams *p) {
-  if      (strcmp(key, "CaseNo")          == 0) p->CaseNo = atoi(value);
+  int ok = 1;
+  if      (strcmp(key, "CaseNo")          == 0) p->CaseNo = param_i(value, key, &ok);
   else if (strcmp(key, "Solver")          == 0) return 1; /* runner-only */
-  else if (strcmp(key, "Oh")              == 0) p->Oh = atof(value);
-  else if (strcmp(key, "Bond")            == 0) p->Bond = atof(value);
-  else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = atof(value);
-  else if (strcmp(key, "De")              == 0) p->De = atof(value);
-  else if (strcmp(key, "Ec")              == 0) p->Ec = atof(value);
-  else if (strcmp(key, "FILTERED")        == 0) p->filtered = atoi(value);
-  else if (strcmp(key, "zWall")           == 0) p->zWall = atof(value);
-  else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = atoi(value);
-  else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = atoi(value);
-  else if (strcmp(key, "init_grid_level") == 0) p->init_grid_level = atoi(value);
-  else if (strcmp(key, "fErr")            == 0) p->fErr = atof(value);
-  else if (strcmp(key, "VelErr")          == 0) p->VelErr = atof(value);
-  else if (strcmp(key, "KErr")            == 0) p->KErr = atof(value);
-  else if (strcmp(key, "AErr")            == 0) p->AErr = atof(value);
-  else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
-  else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
-  else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
-  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
-  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = atof(value);
-  else if (strcmp(key, "tmax")            == 0) p->tmax = atof(value);
-  else if (strcmp(key, "tsnap")           == 0) p->tsnap = atof(value);
-  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = atoi(value);
-  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = atoi(value);
-  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = atof(value);
-  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = atof(value);
-  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
-  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
-  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
-  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
-  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
-  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
-  else return 0;
-  return 1;
+  else if (strcmp(key, "Oh")              == 0) p->Oh = param_f(value, key, &ok);
+  else if (strcmp(key, "Bond")            == 0) p->Bond = param_f(value, key, &ok);
+  else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = param_f(value, key, &ok);
+  else if (strcmp(key, "De")              == 0) p->De = param_f(value, key, &ok);
+  else if (strcmp(key, "Ec")              == 0) p->Ec = param_f(value, key, &ok);
+  else if (strcmp(key, "FILTERED")        == 0) p->filtered = param_i(value, key, &ok);
+  else if (strcmp(key, "zWall")           == 0) p->zWall = param_f(value, key, &ok);
+  else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = param_i(value, key, &ok);
+  else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = param_i(value, key, &ok);
+  else if (strcmp(key, "init_grid_level") == 0) p->init_grid_level = param_i(value, key, &ok);
+  else if (strcmp(key, "fErr")            == 0) p->fErr = param_f(value, key, &ok);
+  else if (strcmp(key, "VelErr")          == 0) p->VelErr = param_f(value, key, &ok);
+  else if (strcmp(key, "KErr")            == 0) p->KErr = param_f(value, key, &ok);
+  else if (strcmp(key, "AErr")            == 0) p->AErr = param_f(value, key, &ok);
+  else if (strcmp(key, "CFL")             == 0) p->CFL = param_f(value, key, &ok);
+  else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = param_f(value, key, &ok);
+  else if (strcmp(key, "CFLconform")      == 0) p->CFLconform = param_f(value, key, &ok);
+  else if (strcmp(key, "dtmax")           == 0) p->dtmax = param_f(value, key, &ok);
+  else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = param_f(value, key, &ok);
+  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = param_f(value, key, &ok);
+  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = param_f(value, key, &ok);
+  else if (strcmp(key, "tmax")            == 0) p->tmax = param_f(value, key, &ok);
+  else if (strcmp(key, "tsnap")           == 0) p->tsnap = param_f(value, key, &ok);
+  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = param_i(value, key, &ok);
+  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = param_i(value, key, &ok);
+  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = param_f(value, key, &ok);
+  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = param_f(value, key, &ok);
+  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = param_i(value, key, &ok);
+  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = param_i(value, key, &ok);
+  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = param_f(value, key, &ok);
+  else if (strcmp(key, "drillMinlevelJet")    == 0) p->drillMinlevelJet = param_i(value, key, &ok);
+  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = param_i(value, key, &ok);
+  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = param_i(value, key, &ok);
+  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = param_i(value, key, &ok);
+  else return 0;      // key not recognised
+  return ok ? 1 : -1; // -1: key recognised, value malformed
 }
 
 /**
@@ -301,9 +385,15 @@ static inline int parse_params_from_file(const char *filename,
     char *value = trim_inplace(eq + 1);
     if (*key == '\0' || *value == '\0') continue;
 
-    if (!apply_param_kv(key, value, p))
+    int applied = apply_param_kv(key, value, p);
+    if (applied == 0)
       fprintf(stderr, "WARNING: Unknown parameter '%s' at %s:%d\n",
               key, filename, line_num);
+    else if (applied < 0) {
+      fprintf(stderr, "       (at %s:%d)\n", filename, line_num);
+      fclose(fp);
+      return 1;   // a malformed value must stop the run, not default silently
+    }
   }
 
   fclose(fp);
@@ -332,8 +422,13 @@ static inline void apply_cli_overrides(int argc, char **argv, int start,
     *eq = '\0';
     char *key = trim_inplace(buf);
     char *value = trim_inplace(eq + 1);
-    if (!apply_param_kv(key, value, p))
+    int applied = apply_param_kv(key, value, p);
+    if (applied == 0)
       fprintf(stderr, "WARNING: Unknown override key '%s'\n", key);
+    else if (applied < 0) {
+      fprintf(stderr, "ERROR: malformed command-line override '%s'\n", argv[k]);
+      exit (1);
+    }
   }
 }
 
@@ -476,11 +571,24 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: Wavelet error tolerances must be positive\n");
     valid = 0;
   }
-  if (p->CFL <= 0 || p->CFL > 1) {
+  /* NaN fails every ordered comparison, so without isfinite() a NaN CFL would
+     pass the range test AND the `<= 0` disable guard in the solver, silently
+     switching off the limiter it belongs to. atof() yields NaN for a typo. */
+  if (!isfinite(p->CFL) || p->CFL <= 0 || p->CFL > 1) {
     fprintf(stderr, "ERROR: CFL must be in (0, 1] (CFL = %g)\n", p->CFL);
     valid = 0;
   }
-  if (p->dtmax <= 0) {
+  if (!isfinite(p->CFLelastic) || p->CFLelastic < 0 || p->CFLelastic > 1) {
+    fprintf(stderr, "ERROR: CFLelastic must be in [0, 1] (0 disables) (CFLelastic = %g)\n",
+            p->CFLelastic);
+    valid = 0;
+  }
+  if (!isfinite(p->CFLconform) || p->CFLconform < 0 || p->CFLconform > 1) {
+    fprintf(stderr, "ERROR: CFLconform must be in [0, 1] (0 disables) (CFLconform = %g)\n",
+            p->CFLconform);
+    valid = 0;
+  }
+  if (!isfinite(p->dtmax) || p->dtmax <= 0) {
     fprintf(stderr, "ERROR: dtmax must be positive (dtmax = %g)\n", p->dtmax);
     valid = 0;
   }
@@ -524,6 +632,24 @@ static inline int validate_params(const struct SimulationParams *p) {
         (p->drillMaxlevelFocus < p->drillMaxlevelStart || p->drillMaxlevelFocus > p->MAXlevel)) {
       fprintf(stderr, "ERROR: drillMaxlevelFocus (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
               p->drillMaxlevelFocus, p->drillMaxlevelStart, p->MAXlevel);
+      valid = 0;
+    }
+    if (p->drillMinlevelJet > 0 &&
+        (p->drillMinlevelJet < p->drillMaxlevelStart || p->drillMinlevelJet > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillMinlevelJet (%d) must be <=0 (disabled) or in [drillMaxlevelStart, MAXlevel] = [%d, %d]\n",
+              p->drillMinlevelJet, p->drillMaxlevelStart, p->MAXlevel);
+      valid = 0;
+    }
+    /* drillRelaxLevel deliberately wins over drillMinlevelJet in the solver, so
+       that an explicit post-pinch relaxation is honoured. A relax level BELOW
+       the jet floor would therefore silently defeat the floor, which is the
+       failure drillMinlevelJet exists to prevent. Reject the combination rather
+       than pick a winner at runtime. */
+    if (p->drillRelaxLevel > 0 && p->drillMinlevelJet > 0 &&
+        p->drillRelaxLevel < p->drillMinlevelJet) {
+      fprintf(stderr, "ERROR: drillRelaxLevel (%d) is below drillMinlevelJet (%d); "
+              "relaxation would defeat the post-inception floor\n",
+              p->drillRelaxLevel, p->drillMinlevelJet);
       valid = 0;
     }
     if (p->drillRemoveGasSize < 0) {
@@ -572,6 +698,14 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
           p->fErr, p->VelErr, p->KErr, p->AErr);
   fprintf(fp, "Adaptive Time:\n");
   fprintf(fp, "  CFL:                    %g\n", p->CFL);
+  if (p->CFLelastic > 0)
+    fprintf(fp, "  CFL (elastic wave):     %g\n", p->CFLelastic);
+  else
+    fprintf(fp, "  CFL (elastic wave):     DISABLED\n");
+  if (p->CFLconform > 0)
+    fprintf(fp, "  CFL (conformation):     %g\n", p->CFLconform);
+  else
+    fprintf(fp, "  CFL (conformation):     DISABLED\n");
   fprintf(fp, "  dtmax (ceiling):        %g\n", p->dtmax);
   fprintf(fp, "  Solver TOLERANCE:       %g\n", p->TOLERANCE);
   fprintf(fp, "  ke stop gates (min/max): %g / %g\n", p->keStopMin, p->keStopMax);
@@ -593,6 +727,10 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  focus (pre-incept) cap: %d\n", p->drillMaxlevelFocus);
     else
       fprintf(fp, "  focus (pre-incept) cap: disabled\n");
+    if (p->drillMinlevelJet > 0)
+      fprintf(fp, "  jet (post-incept) floor: %d\n", p->drillMinlevelJet);
+    else
+      fprintf(fp, "  jet (post-incept) floor: disabled\n");
     if (p->drillRemoveGasSize > 0)
       fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
     else

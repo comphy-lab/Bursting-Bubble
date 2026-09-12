@@ -1,7 +1,15 @@
 /**
-Vendored from comphy-lab/MultiRheoFlow `log-conform-viscoelastic.h`
-(commit 9d442b85f198474eb700874ebab3766fe8534a86, 2026-08-15). Keep this copy in lockstep with
-MultiRheoFlow when the Oldroyd-B / log-conformation solver changes.
+Vendored from comphy-lab/MultiRheoFlow `log-conform-viscoelastic.h`, reconciled with upstream
+`7d9c3df` (2026-08-30). Keep in lockstep with MultiRheoFlow when the
+Oldroyd-B / log-conformation solver changes.
+
+DELIBERATE DIVERGENCE FROM UPSTREAM. This copy aborts on a non-positive or
+non-finite axisymmetric hoop conformation `Aqq`, and uses `MPI_Abort` rather
+than `exit(1)` so a single bad rank does not leave the job hanging. Upstream
+has neither. The guard exists because the high-Weissenberg thinning thread is
+exactly where the log-conformation update loses positive-definiteness, and a
+silent `log` of a non-positive `Aqq` is worse than a stop. Worth upstreaming;
+do not drop it when re-syncing.
 */
 
 /**
