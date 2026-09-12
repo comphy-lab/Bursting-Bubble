@@ -59,6 +59,12 @@ def snapshots(case):
 def run_tool(tool, path):
     """One snapshot -> (main row dict, [drop row dicts]). Tool writes stderr."""
     r = subprocess.run([tool, path], capture_output=True, text=True)
+    # A non-zero exit means the reduction did not run: an unreadable dump, a
+    # missing field, an MPI abort. Parsing its partial stderr would silently
+    # drop snapshots from the tables and shift the emission index, so fail loud.
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"{tool} failed on {path} (exit {r.returncode}):\n{r.stderr.strip()[-2000:]}")
     main, drops = None, []
     for line in r.stderr.splitlines():
         f = line.split()

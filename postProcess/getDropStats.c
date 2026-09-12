@@ -141,8 +141,10 @@ int main (int a, char const *arguments[]) {
   double *cZMIN = calloc (n, sizeof(double)), *cZMAX = calloc (n, sizeof(double));
   double *cRMAX = calloc (n, sizeof(double));
   double *cDMIN = calloc (n, sizeof(double));
+  double *cDMAXI = calloc (n, sizeof(double));
   for (int j = 0; j < n; j++) {
     cZMIN[j] = HUGE; cZMAX[j] = -HUGE; cRMAX[j] = 0.; cDMIN[j] = HUGE;
+    cDMAXI[j] = 0.;
   }
 
   foreach(serial) {
@@ -158,6 +160,14 @@ int main (int a, char const *arguments[]) {
     if (x > cZMAX[j]) cZMAX[j] = x;
     if (f[] > FDROP && y > cRMAX[j]) cRMAX[j] = y;
     if (Delta < cDMIN[j]) cDMIN[j] = Delta;      // finest cell resolving this body
+    /* cDMIN is the FINEST cell anywhere in the body, so a body that is mostly
+       coarse but clips one fine cell would report a flattering Rv/cDMIN. Track
+       the COARSEST INTERFACIAL cell as well: a resolution claim should rest on
+       the worst-resolved part of the interface, not the best. With the drill
+       every measured drop in this campaign sits at a single refinement level
+       (cDMAXI == cDMIN), so the two agree; they diverge only for a body
+       straddling a refinement boundary. */
+    if (f[] > FEPS && f[] < 1. - FEPS && Delta > cDMAXI[j]) cDMAXI[j] = Delta;
     if (f[] > FEPS && f[] < 1. - FEPS) {            // interfacial area
       coord m = mycs (point, f);
       double alpha = plane_alpha (f[], m);
@@ -177,6 +187,7 @@ int main (int a, char const *arguments[]) {
   MPI_Allreduce (MPI_IN_PLACE, cZMAX, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cRMAX, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cDMIN, n, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce (MPI_IN_PLACE, cDMAXI, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 #endif
 
   /**
@@ -218,21 +229,23 @@ int main (int a, char const *arguments[]) {
   double Rv = pow (3.*cV[main_id]/(4.*pi), 1./3.);
   double Rs = sqrt (cS[main_id]/(4.*pi));
   fprintf (ferr,
-    "MAIN %.8f %d %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f\n",
+    "MAIN %.8f %d %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f %.6e\n",
     t, nliq, ndrop, cV[main_id], Rv, cS[main_id], Rs,
     cZ[main_id]/cV[main_id], cZMIN[main_id], cZMAX[main_id], cRMAX[main_id],
     cUZ[main_id]/cV[main_id], cUR[main_id]/cV[main_id], cEK[main_id],
     ztip, rtip, vtip, Vtot, cDMIN[main_id],
-    cDMIN[main_id] > 0. && cDMIN[main_id] < HUGE ? Rv/cDMIN[main_id] : -1.);
+    cDMIN[main_id] > 0. && cDMIN[main_id] < HUGE ? Rv/cDMIN[main_id] : -1.,
+    cDMAXI[main_id]);
 
   for (int j = 0; j < n; j++) {
     if (j == main_id || cV[j] <= 0.) continue;
     fprintf (ferr,
-      "DROP %.8f %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f\n",
+      "DROP %.8f %d %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.6e %.3f %.6e\n",
       t, j + 1, cV[j], pow (3.*cV[j]/(4.*pi), 1./3.), cS[j], sqrt (cS[j]/(4.*pi)),
       cZ[j]/cV[j], cZMIN[j], cZMAX[j], cRMAX[j], cUZ[j]/cV[j], cUR[j]/cV[j], cEK[j],
       cDMIN[j],
-      cDMIN[j] > 0. && cDMIN[j] < HUGE ? pow (3.*cV[j]/(4.*pi), 1./3.)/cDMIN[j] : -1.);
+      cDMIN[j] > 0. && cDMIN[j] < HUGE ? pow (3.*cV[j]/(4.*pi), 1./3.)/cDMIN[j] : -1.,
+      cDMAXI[j]);
   }
   fflush (ferr);
 

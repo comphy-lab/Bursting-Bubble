@@ -585,6 +585,18 @@ static inline int validate_params(const struct SimulationParams *p) {
               p->drillMinlevelJet, p->drillMaxlevelStart, p->MAXlevel);
       valid = 0;
     }
+    /* drillRelaxLevel deliberately wins over drillMinlevelJet in the solver, so
+       that an explicit post-pinch relaxation is honoured. A relax level BELOW
+       the jet floor would therefore silently defeat the floor, which is the
+       failure drillMinlevelJet exists to prevent. Reject the combination rather
+       than pick a winner at runtime. */
+    if (p->drillRelaxLevel > 0 && p->drillMinlevelJet > 0 &&
+        p->drillRelaxLevel < p->drillMinlevelJet) {
+      fprintf(stderr, "ERROR: drillRelaxLevel (%d) is below drillMinlevelJet (%d); "
+              "relaxation would defeat the post-inception floor\n",
+              p->drillRelaxLevel, p->drillMinlevelJet);
+      valid = 0;
+    }
     if (p->drillRemoveGasSize < 0) {
       fprintf(stderr, "ERROR: drillRemoveGasSize (%d) must be >= 0 (0 disables)\n",
               p->drillRemoveGasSize);
