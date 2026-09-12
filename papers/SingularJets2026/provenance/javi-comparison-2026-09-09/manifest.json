@@ -1,0 +1,14 @@
+{
+  "source": "Javier Rodriguez, supplied comparison notebook and digitised data",
+  "files": {
+    "comparison_experiments.ipynb": "6175692ceb8326bbf19292aafb1ee9a4e659c5e39d16209481166dc5fd888c40",
+    "Fig2_Zeff_etal2000.mat": "dbe4988759aa284746fad46a5ed750d880722ba821f02187793bea82bd55eef3",
+    "Fig4_Zeff_etal2000.dat": "a6265ccf633293fe6313fea2088aa67f5c91608f4fb357df056e8ced57f17d2a",
+    "Fig5a_Cattaneo2026.dat": "de614d1108c2af388c64c960291cb779dce8fd04ea8513c874a9a1719716a2af"
+  },
+  "notebook_changes": [
+    "Remove macOS-only backend magic; use the notebook default backend",
+    "Clear saved outputs in portable working notebook; original preserved byte-for-byte"
+  ],
+  "data_changes": []
+}
