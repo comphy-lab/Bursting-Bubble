@@ -25,7 +25,8 @@ CoMPhy Lab, Durham University
 #define PARAMS_H
 
 #include <ctype.h>      // isspace()
-#include <math.h>       // isfinite()
+#include <math.h>
+#include <limits.h>       // isfinite()
 #include <sys/stat.h>   // mkdir()
 #include <errno.h>      // errno
 
@@ -236,6 +237,45 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillAssumeJet = 0;        // don't assume a formed jet on restore
 }
 
+
+/**
+### param_f() and param_i()
+
+`atof` and `atoi` cannot fail. `atof("0.l")` is `0.0`, `atof("nan")` is NaN,
+and `atoi("1e3")` is `1`: a typo in a parameter file becomes a silently wrong
+control value. That is not hypothetical here — `CFLelastic`, `CFLconform` and
+`CFL` all treat a non-positive value as "disabled", so a mistyped CFL switches
+off a stability limiter and the run proceeds without it.
+
+These parse the whole token or refuse it: no trailing characters, no range
+error, and a finite result. They set `*ok = 0` and leave the destination alone
+on failure, so a rejected value never reaches the solver.
+*/
+static inline double param_f(const char *value, const char *key, int *ok) {
+  errno = 0;
+  char *end = NULL;
+  double v = strtod(value, &end);
+  if (end == value || (end && *end != '\0') || errno == ERANGE || !isfinite(v)) {
+    fprintf(stderr, "ERROR: parameter '%s' has a malformed number: '%s'\n", key, value);
+    *ok = 0;
+    return 0.;
+  }
+  return v;
+}
+
+static inline int param_i(const char *value, const char *key, int *ok) {
+  errno = 0;
+  char *end = NULL;
+  long v = strtol(value, &end, 10);
+  if (end == value || (end && *end != '\0') || errno == ERANGE ||
+      v < INT_MIN || v > INT_MAX) {
+    fprintf(stderr, "ERROR: parameter '%s' has a malformed integer: '%s'\n", key, value);
+    *ok = 0;
+    return 0;
+  }
+  return (int) v;
+}
+
 /**
 ### apply_param_kv()
 
@@ -250,44 +290,45 @@ key dispatch lives in exactly one place.
 */
 static inline int apply_param_kv(const char *key, const char *value,
                                  struct SimulationParams *p) {
-  if      (strcmp(key, "CaseNo")          == 0) p->CaseNo = atoi(value);
+  int ok = 1;
+  if      (strcmp(key, "CaseNo")          == 0) p->CaseNo = param_i(value, key, &ok);
   else if (strcmp(key, "Solver")          == 0) return 1; /* runner-only */
-  else if (strcmp(key, "Oh")              == 0) p->Oh = atof(value);
-  else if (strcmp(key, "Bond")            == 0) p->Bond = atof(value);
-  else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = atof(value);
-  else if (strcmp(key, "De")              == 0) p->De = atof(value);
-  else if (strcmp(key, "Ec")              == 0) p->Ec = atof(value);
-  else if (strcmp(key, "FILTERED")        == 0) p->filtered = atoi(value);
-  else if (strcmp(key, "zWall")           == 0) p->zWall = atof(value);
-  else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = atoi(value);
-  else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = atoi(value);
-  else if (strcmp(key, "init_grid_level") == 0) p->init_grid_level = atoi(value);
-  else if (strcmp(key, "fErr")            == 0) p->fErr = atof(value);
-  else if (strcmp(key, "VelErr")          == 0) p->VelErr = atof(value);
-  else if (strcmp(key, "KErr")            == 0) p->KErr = atof(value);
-  else if (strcmp(key, "AErr")            == 0) p->AErr = atof(value);
-  else if (strcmp(key, "CFL")             == 0) p->CFL = atof(value);
-  else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = atof(value);
-  else if (strcmp(key, "CFLconform")      == 0) p->CFLconform = atof(value);
-  else if (strcmp(key, "dtmax")           == 0) p->dtmax = atof(value);
-  else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = atof(value);
-  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = atof(value);
-  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = atof(value);
-  else if (strcmp(key, "tmax")            == 0) p->tmax = atof(value);
-  else if (strcmp(key, "tsnap")           == 0) p->tsnap = atof(value);
-  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = atoi(value);
-  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = atoi(value);
-  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = atof(value);
-  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = atof(value);
-  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = atoi(value);
-  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = atoi(value);
-  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
-  else if (strcmp(key, "drillMinlevelJet")    == 0) p->drillMinlevelJet = atoi(value);
-  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
-  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
-  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
-  else return 0;
-  return 1;
+  else if (strcmp(key, "Oh")              == 0) p->Oh = param_f(value, key, &ok);
+  else if (strcmp(key, "Bond")            == 0) p->Bond = param_f(value, key, &ok);
+  else if (strcmp(key, "OhRatio")         == 0) p->OhRatio = param_f(value, key, &ok);
+  else if (strcmp(key, "De")              == 0) p->De = param_f(value, key, &ok);
+  else if (strcmp(key, "Ec")              == 0) p->Ec = param_f(value, key, &ok);
+  else if (strcmp(key, "FILTERED")        == 0) p->filtered = param_i(value, key, &ok);
+  else if (strcmp(key, "zWall")           == 0) p->zWall = param_f(value, key, &ok);
+  else if (strcmp(key, "MAXlevel")        == 0) p->MAXlevel = param_i(value, key, &ok);
+  else if (strcmp(key, "MINlevel")        == 0) p->MINlevel = param_i(value, key, &ok);
+  else if (strcmp(key, "init_grid_level") == 0) p->init_grid_level = param_i(value, key, &ok);
+  else if (strcmp(key, "fErr")            == 0) p->fErr = param_f(value, key, &ok);
+  else if (strcmp(key, "VelErr")          == 0) p->VelErr = param_f(value, key, &ok);
+  else if (strcmp(key, "KErr")            == 0) p->KErr = param_f(value, key, &ok);
+  else if (strcmp(key, "AErr")            == 0) p->AErr = param_f(value, key, &ok);
+  else if (strcmp(key, "CFL")             == 0) p->CFL = param_f(value, key, &ok);
+  else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = param_f(value, key, &ok);
+  else if (strcmp(key, "CFLconform")      == 0) p->CFLconform = param_f(value, key, &ok);
+  else if (strcmp(key, "dtmax")           == 0) p->dtmax = param_f(value, key, &ok);
+  else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = param_f(value, key, &ok);
+  else if (strcmp(key, "keStopMax")       == 0) p->keStopMax = param_f(value, key, &ok);
+  else if (strcmp(key, "keStopMin")       == 0) p->keStopMin = param_f(value, key, &ok);
+  else if (strcmp(key, "tmax")            == 0) p->tmax = param_f(value, key, &ok);
+  else if (strcmp(key, "tsnap")           == 0) p->tsnap = param_f(value, key, &ok);
+  else if (strcmp(key, "drillAMR")            == 0) p->drillAMR = param_i(value, key, &ok);
+  else if (strcmp(key, "drillMaxlevelStart")  == 0) p->drillMaxlevelStart = param_i(value, key, &ok);
+  else if (strcmp(key, "drillNcellsK")        == 0) p->drillNcellsK = param_f(value, key, &ok);
+  else if (strcmp(key, "drillNcellsJet")      == 0) p->drillNcellsJet = param_f(value, key, &ok);
+  else if (strcmp(key, "drillRelaxLevel")     == 0) p->drillRelaxLevel = param_i(value, key, &ok);
+  else if (strcmp(key, "drillTsnapStages")    == 0) p->drillTsnapStages = param_i(value, key, &ok);
+  else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = param_f(value, key, &ok);
+  else if (strcmp(key, "drillMinlevelJet")    == 0) p->drillMinlevelJet = param_i(value, key, &ok);
+  else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = param_i(value, key, &ok);
+  else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = param_i(value, key, &ok);
+  else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = param_i(value, key, &ok);
+  else return 0;      // key not recognised
+  return ok ? 1 : -1; // -1: key recognised, value malformed
 }
 
 /**
@@ -344,9 +385,15 @@ static inline int parse_params_from_file(const char *filename,
     char *value = trim_inplace(eq + 1);
     if (*key == '\0' || *value == '\0') continue;
 
-    if (!apply_param_kv(key, value, p))
+    int applied = apply_param_kv(key, value, p);
+    if (applied == 0)
       fprintf(stderr, "WARNING: Unknown parameter '%s' at %s:%d\n",
               key, filename, line_num);
+    else if (applied < 0) {
+      fprintf(stderr, "       (at %s:%d)\n", filename, line_num);
+      fclose(fp);
+      return 1;   // a malformed value must stop the run, not default silently
+    }
   }
 
   fclose(fp);
@@ -375,8 +422,13 @@ static inline void apply_cli_overrides(int argc, char **argv, int start,
     *eq = '\0';
     char *key = trim_inplace(buf);
     char *value = trim_inplace(eq + 1);
-    if (!apply_param_kv(key, value, p))
+    int applied = apply_param_kv(key, value, p);
+    if (applied == 0)
       fprintf(stderr, "WARNING: Unknown override key '%s'\n", key);
+    else if (applied < 0) {
+      fprintf(stderr, "ERROR: malformed command-line override '%s'\n", argv[k]);
+      exit (1);
+    }
   }
 }
 
