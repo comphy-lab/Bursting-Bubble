@@ -274,6 +274,20 @@ larger local hoop rate, the resulting increment is
 condition was incidentally protecting the higher-`De` cases from a constraint
 it does not represent.
 
+**What this bound does NOT cover.** The log-conformation update also carries
+the rotational commutator, `Psi12 += dt*OM*(Psi22 - Psi11)` and the matching
+diagonal terms, whose forward-Euler increment scales with the logarithmic
+eigenvalue gap and does not vanish in the eigenbasis. `OM` is built inside the
+vendored header from an eigen-decomposition that is not available here, so `g`
+below is computed from the hoop rate and the velocity-gradient components only.
+In a polymer cell with strongly unequal eigenvalues `dt*|OM*(Psi22 - Psi11)|`
+can therefore exceed `CFL_conform` while `dt*g` stays inside it. That gap is
+real and is not closed by this event. It did not bite in this campaign: with
+`CFL_conform = 0.1` every case on the `De` line ran to `tmax` and the A/B
+restart reproduced then removed the one divergence we had. A complete bound
+would have to recompute `OM` here, or the limit belongs upstream in the header
+that already has it.
+
 `CFL_conform` is that missing bound: the largest log-conformation increment
 permitted in one step. `0` disables it, which is the pre-existing behaviour
 exactly, so no completed run is affected. `0.1` is the value the measurements

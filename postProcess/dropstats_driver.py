@@ -43,6 +43,7 @@ SNAP_RE = re.compile(r"snapshot-([0-9.]+)$")
 MATCH_DZ = 0.25
 MATCH_VOL = 3.0
 SETTLE_TOL = 1e-2       # |dV/dt| / V, in inverse capillary times
+SETTLE_RUN = 3          # consecutive qualifying intervals required
 SPHERICITY_WARN = 1.15  # Rs/Rv above this is a ligament, not a drop
 MIN_CELLS = 8.0         # cells per drop radius below which the radius is the mesh
 
@@ -136,18 +137,33 @@ def track(frames):
     return tracks
 
 
+def _settled_pair(a, b):
+    dt = b["t"] - a["t"]
+    if dt <= 0 or b["V"] <= 0:
+        return None
+    return abs(b["V"] - a["V"]) / (dt * b["V"]) < SETTLE_TOL
+
+
 def measure(tr):
-    """First sample at which the track's volume has settled.
+    """First sample at which the track's volume has settled and STAYS settled.
+
+    A single qualifying interval is not evidence of settlement: a neck can
+    plateau for one snapshot while still exchanging mass, and a fragment can
+    re-merge immediately after. SETTLE_RUN consecutive qualifying intervals are
+    required, so the returned sample is the start of a sustained plateau.
 
     Returns None for a track that never settles — a fragment that merges back
-    or leaves the domain within a couple of snapshots is not a measured drop.
+    or leaves the domain within a few snapshots is not a measured drop.
     """
-    for a, b in zip(tr, tr[1:]):
-        dt = b["t"] - a["t"]
-        if dt <= 0 or b["V"] <= 0:
-            continue
-        if abs(b["V"] - a["V"]) / (dt * b["V"]) < SETTLE_TOL:
-            return b
+    for i in range(len(tr) - 1):
+        ok = True
+        for j in range(i, min(i + SETTLE_RUN, len(tr) - 1)):
+            q = _settled_pair(tr[j], tr[j + 1])
+            if q is not True:
+                ok = False
+                break
+        if ok and min(i + SETTLE_RUN, len(tr) - 1) - i == SETTLE_RUN:
+            return tr[i + 1]
     return None
 
 
@@ -162,6 +178,12 @@ def main():
     ap.add_argument("--min-cells", type=float, default=MIN_CELLS,
                     help="cells per radius below which a drop is treated as unresolved")
     a = ap.parse_args()
+    # A negative threshold marks every finite fragment resolved and a NaN marks
+    # every one unresolved; both produce a summary that looks valid and is not.
+    if not math.isfinite(a.min_cells) or a.min_cells <= 0:
+        sys.exit(f"--min-cells must be finite and positive (got {a.min_cells})")
+    if not math.isfinite(a.ztop):
+        sys.exit(f"--ztop must be finite (got {a.ztop})")
 
     snaps = snapshots(a.case)
     if not snaps:
@@ -222,7 +244,15 @@ def main():
         # it, so its radius, area and kinetic energy are all truncated. Such a
         # sample is not a measurement of a drop and must not reach the totals,
         # the emission index or first_drop.
-        if m["zc"] > a.ztop - m["Rv"]:
+        # An elongated ligament can touch the top boundary while its centroid is
+        # still well below it, so test the body's actual upper extent. One
+        # interfacial cell of clearance; fall back to the centroid test only for
+        # legacy rows that carry no cell size.
+        cell = m.get("dmax_interface") or m.get("dmin")
+        if cell is not None and math.isfinite(cell):
+            if m["zmax"] > a.ztop - cell:
+                continue
+        elif m["zc"] > a.ztop - m["Rv"]:
             continue
         cells = m.get("cells")
         # `cells` absent means the reduction predates the resolution column, so
@@ -266,7 +296,9 @@ def main():
         first_drop=None if first is None else dict(
             t=first["t"], Rd_over_R0=first["Rd"], vz_over_Vc=first["vz"],
             sphericity=first["sphericity"], cells_per_radius=first["cells"],
-            resolved=first["resolved"], n_among_all_rising=first["n"],
+            resolved=first["resolved"],
+            n_among_all_rising=(rising.index(first) + 1),
+            n_among_all_measured=first["n"],
             ligament_warning=first["sphericity"] > SPHERICITY_WARN,
             definition="first RESOLVED rising drop (>= min_cells per radius)"),
         emitted_totals_rising_resolved=dict(

@@ -519,21 +519,24 @@ static inline int validate_params(const struct SimulationParams *p) {
     fprintf(stderr, "ERROR: Wavelet error tolerances must be positive\n");
     valid = 0;
   }
-  if (p->CFL <= 0 || p->CFL > 1) {
+  /* NaN fails every ordered comparison, so without isfinite() a NaN CFL would
+     pass the range test AND the `<= 0` disable guard in the solver, silently
+     switching off the limiter it belongs to. atof() yields NaN for a typo. */
+  if (!isfinite(p->CFL) || p->CFL <= 0 || p->CFL > 1) {
     fprintf(stderr, "ERROR: CFL must be in (0, 1] (CFL = %g)\n", p->CFL);
     valid = 0;
   }
-  if (p->CFLelastic < 0 || p->CFLelastic > 1) {
+  if (!isfinite(p->CFLelastic) || p->CFLelastic < 0 || p->CFLelastic > 1) {
     fprintf(stderr, "ERROR: CFLelastic must be in [0, 1] (0 disables) (CFLelastic = %g)\n",
             p->CFLelastic);
     valid = 0;
   }
-  if (p->CFLconform < 0 || p->CFLconform > 1) {
+  if (!isfinite(p->CFLconform) || p->CFLconform < 0 || p->CFLconform > 1) {
     fprintf(stderr, "ERROR: CFLconform must be in [0, 1] (0 disables) (CFLconform = %g)\n",
             p->CFLconform);
     valid = 0;
   }
-  if (p->dtmax <= 0) {
+  if (!isfinite(p->dtmax) || p->dtmax <= 0) {
     fprintf(stderr, "ERROR: dtmax must be positive (dtmax = %g)\n", p->dtmax);
     valid = 0;
   }
