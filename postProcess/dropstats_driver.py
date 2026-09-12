@@ -85,10 +85,15 @@ def run_tool(tool, path):
                               zc=float(f[7]), zmin=float(f[8]), zmax=float(f[9]),
                               rmax=float(f[10]), vz=float(f[11]),
                               vr=float(f[12]), Ek=float(f[13]),
-                              dmin=float(f[14]) if len(f) > 14 else float("nan"),
-                              cells=float(f[15]) if len(f) > 15 else float("nan")))
+                              dmin=float(f[14]) if len(f) > 14 else None,
+                              cells=float(f[15]) if len(f) > 15 else None,
+                              # coarsest interfacial cell, appended later still
+                              dmax_interface=float(f[16]) if len(f) > 16 else None))
+    # Dropping a snapshot here would splice its neighbours together with a
+    # larger dt, and the tracker matches on predicted drift over dt, so the
+    # link would silently break and renumber every later drop. Fail instead.
     if main is None:
-        print(f"WARNING: no MAIN row from {path}", file=sys.stderr)
+        raise RuntimeError(f"no MAIN row from {path}; tool wrote:\n{r.stderr.strip()[-2000:]}")
     return main, drops
 
 
@@ -171,7 +176,14 @@ def main():
     tracks = track(frames)
 
     # Emission index: order tracks by the time they first appear.
-    order = sorted(range(len(tracks)), key=lambda i: tracks[i][0]["t"] if tracks[i] else math.inf)
+    # Ties are broken on position then volume so the emission index cannot
+    # depend on the order tag() happened to label components in.
+    def _birth(i):
+        if not tracks[i]:
+            return (math.inf, math.inf, math.inf)
+        b = tracks[i][0]
+        return (b["t"], b["zc"], -b["V"])
+    order = sorted(range(len(tracks)), key=_birth)
     nof = {ti: k + 1 for k, ti in enumerate(order) if tracks[ti]}
 
     rows = []
@@ -183,7 +195,7 @@ def main():
 
     with open(os.path.join(a.case, "dropstats.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["t", "track", "n", "id", "V", "Rv", "S", "Rs",
-                                           "sphericity", "cells", "dmin", "zc", "zmin",
+                                           "sphericity", "cells", "dmin", "dmax_interface", "zc", "zmin",
                                            "zmax", "rmax", "vz", "vr", "Ek"])
         w.writeheader()
         w.writerows(rows)
@@ -206,13 +218,23 @@ def main():
         m = measure(tracks[ti])
         if m is None:
             continue
-        cells = m.get("cells", float("nan"))
+        # A body straddling the top boundary has already lost volume through
+        # it, so its radius, area and kinetic energy are all truncated. Such a
+        # sample is not a measurement of a drop and must not reach the totals,
+        # the emission index or first_drop.
+        if m["zc"] > a.ztop - m["Rv"]:
+            continue
+        cells = m.get("cells")
+        # `cells` absent means the reduction predates the resolution column, so
+        # the drop's resolution is UNKNOWN. Unknown is not resolved: treating it
+        # as resolved lets a sub-grid speck into the aggregates unchallenged.
+        resolved = cells is not None and math.isfinite(cells) and cells >= a.min_cells
         measured.append(dict(track=ti, n=len(measured) + 1, n_raw=nof[ti],
                              t=m["t"], Rd=m["Rv"], S=m["S"], V=m["V"],
                              vz=m["vz"], Ek=m["Ek"], cells=cells,
-                             resolved=not (cells == cells and cells < a.min_cells),
-                             sphericity=m["Rs"] / m["Rv"] if m["Rv"] else 0.0,
-                             left_domain=m["zc"] > a.ztop - m["Rv"]))
+                             dmax_interface=m.get("dmax_interface"),
+                             resolved=resolved,
+                             sphericity=m["Rs"] / m["Rv"] if m["Rv"] else 0.0))
     rising = [m for m in measured if m["vz"] > 0.0]
     # Aggregates are reported over RESOLVED rising drops. An unresolved speck
     # contributes a mesh-determined volume and area to N, S_t, V_t and E_kt, so
