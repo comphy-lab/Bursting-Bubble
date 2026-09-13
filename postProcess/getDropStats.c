@@ -116,8 +116,28 @@ int main (int a, char const *arguments[]) {
   scalar d[];
   foreach() d[] = (f[] > FDROP);
   int n = tag (d);
+
+  /**
+  Total liquid volume over the whole domain. Reported so that mass closure —
+  `Vtot` against `V(MAIN) + sum V(DROP)` — is checkable on every snapshot
+  rather than trusted. A shortfall means the tagging or the one-cell dilation
+  is losing a fragment.
+
+  It is accumulated before the no-component exit because `n < 1` only says
+  that no cell exceeds `FDROP`; a snapshot holding nothing but sub-threshold
+  or interfacial liquid still has a real `Vtot`, and reporting zero there
+  would hand the driver a mass closure that looks perfect. All ranks reach
+  this, `tag()` being collective, so the reduction is safe on either path. */
+  double Vtot = 0.;
+  foreach(serial) Vtot += 2.*pi*y*f[]*sq(Delta);
+#if _MPI
+  MPI_Allreduce (MPI_IN_PLACE, &Vtot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
   if (n < 1) {
-    fprintf (ferr, "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 0 0 -1 0\n", t);
+    fprintf (ferr,
+      "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 %.6e 0 -1 0\n",
+      t, Vtot);
     fflush (ferr);
     return 0;
   }
@@ -195,17 +215,6 @@ int main (int a, char const *arguments[]) {
   MPI_Allreduce (MPI_IN_PLACE, cRMAX, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cDMIN, n, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
   MPI_Allreduce (MPI_IN_PLACE, cDMAXI, n, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-#endif
-
-  /**
-  Total liquid volume over the whole domain. Reported so that mass closure —
-  `Vtot` against `V(MAIN) + sum V(DROP)` — is checkable on every snapshot
-  rather than trusted. A shortfall means the tagging or the one-cell dilation
-  is losing a fragment. */
-  double Vtot = 0.;
-  foreach(serial) Vtot += 2.*pi*y*f[]*sq(Delta);
-#if _MPI
-  MPI_Allreduce (MPI_IN_PLACE, &Vtot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
   int main_id = 0;                                   // largest by volume
