@@ -354,6 +354,8 @@ warning but do not abort (forward compatibility with the shell layer).
 
 #### Returns
 - `0` on success
+- `1` if a recognised key carried a malformed or empty value (the run must
+  stop rather than fall back to the default)
 - `-1` if the file cannot be opened
 */
 static inline int parse_params_from_file(const char *filename,
@@ -383,7 +385,10 @@ static inline int parse_params_from_file(const char *filename,
     *eq = '\0';
     char *key = trim_inplace(start);
     char *value = trim_inplace(eq + 1);
-    if (*key == '\0' || *value == '\0') continue;
+    // Only a missing key is ignorable. An empty value on a recognised key
+    // (`CFLelastic=`) must reach apply_param_kv() so that param_f()/param_i()
+    // refuse it; skipping it here would silently keep the default limiter.
+    if (*key == '\0') continue;
 
     int applied = apply_param_kv(key, value, p);
     if (applied == 0)
