@@ -25,8 +25,8 @@ CoMPhy Lab, Durham University
 #define PARAMS_H
 
 #include <ctype.h>      // isspace()
-#include <math.h>
-#include <limits.h>       // isfinite()
+#include <math.h>       // isfinite()
+#include <limits.h>     // INT_MIN, INT_MAX
 #include <sys/stat.h>   // mkdir()
 #include <errno.h>      // errno
 

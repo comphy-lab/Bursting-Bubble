@@ -31,8 +31,8 @@ which is checked and reported (`MAIN` row, `nliq` column) rather than assumed.
 ## Output (stderr, one line per row, whitespace separated)
 
 ```text
-MAIN t nliq ndrop V Rv S Rs zc zmin zmax rmax vz vr Ek ztip rtip vtip Vtot dmin cells
-DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek dmin cells
+MAIN t nliq ndrop V Rv S Rs zc zmin zmax rmax vz vr Ek ztip rtip vtip Vtot dmin cells dmaxi
+DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek dmin cells dmaxi
 ```
 
 - `V`   volume, axisymmetric `sum 2 pi y f Delta^2`
@@ -54,6 +54,13 @@ DROP t id     V Rv S Rs zc zmin zmax rmax vz vr Ek dmin cells
         well-resolved sphere and a four-cell blob both score ~0.99. Any drop
         below roughly eight cells per radius is a mesh artefact until a
         refinement study says otherwise.
+- `dmaxi` COARSEST interfacial cell on the body. `dmin` is the finest cell
+        anywhere in the body, so a body that is mostly coarse but clips one
+        fine cell reports a flattering `cells`. A resolution claim should rest
+        on the worst-resolved part of the interface: use `dmaxi`. The two are
+        equal for a body sitting at a single refinement level, which is every
+        measured drop in this campaign, and diverge only across a refinement
+        boundary.
 
 Lengths are in `R_0`, velocities in the inertio-capillary `V_c`, energies in
 `rho V_c^2 R_0^3`. Convert to the experimental viscous-capillary velocity with
@@ -110,7 +117,7 @@ int main (int a, char const *arguments[]) {
   foreach() d[] = (f[] > FDROP);
   int n = tag (d);
   if (n < 1) {
-    fprintf (ferr, "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 0 0 -1\n", t);
+    fprintf (ferr, "MAIN %.8f 0 0 0 0 0 0 0 0 0 0 0 0 0 -1000 -1000 -1000 0 0 -1 0\n", t);
     fflush (ferr);
     return 0;
   }
@@ -250,6 +257,6 @@ int main (int a, char const *arguments[]) {
   fflush (ferr);
 
   free (cV); free (cS); free (cZ); free (cUZ); free (cUR); free (cEK);
-  free (cZMIN); free (cZMAX); free (cRMAX); free (cDMIN);
+  free (cZMIN); free (cZMAX); free (cRMAX); free (cDMIN); free (cDMAXI);
   return 0;
 }
