@@ -50,13 +50,28 @@ separate, finicky path and is not needed -- do not launch it with mpirun.
 #include "fractions.h"
 #include "tag.h"
 
-char filename[80];
+/**
+A campaign run path is far longer than a tutorial one. The historical
+`char filename[80]` with an unchecked `sprintf` aborted with "buffer overflow
+detected" before reading anything, which looks like a corrupt dump rather than
+a path-length bug. `getDropStats.c` documents the same hazard.
+*/
+char filename[4096];
 
 #define RCAV   1.20      // exclude the flat outer free surface (r spans to L0)
 #define R_TIP  0.25      // near-axis band for the jet tip (max z at r->0)
 
 int main(int a, char const *arguments[]) {
-  sprintf(filename, "%s", arguments[1]);
+  if (a < 2) {
+    fprintf (ferr, "usage: %s <dumpfile>\n", arguments[0]);
+    return 1;
+  }
+  if (snprintf (filename, sizeof(filename), "%s", arguments[1]) >=
+      (int) sizeof(filename)) {
+    fprintf (ferr, "ERROR: snapshot path exceeds %zu characters\n",
+             sizeof(filename) - 1);
+    return 1;
+  }
   restore(file = filename);
 #if TREE
   f.prolongation = fraction_refine;

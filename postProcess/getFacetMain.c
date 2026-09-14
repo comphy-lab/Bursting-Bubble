@@ -28,7 +28,13 @@ reference and the drawn interface are not polluted by the entrapped bubble.
 #include "curvature.h"
 #include "tag.h"
 
-char filename[256];
+/**
+A campaign run path is far longer than a tutorial one. The historical
+`char filename[80]` with an unchecked `sprintf` aborted with "buffer overflow
+detected" before reading anything, which looks like a corrupt dump rather than
+a path-length bug. `getDropStats.c` documents the same hazard.
+*/
+char filename[4096];
 
 static int largest_component(scalar d, int n) {
   int main = 0;
@@ -47,7 +53,16 @@ static int largest_component(scalar d, int n) {
 
 int main(int a, char const *arguments[]) {
   if (a < 2) { fprintf(ferr, "usage: %s <dumpfile>\n", arguments[0]); return 1; }
-  sprintf(filename, "%s", arguments[1]);
+  if (a < 2) {
+    fprintf (ferr, "usage: %s <dumpfile>\n", arguments[0]);
+    return 1;
+  }
+  if (snprintf (filename, sizeof(filename), "%s", arguments[1]) >=
+      (int) sizeof(filename)) {
+    fprintf (ferr, "ERROR: snapshot path exceeds %zu characters\n",
+             sizeof(filename) - 1);
+    return 1;
+  }
   restore(file = filename);
 #if TREE
   f.prolongation = fraction_refine;
