@@ -178,6 +178,130 @@ TODO:
 (const) scalar Gp = unity; // elastic modulus
 (const) scalar lambda = unity; // relaxation time
 
+/**
+## Finite extensibility: FENE-P
+
+Oldroyd-B is a Hookean dumbbell: a coil stretches without bound and the
+extensional viscosity grows without limit. FENE-P replaces the spring with a
+finitely extensible one through the Peterlin closure. We use the
+equilibrium-normalised form standard in the filament-thinning literature,
+
+$$
+f(\mathrm{tr}\,\mathbf{A}) = \frac{L^2 - d}{L^2 - \mathrm{tr}\,\mathbf{A}},
+\qquad \mathbf{T} = G_p\,(f\mathbf{A} - \mathbf{I}),
+\qquad \left.\partial_t\mathbf{A}\right|_{relax}
+      = -\frac{f\mathbf{A} - \mathbf{I}}{\lambda}
+$$
+
+`L2` is the squared ratio of the fully extended dumbbell length to its
+equilibrium r.m.s. extension, so `tr(A)` runs from `d` at equilibrium to `L2`
+at full extension.
+
+**Why this normalisation.** `f(d) = 1`, so the equilibrium is `A = I` and
+`T = 0` exactly as for Oldroyd-B. Every initial condition, boundary condition,
+gas reset, adaptation tolerance and post-processing script written for
+Oldroyd-B keeps its meaning, and the zero-shear polymeric viscosity is
+`eta_p = Gp*lambda` exactly, so `Ec` and `De` are unchanged. `L2 = HUGE` (the
+default) gives `f == 1` identically and recovers Oldroyd-B bit for bit.
+
+The other common convention (Bird et al. 1987, and Basilisk's stock
+`fene-p.h`) writes `f = 1/(1 - tr(A)/b)` with equilibrium `A = I*b/(b+d)`.
+It is the same model: `A_here = A_Bird*(b+d)/b`, `L2 = b + d`,
+`lambda_here = lambda_Bird*b/(b+d)`, same `G`. Convert before comparing
+against anything built on the stock header; above `L2 ~ 1e3` the two agree to
+better than a part in 300.
+
+**This is FENE-P, not FENE-CR.** FENE-CR is `T = Gp*f*(A - I)` and has a
+constant shear viscosity. The difference is the `I` inside versus outside the
+`f`, and it is a different fluid.
+
+`d` is the number of degrees of freedom of the dumbbell. Axisymmetric runs
+carry the real hoop component `AThTh`, so the trace is the true
+three-dimensional one and `d = 3`. A planar run carries only two components;
+`d = 2` there describes a two-dimensional dumbbell, which is what Basilisk's
+stock header also does in planar flow. Production is axisymmetric; the planar
+case exists for the Poiseuille cross-check.
+*/
+
+#if AXI
+# define FENEP_NDOF 3.
+#else
+# define FENEP_NDOF 2.
+#endif
+
+double L2 = HUGE;   // finite extensibility; HUGE = Oldroyd-B
+
+static inline int fenep_active (void) {
+  /**
+  `HUGE` is `1e30f`, which is finite, so `isfinite()` alone does not exclude
+  the Oldroyd-B sentinel. It happens that `f` then evaluates to exactly 1 in
+  double precision and the answer is unchanged, but that is a coincidence of
+  rounding, not a design: the test below keeps the Hookean path genuinely
+  free of the FENE-P solve. */
+  return isfinite (L2) && L2 < HUGE;
+}
+
+/**
+`f` evaluated defensively: the argument is clamped just below `L2` so that a
+diagnostic reading `A` between steps -- after adaptation, prolongation or a
+restart -- can never produce a non-positive or infinite `f`. The relaxation
+below does not rely on this clamp; it guarantees `tr(A) < L2` structurally. */
+
+static inline double fenep_f (double s) {
+  if (!fenep_active())
+    return 1.;
+  double smax = L2*(1. - 1e-9);
+  if (!(s < smax)) s = smax;
+  return (L2 - FENEP_NDOF)/(L2 - s);
+}
+
+/**
+### The relaxation trace, solved implicitly in `f`
+
+Oldroyd-B relaxes by an exact integral because `dA/dt = -(A - I)/lambda` is
+linear. FENE-P is not: `f` depends on `tr(A)`, which is what is relaxing. We
+freeze `f` over the step but choose it *self-consistently* with the end-of-step
+trace, which keeps the update exact in `A` for that `f` and, crucially, keeps
+`tr(A) < L2` for any input -- including an input that the closure-blind stretch
+substep has already pushed past `L2`.
+
+Solve for `s1`:
+$$
+s_1 = \frac{d}{f(s_1)}
+    + \left(s_0 - \frac{d}{f(s_1)}\right) e^{-f(s_1) h}, \qquad h = \Delta t/\lambda .
+$$
+The residual is positive at `s = 0` and tends to `-L2` as `s -> L2`, so a root
+is always bracketed by `[0, L2)`. Fixed-point iteration converges in two or
+three steps at our `h ~ 1e-4`; the bracket is maintained so that a failure
+falls back to bisection rather than to a wrong answer.
+
+Freezing `f` at the *old* trace instead -- what the stock header does -- is
+cheaper and stable while `tr(A) < L2`, but if the stretch substep overshoots
+then `f(s0) <= 0`, `A` loses positive-definiteness and the stress becomes a
+large compressive force in the momentum equation. That is the failure mode
+case 2330 showed with an unbounded hoop source. Build with
+`-DFENEP_EXPLICIT_F` to reproduce it deliberately in a test; never in
+production. */
+
+static double fenep_relax_trace (double s0, double h)
+{
+  const double d = FENEP_NDOF;
+  double lo = 0., hi = L2*(1. - 1e-12);
+  double s = (s0 < hi ? s0 : hi);
+  if (!(s > 0.)) s = 0.;
+  for (int it = 0; it < 60; it++) {
+    double f = (L2 - d)/(L2 - s);
+    double Aeq = d/f;
+    double snew = Aeq + (s0 - Aeq)*exp (-f*h);
+    double g = snew - s;                 // g(lo) > 0, g(hi) < 0
+    if (g > 0.) lo = s; else hi = s;
+    if (fabs (g) <= 1e-12*(1. + fabs (s)))
+      return snew < hi ? snew : hi;
+    s = (snew > lo && snew < hi) ? snew : 0.5*(lo + hi);
+  }
+  return 0.5*(lo + hi);
+}
+
 scalar A11[], A12[], A22[]; // conformation tensor
 scalar T11[], T12[], T22[]; // stress tensor
 #if AXI
@@ -522,31 +646,61 @@ event tracer_advection(i++)
     $$
     */
 
-    double intFactor = (lambda[] != 0. ? (lambda[] == 1e30 ? 1: exp(-dt/lambda[])): 0.);
+    double intFactor, Aeq = 1.;
+    if (lambda[] == 0.)
+      intFactor = 0.;              // no polymer here: reset to equilibrium
+    else if (lambda[] == 1e30)
+      intFactor = 1.;              // infinite Deborah: no relaxation at all
+    else if (!fenep_active())
+      intFactor = exp(-dt/lambda[]);            // Oldroyd-B, exact
+    else {
+      double s0 = A.x.x + A.y.y;
+#if AXI
+      s0 += Aqq;
+#endif
+      double h = dt/lambda[];
+#ifdef FENEP_EXPLICIT_F
+      double fstar = fenep_f (s0);              // test-only: stock's freeze
+#else
+      double fstar = (L2 - FENEP_NDOF)/(L2 - fenep_relax_trace (s0, h));
+#endif
+      intFactor = exp(-fstar*h);
+      Aeq = 1./fstar;
+    }
 
 #if AXI
-      Aqq = (1. - intFactor) + intFactor*exp(Psiqq[]);
+      Aqq = Aeq*(1. - intFactor) + intFactor*Aqq;
 #endif
 
     A.x.y *= intFactor;
     foreach_dimension()
-      A.x.x = (1. - intFactor) + A.x.x*intFactor;
+      A.x.x = Aeq*(1. - intFactor) + A.x.x*intFactor;
 
     /**
       Then the Conformation tensor $\mathcal{A}_p^{n+1}$ is restored from
       $\mathbf{A}^{n+1}$.  */
 
+    /**
+    The stress uses `f` at the end-of-step trace. For Oldroyd-B `fs == 1` and
+    this is the original `T = Gp*(A - I)`. */
+
+    double sEnd = A.x.x + A.y.y;
+#if AXI
+      sEnd += Aqq;
+#endif
+    double fs = fenep_f (sEnd);
+
     A12[] = A.x.y;
-    T12[] = Gp[]*A.x.y;
+    T12[] = Gp[]*fs*A.x.y;
 #if AXI
       AThTh[] = Aqq;
-      T_ThTh[] = Gp[]*(Aqq - 1.);
+      T_ThTh[] = Gp[]*(fs*Aqq - 1.);
 #endif
 
     A11[] = A.x.x;
-    T11[] = Gp[]*(A.x.x - 1.);
+    T11[] = Gp[]*(fs*A.x.x - 1.);
     A22[] = A.y.y;
-    T22[] = Gp[]*(A.y.y - 1.);
+    T22[] = Gp[]*(fs*A.y.y - 1.);
   }
 }
 

@@ -73,6 +73,13 @@ struct SimulationParams {
                               selection accounts for it, and the first VE
                               campaign lost seven runs to exactly that
                               omission. 0 disables the condition. */
+  double L2;             /**< FENE-P finite extensibility, the squared ratio of
+                              full to equilibrium dumbbell extension. `0`
+                              selects Oldroyd-B (infinite extensibility), which
+                              is the default and a bit-for-bit no-op. Any
+                              positive value must exceed the equilibrium trace,
+                              3 in axisymmetry, or the fluid is at full
+                              extension before it is stretched at all. */
   double CFLconform;     /**< Largest log-conformation increment permitted in
                               one explicit step. The Psi update is forward
                               Euler and is then exponentiated, so an increment
@@ -212,6 +219,7 @@ static inline void set_default_params(struct SimulationParams *p) {
   // Adaptive time
   p->CFL = 0.1;
   p->CFLelastic = 0.25;  // margin demonstrated to cross the cavity-focus instant
+  p->L2 = 0.0;           // 0 = Oldroyd-B; a strict no-op for existing cases
   p->CFLconform = 0.0;   // OFF by default: a strict no-op for existing cases
   p->dtmax = 1.0e-2;
   p->TOLERANCE = 1.0e-4;
@@ -309,6 +317,7 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "AErr")            == 0) p->AErr = param_f(value, key, &ok);
   else if (strcmp(key, "CFL")             == 0) p->CFL = param_f(value, key, &ok);
   else if (strcmp(key, "CFLelastic")      == 0) p->CFLelastic = param_f(value, key, &ok);
+  else if (strcmp(key, "L2")              == 0) p->L2 = param_f(value, key, &ok);
   else if (strcmp(key, "CFLconform")      == 0) p->CFLconform = param_f(value, key, &ok);
   else if (strcmp(key, "dtmax")           == 0) p->dtmax = param_f(value, key, &ok);
   else if (strcmp(key, "TOLERANCE")       == 0) p->TOLERANCE = param_f(value, key, &ok);
@@ -520,6 +529,12 @@ Check physical and numerical consistency.
 - `1` if valid
 - `0` if invalid
 */
+#if AXI
+# define FENEP_EQTRACE 3.
+#else
+# define FENEP_EQTRACE 2.
+#endif
+
 static inline int validate_params(const struct SimulationParams *p) {
   int valid = 1;
 
@@ -616,6 +631,37 @@ static inline int validate_params(const struct SimulationParams *p) {
   }
   // Drill trigger consistency (only meaningful for the drill solver, but a
   // malformed value should still fail fast rather than silently mis-refine).
+  /**
+  FENE-P admissibility. `L2 = 0` is Oldroyd-B. A positive `L2` must exceed
+  the equilibrium trace (3 in axisymmetry), or the dumbbell is beyond full
+  extension at rest and `f` is negative from the first step. `CFLconform` is
+  optional for Oldroyd-B but mandatory here: it is the only thing bounding
+  how far the closure-blind stretch substep can push `tr(A)` past `L2` in one
+  step, and the axisymmetric hoop source is exactly the term that did so in
+  case 2330. Finite extensibility with no relaxation is ill-posed: an affine
+  stretch would run into the cap and stay there with nothing to pull it
+  back. */
+
+  if (p->L2 != 0.) {
+    if (p->L2 <= FENEP_EQTRACE) {
+    fprintf(stderr, "ERROR: L2 (%g) must be 0 (Oldroyd-B) or greater than "
+        "the equilibrium trace %g\n", p->L2, (double) FENEP_EQTRACE);
+    valid = 0;
+    }
+    if (p->CFLconform <= 0.) {
+    fprintf(stderr, "ERROR: L2 > 0 requires CFLconform > 0 (0.1 is the "
+        "recommended value); without it nothing bounds the stretch "
+        "substep against the L2 cap\n");
+    valid = 0;
+    }
+    if (p->De <= 0.) {
+    fprintf(stderr, "ERROR: L2 > 0 requires De > 0; finite extensibility "
+        "with no relaxation is ill-posed\n");
+    valid = 0;
+    }
+  }
+
+
   if (p->drillAMR) {
     if (p->drillMaxlevelStart < p->MINlevel || p->drillMaxlevelStart > p->MAXlevel) {
       fprintf(stderr, "ERROR: drillMaxlevelStart (%d) must be in [MINlevel, MAXlevel] = [%d, %d]\n",

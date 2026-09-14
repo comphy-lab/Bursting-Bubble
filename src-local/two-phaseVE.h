@@ -210,7 +210,27 @@ event stability (i++)
       if (trA > 0. && isfinite(trA)) {
         double rhom = rho(f[]);
         if (rhom > 0.) {
-          double ce = sqrt (Gp[]*trA/rhom);
+          /**
+          The wave speed is set by the *tangent* modulus, not by `Gp`. For
+          Oldroyd-B the spring is Hookean and the two coincide. For FENE-P,
+          differentiating `T = Gp (f A - I)` with `f = (L2 - d)/(L2 - trA)`
+          gives `dT/dA = Gp (f + f' A)` with `f' = f^2/(L2 - d)`, so for a
+          strongly stretched state, where one component dominates the trace,
+
+              Geff ~ Gp f^2 L2/(L2 - d).
+
+          The spring stiffens without bound as `trA -> L2`, so the bound must
+          stiffen with it: using `Gp` alone would under-estimate `ce` by a
+          factor `f` exactly where the polymer is most stretched, which is
+          where the step needs limiting most. `fenep_f` clamps its argument,
+          so this stays finite even if a prolongated cell reads slightly above
+          `L2`. With `L2 = HUGE`, `fs == 1` and this reduces to the original
+          expression. */
+
+          double fs = fenep_f (trA);
+          double Geff = Gp[]*sq(fs)*
+            (fenep_active() ? L2/(L2 - FENEP_NDOF) : 1.);
+          double ce = sqrt (Geff*trA/rhom);
           if (ce > 0.) {
             double dte = CFL_elastic*Delta/ce;
             if (dte < dtelastic) dtelastic = dte;
@@ -237,7 +257,8 @@ $$
 \Psi_{\theta\theta}^{n+1} = \Psi_{\theta\theta}^n + \Delta t\,\frac{2u_r}{r},
 $$
 and then exponentiates. An increment of order unity therefore multiplies the
-conformation by `e` in a single step. The relaxation is not the hazard: it is
+conformation by `e` in a single step. For Oldroyd-B the relaxation is not the
+hazard: it is
 integrated analytically (`intFactor = exp(-dt/lambda)`), so it is
 unconditionally stable and small `lambda` is harmless in itself.
 

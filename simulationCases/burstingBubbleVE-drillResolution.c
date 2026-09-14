@@ -382,6 +382,13 @@ int main(int argc, char *argv[]) {
   lambda1 = De; lambda2 = 0.;
   G1 = Ec; G2 = 0.;
 
+  /**
+  Finite extensibility. `params.L2 == 0` means Oldroyd-B, which the solver
+  header expresses as `L2 = HUGE`: `f` is then identically 1 and every
+  expression collapses to the Hookean one. */
+
+  L2 = (params.L2 > 0. ? params.L2 : HUGE);
+
   f.sigma = 1.0;
 
   if (pid() == 0)
