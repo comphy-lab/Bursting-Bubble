@@ -209,7 +209,7 @@ int MAXlevel, MINlevel;
 //   drill* mirrors of the params knobs, populated in main() for terse use.
 int maxlevelLocal;
 int drillAMR, drillMaxlevelStart, drillRelaxLevel, drillTsnapStages;
-int drillMaxlevelFocus, drillRemoveGasSize;
+int drillMaxlevelFocus, drillRemoveGasSize, drillMinlevelJet;
 double drillNcellsK, drillNcellsJet, drillTsnapMinFactor;
 
 // Probe state exported by drillProbe(i++) and consumed by logWriting(i++):
@@ -328,6 +328,7 @@ int main(int argc, char *argv[]) {
   drillTsnapStages    = params.drillTsnapStages;
   drillTsnapMinFactor = params.drillTsnapMinFactor;
   drillMaxlevelFocus  = params.drillMaxlevelFocus;
+  drillMinlevelJet    = params.drillMinlevelJet;
   drillRemoveGasSize  = params.drillRemoveGasSize;
 
   // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
@@ -346,11 +347,17 @@ int main(int argc, char *argv[]) {
   Set the advective CFL and the timestep ceiling. Surface tension is
   time-explicit, so `tension.h` reduces the timestep each step to the
   capillary-wave period `T = sqrt(rho_m * Delta_min^3 / (pi * sigma))`;
-  `dtmax` is therefore a safety ceiling and the effective step is adaptive
+  the ceiling is therefore a safety limit and the effective step is adaptive
   (it scales with the finest cell size and the resolved physics).
+
+  The ceiling must be written to `DT`, not to `dtmax`. `centered.h` carries
+  `event set_dtmax (i++,last) dtmax = DT;`, so anything assigned to `dtmax`
+  here is discarded on the first step and the knob silently does nothing.
   */
   CFL = params.CFL;
-  dtmax = params.dtmax;
+  CFL_elastic = params.CFLelastic;   // elastic-wave limit, see two-phaseVE.h
+  CFL_conform = params.CFLconform;   // conformation-source limit, see two-phaseVE.h
+  DT = params.dtmax;
   TOLERANCE = params.TOLERANCE;
 
   // Create a folder named intermediate where all the simulation snapshots are stored.
@@ -722,6 +729,31 @@ event drillProbe(i++) {
       */
       if (!jetFormed && drillMaxlevelFocus > 0 && L > drillMaxlevelFocus)
         L = drillMaxlevelFocus;
+      /**
+      ### Post-inception floor (case-2331 lesson)
+
+      The pre-inception cap above stops the ramp chasing the focus
+      singularity. Nothing stopped the ramp COARSENING once the jet exists,
+      and the coarsening is irreversible. The demanded level is derived from
+      the tracked jet-base radius `rb = rlow`, the radius of the deepest
+      interfacial point of the MAIN tagged liquid body. While the jet base
+      sits on the axis, `rb ~ Delta/2` and the ramp holds MAXlevel. The
+      instant the main body's deepest point relocates off-axis — a detaching
+      tip fragment leaving the main tag is sufficient, and nothing about that
+      is a statement that jetting has ended — `rb` jumps by two orders of
+      magnitude, `L` collapses, and the hysteresis walks the ceiling down one
+      level per step to `drillMaxlevelStart`. At that level the slender jet
+      cannot be represented, so `rlow` can never return to the axis and the
+      probe can never re-demand resolution. Case 2331 (De = 0.04) lost the
+      feature at t = 0.4770 (i = 4189: rb 1.22e-3 -> 3.78e-2 in one step),
+      reached level 8 by i = 4291, and ran the remaining 1.02 capillary times
+      there — 4738 steps against ~33 000 for its neighbours, and no resolved
+      drop. `drillMinlevelJet` is that missing floor: once `jetFormed`, never
+      coarsen below it. <=0 keeps the old behaviour exactly.
+      */
+      if (jetFormed && drillMinlevelJet > 0 && L < drillMinlevelJet)
+        L = drillMinlevelJet;
+
       Ltarget = L;
     }
 
