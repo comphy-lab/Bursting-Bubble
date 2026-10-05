@@ -109,6 +109,13 @@ struct SimulationParams {
                                   after the inception latch, where the slender
                                   jet is fast but smooth. <=0 disables (cap =
                                   MAXlevel, the pre-case-1006 behaviour). */
+  int drillMaxlevelBelow;    /**< Ceiling for the region BELOW the jet base,
+                                  applied from the moment the inception latch
+                                  ARMS rather than only after it fires. <=0
+                                  disables this regional ceiling. */
+  int drillBelowBufferCells; /**< Width of the full-resolution zone around the
+                                  base, in CELLS of the current ceiling, used
+                                  only by drillMaxlevelBelow. */
   int drillRemoveGasSize;    /**< Remove gas fragments (bubbles=true) smaller
                                   than this side length in cells each step:
                                   components below drillRemoveGasSize^2 cells
@@ -117,6 +124,12 @@ struct SimulationParams {
                                   reconnection that drive the CFL stall. Liquid
                                   droplets are never touched (shed tip droplets
                                   are physics). 0 disables. */
+  int drillRemoveGasBelowSize; /**< Remove ENTRAPPED gas components that lie
+                                  entirely below z_base - DRILL_BASE_BUFFER and
+                                  are smaller than this side length in cells
+                                  (components below drillRemoveGasBelowSize^2
+                                  cells in 2D are absorbed into the liquid).
+                                  0 disables this regularisation. */
   int drillAssumeJet;        /**< 1 = force the inception latch (jetFormed) on
                                   at init after a successful restore. For
                                   restarts from LEGACY post-inception dumps
@@ -186,7 +199,10 @@ static inline void set_default_params(struct SimulationParams *p) {
   p->drillTsnapStages = 1;
   p->drillTsnapMinFactor = 0.1;
   p->drillMaxlevelFocus = -1;   // no pre-inception cap by default
+  p->drillMaxlevelBelow = -1;   // below-base regional cap off by default
+  p->drillBelowBufferCells = 32;
   p->drillRemoveGasSize = 0;    // gas-fragment cleanup off by default
+  p->drillRemoveGasBelowSize = 0; // entrapped-gas removal below the base off
   p->drillAssumeJet = 0;        // don't assume a formed jet on restore
   p->tipMetricsLog = 0;         // keep the extra per-step diagnostic opt-in
   p->drillHoldMaxUntilTipPinch = 0;
@@ -234,6 +250,9 @@ static inline int apply_param_kv(const char *key, const char *value,
   else if (strcmp(key, "drillTsnapMinFactor") == 0) p->drillTsnapMinFactor = atof(value);
   else if (strcmp(key, "drillMaxlevelFocus")  == 0) p->drillMaxlevelFocus = atoi(value);
   else if (strcmp(key, "drillRemoveGasSize")  == 0) p->drillRemoveGasSize = atoi(value);
+  else if (strcmp(key, "drillRemoveGasBelowSize") == 0) p->drillRemoveGasBelowSize = atoi(value);
+  else if (strcmp(key, "drillMaxlevelBelow")  == 0) p->drillMaxlevelBelow = atoi(value);
+  else if (strcmp(key, "drillBelowBufferCells") == 0) p->drillBelowBufferCells = atoi(value);
   else if (strcmp(key, "drillAssumeJet")      == 0) p->drillAssumeJet = atoi(value);
   else if (strcmp(key, "tipMetricsLog")       == 0) p->tipMetricsLog = atoi(value);
   else if (strcmp(key, "drillHoldMaxUntilTipPinch") == 0) p->drillHoldMaxUntilTipPinch = atoi(value);
@@ -527,9 +546,25 @@ static inline int validate_params(const struct SimulationParams *p) {
               p->drillMaxlevelFocus, p->drillMaxlevelStart, p->MAXlevel);
       valid = 0;
     }
+    if (p->drillMaxlevelBelow > 0 &&
+        (p->drillMaxlevelBelow < p->MINlevel || p->drillMaxlevelBelow > p->MAXlevel)) {
+      fprintf(stderr, "ERROR: drillMaxlevelBelow (%d) must be <=0 (disabled) or in [MINlevel, MAXlevel]\n",
+              p->drillMaxlevelBelow);
+      valid = 0;
+    }
+    if (p->drillBelowBufferCells < 0) {
+      fprintf(stderr, "ERROR: drillBelowBufferCells (%d) must be >= 0\n",
+              p->drillBelowBufferCells);
+      valid = 0;
+    }
     if (p->drillRemoveGasSize < 0) {
       fprintf(stderr, "ERROR: drillRemoveGasSize (%d) must be >= 0 (0 disables)\n",
               p->drillRemoveGasSize);
+      valid = 0;
+    }
+    if (p->drillRemoveGasBelowSize < 0) {
+      fprintf(stderr, "ERROR: drillRemoveGasBelowSize (%d) must be >= 0 (0 disables)\n",
+              p->drillRemoveGasBelowSize);
       valid = 0;
     }
     if (p->drillAssumeJet != 0 && p->drillAssumeJet != 1) {
@@ -589,10 +624,20 @@ static inline void print_params(const struct SimulationParams *p, FILE *fp) {
       fprintf(fp, "  focus (pre-incept) cap: %d\n", p->drillMaxlevelFocus);
     else
       fprintf(fp, "  focus (pre-incept) cap: disabled\n");
+    if (p->drillMaxlevelBelow > 0)
+      fprintf(fp, "  below-base cap/buffer:  %d / %d cells\n",
+              p->drillMaxlevelBelow, p->drillBelowBufferCells);
+    else
+      fprintf(fp, "  below-base cap:         disabled\n");
     if (p->drillRemoveGasSize > 0)
       fprintf(fp, "  gas-wisp removal:       < %d^2 cells\n", p->drillRemoveGasSize);
     else
       fprintf(fp, "  gas-wisp removal:       OFF\n");
+    if (p->drillRemoveGasBelowSize > 0)
+      fprintf(fp, "  entrapped-gas removal:  < %d^2 cells below z_base - buffer\n",
+              p->drillRemoveGasBelowSize);
+    else
+      fprintf(fp, "  entrapped-gas removal:  OFF\n");
     if (p->drillAssumeJet)
       fprintf(fp, "  assume jet on restore:  ON\n");
     fprintf(fp, "  tip metrics sidecar:    %s\n", p->tipMetricsLog ? "ON" : "OFF");

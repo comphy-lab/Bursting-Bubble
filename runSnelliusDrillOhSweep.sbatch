@@ -32,29 +32,52 @@
 # Required env (via --export): CASE_NO, OH
 # Optional env (defaults shown): MAXLEVEL=13, BOND=1e-3, TMAX=1.5,
 #   DRILL_MAXLEVEL_START=8, DRILL_MAXLEVEL_FOCUS=<MAXLEVEL-1>,
-#   DRILL_RELAX_LEVEL=10, DRILL_REMOVE_GAS_SIZE=3, KE_STOP_MAX=1e4,
+#   DRILL_RELAX_LEVEL=10, DRILL_REMOVE_GAS_SIZE=3, DRILL_REMOVE_GAS_BELOW_SIZE=0, KE_STOP_MAX=1e4,
 #   TIP_METRICS_LOG=0, DRILL_HOLD_MAX_UNTIL_TIP_PINCH=0,
 #   DRILL_STOP_AT_TIP_PINCH=0, DRILL_TSNAP_STAGES=1
 # =============================================================================
 
 set -euo pipefail
 
-: "${CASE_NO:?CASE_NO must be set (--export=ALL,CASE_NO=...)}"
-: "${OH:?OH must be set (--export=ALL,OH=...)}"
+# Positional/KEY=VALUE arguments override the environment. Script arguments
+# are forwarded by Slurm independently of its environment export policy.
+# Usage:
+#   sbatch runSnelliusDrillOhSweep.sbatch <CASE_NO> <OH> [KEY=VALUE ...]
+if [[ $# -ge 1 && "$1" != *=* ]]; then CASE_NO="$1"; shift; fi
+if [[ $# -ge 1 && "$1" != *=* ]]; then OH="$1"; shift; fi
+for kv in "$@"; do
+  [[ "$kv" =~ ^[A-Z][A-Z0-9_]*=.*$ ]] || { echo "bad argument: $kv (expect KEY=VALUE)" >&2; exit 2; }
+  case "${kv%%=*}" in
+    CASE_NO|OH|MAXLEVEL|BOND|TMAX|DRILL_MAXLEVEL_START|DRILL_MAXLEVEL_FOCUS|\
+    DRILL_RELAX_LEVEL|DRILL_REMOVE_GAS_SIZE|DRILL_REMOVE_GAS_BELOW_SIZE|\
+    DRILL_TSNAP_STAGES|TIP_METRICS_LOG|DRILL_HOLD_MAX_UNTIL_TIP_PINCH|\
+    DRILL_STOP_AT_TIP_PINCH|KE_STOP_MAX|KE_STOP_MIN|DRILL_NCELLS_K|\
+    DRILL_MAXLEVEL_BELOW|DRILL_BELOW_BUFFER_CELLS|PARSE_ONLY) ;;
+    *) echo "unknown argument: ${kv%%=*}" >&2; exit 2 ;;
+  esac
+  export "${kv?}"
+done
+: "${CASE_NO:?CASE_NO must be set (argument 1 or --export=ALL,CASE_NO=...)}"
+: "${OH:?OH must be set (argument 2 or --export=ALL,OH=...)}"
 MAXLEVEL="${MAXLEVEL:-13}"
+[[ "${MAXLEVEL}" =~ ^[0-9]+$ ]] || { echo "MAXLEVEL must be a nonnegative integer" >&2; exit 2; }
 BOND="${BOND:-1e-3}"
 TMAX="${TMAX:-1.5}"
 DRILL_MAXLEVEL_START="${DRILL_MAXLEVEL_START:-8}"
 DRILL_MAXLEVEL_FOCUS="${DRILL_MAXLEVEL_FOCUS:-$((MAXLEVEL - 1))}"
 DRILL_RELAX_LEVEL="${DRILL_RELAX_LEVEL:-10}"
 DRILL_REMOVE_GAS_SIZE="${DRILL_REMOVE_GAS_SIZE:-3}"
+DRILL_REMOVE_GAS_BELOW_SIZE="${DRILL_REMOVE_GAS_BELOW_SIZE:-0}"
 DRILL_TSNAP_STAGES="${DRILL_TSNAP_STAGES:-1}"
 TIP_METRICS_LOG="${TIP_METRICS_LOG:-0}"
 DRILL_HOLD_MAX_UNTIL_TIP_PINCH="${DRILL_HOLD_MAX_UNTIL_TIP_PINCH:-0}"
 DRILL_STOP_AT_TIP_PINCH="${DRILL_STOP_AT_TIP_PINCH:-0}"
 KE_STOP_MAX="${KE_STOP_MAX:-1e4}"
+KE_STOP_MIN="${KE_STOP_MIN:-1e-6}"
+DRILL_NCELLS_K="${DRILL_NCELLS_K:-5}"
+DRILL_MAXLEVEL_BELOW="${DRILL_MAXLEVEL_BELOW:--1}"
+DRILL_BELOW_BUFFER_CELLS="${DRILL_BELOW_BUFFER_CELLS:-32}"
 [[ "${CASE_NO}" =~ ^[0-9]{4}$ ]] || { echo "CASE_NO must be four digits" >&2; exit 2; }
-[[ "${MAXLEVEL}" =~ ^[0-9]+$ ]] || { echo "MAXLEVEL must be a nonnegative integer" >&2; exit 2; }
 [[ "${DRILL_MAXLEVEL_START}" =~ ^[0-9]+$ ]] || { echo "DRILL_MAXLEVEL_START must be a nonnegative integer" >&2; exit 2; }
 [[ "${DRILL_MAXLEVEL_FOCUS}" =~ ^-?[0-9]+$ ]] || { echo "DRILL_MAXLEVEL_FOCUS must be an integer" >&2; exit 2; }
 for flag in DRILL_TSNAP_STAGES TIP_METRICS_LOG DRILL_HOLD_MAX_UNTIL_TIP_PINCH DRILL_STOP_AT_TIP_PINCH; do
@@ -62,6 +85,9 @@ for flag in DRILL_TSNAP_STAGES TIP_METRICS_LOG DRILL_HOLD_MAX_UNTIL_TIP_PINCH DR
 done
 # staged-tsnap floor: 2^(start-MAXlevel), so the fast jet window near
 # inception is never under-sampled at the target resolution
+if [[ "${PARSE_ONLY:-0}" == "1" ]]; then
+  echo "PARSE_ONLY CASE_NO=${CASE_NO} OH=${OH} MAXLEVEL=${MAXLEVEL} TMAX=${TMAX} focus=${DRILL_MAXLEVEL_FOCUS} ncellsK=${DRILL_NCELLS_K} relax=${DRILL_RELAX_LEVEL} below=${DRILL_MAXLEVEL_BELOW} hold=${DRILL_HOLD_MAX_UNTIL_TIP_PINCH} gasBelow=${DRILL_REMOVE_GAS_BELOW_SIZE}"; exit 0
+fi
 DRILL_TSNAP_MIN_FACTOR=$(python3 -c "print(2**(${DRILL_MAXLEVEL_START}-${MAXLEVEL}))")
 
 SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -133,17 +159,21 @@ tmax=${TMAX}
 zWall=4.0
 drillAMR=1
 drillMaxlevelStart=${DRILL_MAXLEVEL_START}
-drillNcellsK=5
+drillNcellsK=${DRILL_NCELLS_K}
 drillNcellsJet=5
 drillRelaxLevel=${DRILL_RELAX_LEVEL}
 drillTsnapStages=${DRILL_TSNAP_STAGES}
 drillTsnapMinFactor=${DRILL_TSNAP_MIN_FACTOR}
 drillMaxlevelFocus=${DRILL_MAXLEVEL_FOCUS}
 drillRemoveGasSize=${DRILL_REMOVE_GAS_SIZE}
+drillRemoveGasBelowSize=${DRILL_REMOVE_GAS_BELOW_SIZE}
+drillMaxlevelBelow=${DRILL_MAXLEVEL_BELOW}
+drillBelowBufferCells=${DRILL_BELOW_BUFFER_CELLS}
 tipMetricsLog=${TIP_METRICS_LOG}
 drillHoldMaxUntilTipPinch=${DRILL_HOLD_MAX_UNTIL_TIP_PINCH}
 drillStopAtTipPinch=${DRILL_STOP_AT_TIP_PINCH}
 keStopMax=${KE_STOP_MAX}
+keStopMin=${KE_STOP_MIN}
 PARAMS
 echo "Wrote ${CASE_DIR}/case.params:"
 cat "${CASE_DIR}/case.params"

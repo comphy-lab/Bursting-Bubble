@@ -191,7 +191,8 @@ int MAXlevel, MINlevel;
 //   drill* mirrors of the params knobs, populated in main() for terse use.
 int maxlevelLocal;
 int drillAMR, drillMaxlevelStart, drillRelaxLevel, drillTsnapStages;
-int drillMaxlevelFocus, drillRemoveGasSize;
+int drillMaxlevelFocus, drillRemoveGasSize, drillRemoveGasBelowSize;
+int drillMaxlevelBelow, drillBelowBufferCells;
 double drillNcellsK, drillNcellsJet, drillTsnapMinFactor;
 
 // Probe state exported by drillProbe(i++) and consumed by logWriting(i++):
@@ -206,7 +207,9 @@ int    g_jetFormed = 0;
 // re-latch. writingFiles mirrors these three to the "drillstate" file.
 int jetFormed = 0;    // inception latch (never clears during a run)
 int drillArmed = 0;   // arm/fire latch: armed in the final singular approach
+int drillRestored = 0; // this run resumed from a dump (gates the r_base self-heal)
 int baseOffAxis = 0;  // consecutive off-axis-base steps since arming
+int baseSeenOffAxis = 0; // base has left the axis at least once (arm gate)
 int tipPinched = 0;   // first tip-droplet-shed latch (terminal relaxation)
 int tipPinchSteps = 0; // consecutive n>1 steps toward the tipPinched latch
                        // (transient, not persisted — re-counts after restart)
@@ -263,6 +266,7 @@ Geometry-tuned for case 1000: origin(-6,0), L0=10, free surface near z=0.
 
 // Robust arm/fire reconnection latch (case-1006 lesson; see drillProbe):
 #define ARM_BAND    0.005  // base pinned on-axis (final singular approach)
+#define D_ARM       0.01   // max-|kappa| probe within this of the base = singular approach
 #define LATCH_STEPS 25     // consecutive off-axis steps before firing
 #define RBASE_JET   0.15   // unambiguous developed-jet base radius (self-heal
                            // for restarts that jump straight into the jet phase;
@@ -316,6 +320,9 @@ int main(int argc, char *argv[]) {
   drillTsnapMinFactor = params.drillTsnapMinFactor;
   drillMaxlevelFocus  = params.drillMaxlevelFocus;
   drillRemoveGasSize  = params.drillRemoveGasSize;
+  drillRemoveGasBelowSize = params.drillRemoveGasBelowSize;
+  drillMaxlevelBelow  = params.drillMaxlevelBelow;
+  drillBelowBufferCells = params.drillBelowBufferCells;
 
   // Calculate domain size: Ldomain = min(zWall + 6.0, 16.0)
   // zWall = distance from bubble south pole to bottom wall
@@ -432,14 +439,19 @@ event init(t = 0) {
   LEGACY post-inception snapshots that predate the drillstate file (it only
   ever sets the latch, never clears it).
   */
+  drillRestored = restored ? 1 : 0;
   if (restored) {
     FILE *fs = fopen("drillstate", "r");
     if (fs) {
-      int jf, da, tp;
-      if (fscanf(fs, "%d %d %d", &jf, &da, &tp) == 3) {
+      int jf, da, tp, sf;
+      int nread = fscanf(fs, "%d %d %d %d", &jf, &da, &tp, &sf);
+      if (nread >= 3) {
         jetFormed = jf; drillArmed = da; tipPinched = tp;
-        fprintf(ferr, "drillstate restored: jetFormed=%d drillArmed=%d tipPinched=%d\n",
-                jetFormed, drillArmed, tipPinched);
+        // Legacy 3-field drillstate: assume the excursion already happened,
+        // which reproduces the pre-gate behaviour for old restarts.
+        baseSeenOffAxis = (nread == 4) ? sf : 1;
+        fprintf(ferr, "drillstate restored: jetFormed=%d drillArmed=%d tipPinched=%d baseSeenOffAxis=%d\n",
+                jetFormed, drillArmed, tipPinched, baseSeenOffAxis);
       }
       fclose(fs);
     }
@@ -491,7 +503,18 @@ the drilled ceiling `maxlevelLocal`. The buffer keeps the base itself (and
 its flux plane) inside the full-resolution zone.
 */
 int drillMLFun(double x, double y, double z) {
-  if (g_zbase > -900. && x < g_zbase - DRILL_BASE_BUFFER)
+  /**
+  Optional below-base ceiling with a buffer measured in cells at the current
+  global ceiling. The adapt event enables it after the inception latch arms.
+  The ceiling cannot exceed maxlevelLocal during terminal relaxation.
+  */
+  if (g_zbase > -900. && drillMaxlevelBelow > 0) {
+    double buffer = drillBelowBufferCells*Ldomain/(double)(1 << maxlevelLocal);
+    if (x < g_zbase - buffer)
+      return drillMaxlevelBelow < maxlevelLocal ? drillMaxlevelBelow : maxlevelLocal;
+    return maxlevelLocal;
+  }
+  if (g_zbase > -900. && drillMaxlevelFocus > 0 && x < g_zbase - DRILL_BASE_BUFFER)
     // never exceed the global ceiling: after terminal relaxation
     // maxlevelLocal can drop BELOW the focus cap, and the below-base zone
     // must relax with it rather than stay pinned at drillMaxlevelFocus
@@ -504,13 +527,14 @@ event adapt(i++) {
   curvature(f, KAPPA);
 
   /**
-  Post-inception (and only when the focus cap + a valid base exist), the
-  ceiling is REGIONAL via adapt_wavelet_limited: full `maxlevelLocal` on the
-  jet, `drillMaxlevelFocus` below the base. Pre-inception the plain call is
-  byte-for-byte the reference adapt — the global focus cap in drillProbe
-  already regularises the collapse there.
+  Use a regional ceiling after arming when the explicit below-base cap is
+  enabled, or after inception for the legacy focus-based cap. Otherwise use
+  the global ceiling selected by drillProbe for this step.
   */
-  if (drillAMR && jetFormed && drillMaxlevelFocus > 0 && g_zbase > -900.)
+  // Reduces to the original condition whenever drillMaxlevelBelow <= 0.
+  if (drillAMR && g_zbase > -900.
+      && ((jetFormed && drillMaxlevelFocus > 0)
+          || (drillMaxlevelBelow > 0 && (jetFormed || drillArmed))))
     adapt_wavelet_limited((scalar *){f, u.x, u.y, KAPPA},
       (double[]){fErr, VelErr, VelErr, KErr},
       drillMLFun, MINlevel);
@@ -542,8 +566,87 @@ event drillProbe(i++) {
   BEFORE the probe/getBase tagging below, so the diagnostics never see the
   wisps either.
   */
-  if (drillRemoveGasSize > 0)
-    remove_droplets(f, minsize = drillRemoveGasSize, bubbles = true);
+  if (drillRemoveGasSize > 0 || drillRemoveGasBelowSize > 0) {
+    /**
+    Removing gas changes the density represented by f. Reset newly liquid
+    cells to the f-weighted velocity of their original liquid neighbours,
+    rather than retaining the removed gas's velocity. This regularisation is
+    not an exact momentum-conservation step. A temporary field makes the
+    reset independent of traversal order; the next projection handles the
+    resulting divergence.
+    */
+    scalar fpre[];
+    foreach()
+      fpre[] = f[];
+    if (drillRemoveGasSize > 0)
+      remove_droplets(f, minsize = drillRemoveGasSize, bubbles = true);
+
+    /**
+    Remove any gas component that lies entirely below z_base - DRILL_BASE_BUFFER
+    and is smaller than drillRemoveGasBelowSize^dimension cells. This optional
+    regularisation requires a valid base probe. Converted cells use the same
+    liquid-neighbour velocity reset as the ordinary gas-fragment filter.
+    */
+    if (drillRemoveGasBelowSize > 0 && g_zbase > -900.) {
+      scalar gb[];
+      foreach()
+        gb[] = (1. - f[]) > 1e-4;
+      int nb = tag(gb);
+      if (nb > 0) {
+        long * cnt = calloc(nb, sizeof(long));
+        double * zmax = malloc(nb*sizeof(double));
+        for (int k = 0; k < nb; k++)
+          zmax[k] = -1e9;
+        foreach(serial)
+          if (gb[] > 0) {
+            int k = ((int) gb[]) - 1;
+            cnt[k]++;
+            if (x > zmax[k]) zmax[k] = x;
+          }
+#if _MPI
+        MPI_Allreduce(MPI_IN_PLACE, cnt, nb, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, zmax, nb, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+#endif
+        long minsize = (long) pow(drillRemoveGasBelowSize, dimension);
+        double zlimit = g_zbase - DRILL_BASE_BUFFER;
+        long removed = 0;
+        foreach(serial)
+          if (gb[] > 0) {
+            int k = ((int) gb[]) - 1;
+            if (cnt[k] < minsize && zmax[k] < zlimit) {
+              f[] = 1.;
+              removed++;
+            }
+          }
+        if (removed > 0)
+          fprintf(ferr, "drill: removed %ld entrapped-gas cells below z = %g at t = %g (i = %d)\n",
+                  removed, zlimit, t, i);
+        free(cnt);
+        free(zmax);
+      }
+    }
+    vector unew[];
+    foreach()
+      foreach_dimension()
+        unew.x[] = u.x[];
+    foreach() {
+      if (fpre[] < 0.5 && f[] > 0.5) {
+        double wsum = 0.;
+        coord usum = {0., 0.};
+        foreach_neighbor(1)
+          if (fpre[] > 0.5) {
+            wsum += fpre[];
+            foreach_dimension()
+              usum.x += fpre[]*u.x[];
+          }
+        foreach_dimension()
+          unew.x[] = (wsum > 0.) ? usum.x/wsum : 0.;
+      }
+    }
+    foreach()
+      foreach_dimension()
+        u.x[] = unew.x[];
+  }
 
   /**
   ### Curvature
@@ -747,13 +850,29 @@ event drillProbe(i++) {
       drillArmed is restart-persistent via drillstate.)
       */
       if (!jetFormed) {
-        if (!drillArmed && L >= MAXlevel && g_rbase > -900. && g_rbase < ARM_BAND)
+        /**
+        An on-axis cavity floor is insufficient evidence for inception.
+        Record an off-axis excursion so that a subsequent return to the axis
+        can contribute to the arming condition.
+        */
+        if (g_rbase > AXIS_BAND) baseSeenOffAxis = 1;
+        /**
+        Alternatively, allow arming when the curvature maximum is close to
+        the base. This covers approaches without an off-axis excursion.
+        Both locations are previous-step probes, as is g_rbase.
+        */
+        int kappaAtBase = (g_zb > -900. && g_zbase > -900.
+                           && fabs(g_zb - g_zbase) < D_ARM);
+        if (!drillArmed && (baseSeenOffAxis || kappaAtBase) && L >= MAXlevel
+            && g_rbase > -900. && g_rbase < ARM_BAND)
           drillArmed = 1;
         if (drillArmed) {
           baseOffAxis = (g_rbase > AXIS_BAND) ? baseOffAxis + 1 : 0;
           if (baseOffAxis >= LATCH_STEPS) jetFormed = 1;
         }
-        if (g_rbase > RBASE_JET) jetFormed = 1;
+        // Repair legacy post-inception restores only. Fresh runs use the
+        // arm/fire condition, so a large pre-inception ring cannot self-latch.
+        if (drillRestored && g_rbase > RBASE_JET) jetFormed = 1;
       }
 
       /**
@@ -923,7 +1042,7 @@ event writingFiles(t = 0; t += tsnap; t <= tmax) {
   if (pid() == 0) {
     FILE *fs = fopen("drillstate", "w");
     if (fs) {
-      fprintf(fs, "%d %d %d\n", jetFormed, drillArmed, tipPinched);
+      fprintf(fs, "%d %d %d %d\n", jetFormed, drillArmed, tipPinched, baseSeenOffAxis);
       fclose(fs);
     }
   }
