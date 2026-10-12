@@ -4,11 +4,18 @@ interface profiles (Duchemin/Cattaneo-style, 4 panels).
 
 Rows:  (top) PRE-inception cavity collapse ; (bottom) POST-inception jet.
 Cols:  (left) raw (r/R0, z/R0) ; (right) rescaled by the self-similar time
-       scale tau=|t-t0| with OUR exponent alpha (not 2/3):
+       scale |t-t0| with OUR exponent alpha (not 2/3):
          x = (r/R0) / (|t-t0|/t_ic)^alpha
          y = (z - z_base)/R0 / (|t-t0|/t_ic)^alpha
 Lengths are in R0 and time in t_ic (the raw simulation units), so the ONLY
 change from an inertio-capillary collapse is the exponent alpha.
+
+Virtual origins: t0 = T0_PRE before inception and T0_POST after, the values
+that best collapse each sequence inside the rescaled panels (fit_t0_collapse.py).
+Frames are selected and coloured with the Letter's t0 (r_j^(1/alpha) fit): after inception
+1.5e-4 <= t - t0 <= 1e-2, before inception 1e-3 <= t0 - t <= 2e-2. Closer to
+inception the cavity shows the bubble-entrapment stall; earlier cavities are not
+yet self-similar. The rescaled panels show |x| <= 4: the jet and the cavity bottom.
 
 Data (in facets/): the FULL raw interface (getFacet) per snapshot. The facet
 segments are chained into continuous solid polylines and only the largest
@@ -32,6 +39,10 @@ from matplotlib.ticker import FixedLocator, FuncFormatter
 HERE = os.path.dirname(os.path.abspath(__file__))
 FAC = os.path.join(HERE, "facets")
 ALPHA = 0.629          # cone exponent alpha(beta) for Oh=0.03, beta=38.4 deg
+T0_PRE = 0.494191      # fit_t0_collapse.py, before inception (alpha = 0.629)
+T0_POST = 0.494355     # fit_t0_collapse.py, after inception (alpha = 0.629)
+PRE_WINDOW = (1.0e-3, 2.0e-2)    # t0 - t, with the Letter's t0
+POST_WINDOW = (1.5e-4, 1.0e-2)   # t - t0, with the Letter's t0
 ZWIN = 0.30            # axial window above the base to keep (drop far free surface)
 
 APS_SINGLE_COL = 3.375
@@ -161,7 +172,7 @@ aScPost = fig.add_axes([left + panel_w + gap_x, bottom, panel_w, panel_h])
 aRawPre = fig.add_axes([left, bottom + panel_h + gap_y, panel_w, panel_h])
 aScPre = fig.add_axes([left + panel_w + gap_x, bottom + panel_h + gap_y, panel_w, panel_h])
 cax = fig.add_axes([0.265, 0.075, 0.545, 0.026])
-CBAR_LO, CBAR_HI = 1e-4, 0.05            # fixed colorbar range for |t-t0|/t_ic
+CBAR_LO, CBAR_HI = 1e-4, 0.02            # fixed colorbar range for |t-t0|/t_ic
 norm = colors.LogNorm(CBAR_LO, CBAR_HI); cmap = cm.viridis
 
 def brk(x, y, cut):
@@ -180,20 +191,18 @@ def brk(x, y, cut):
     return np.array(xb), np.array(yb)
 
 SC_CUT = 1.0        # max allowed step in rescaled coords (real facets rescale to <0.15)
-TAU_FLOOR = 1.5e-4  # drop frames with |t-t0| below this from BOTH panels of a row, so the raw
-                    # (uncompensated) and rescaled (compensated) panels show the SAME instants.
-                    # These near-origin frames sit between physical nucleation and the fitted
-                    # self-similar virtual origin t0: the jet is a grid-scale nub whose overhang
-                    # the 1/tau^alpha blow-up turns into spurious teardrops/crowns. (The data
-                    # still resolves closer to t0; we just don't plot those instants.)
+# The raw (uncompensated) and rescaled (compensated) panels of a row show the SAME
+# instants. After inception, frames with t - t0 < 1.5e-4 are left out: the jet is
+# a grid-scale nub whose overhang the 1/tau^alpha blow-up turns into spurious
+# teardrops/crowns. (The data still resolve closer to t0; those instants are not plotted.)
 
-def draw(prefix, times, zbmap, sign, axRaw, axSc, tau_floor=0.0):
+def draw(prefix, times, zbmap, sign, axRaw, axSc, t0, window):
     for t in sorted(times):
-        tau = (T0 - t) if sign > 0 else (t - T0)
-        if tau <= tau_floor:                       # same instant set in raw and rescaled
+        if not window[0] <= sign * (T0 - t) <= window[1]:   # frame set from the Letter's t0
             continue
+        tau = sign * (t0 - t)                      # rescaling from this row's virtual origin
         zref = zbmap[t][0]                         # tag-based main-body base
-        s = tau ** ALPHA; col = cmap(norm(tau))
+        s = tau ** ALPHA; col = cmap(norm(sign * (T0 - t)))   # colour: |t - t0| from the Letter's t0
         comps = chain(load_segments(prefix, t))    # connected components of the raw interface
         if not comps:
             continue
@@ -210,16 +219,17 @@ def draw(prefix, times, zbmap, sign, axRaw, axSc, tau_floor=0.0):
             axSc.plot(xs, ys, color=col, lw=LINEWIDTH, solid_capstyle="round")
             axSc.plot(-xs, ys, color=col, lw=LINEWIDTH, solid_capstyle="round")
 
-draw("facetpremain", pre, pre, +1, aRawPre, aScPre, tau_floor=TAU_FLOOR)
-draw("facetmain",   post, post, -1, aRawPost, aScPost, tau_floor=TAU_FLOOR)
+draw("facetpremain", pre, pre, +1, aRawPre, aScPre, T0_PRE, PRE_WINDOW)
+draw("facetmain",   post, post, -1, aRawPost, aScPost, T0_POST, POST_WINDOW)
 
 aRawPre.set_ylabel(r"$z/R$", labelpad=1)
 aScPre.set_ylabel(r"$\eta$", labelpad=1)
 aRawPost.set_xlabel(r"$r/R$", labelpad=1); aRawPost.set_ylabel(r"$z/R$", labelpad=1)
 aScPost.set_xlabel(r"$\xi$", labelpad=1); aScPost.set_ylabel(r"$\eta$", labelpad=1)
-for a in (aScPre, aScPost): a.set_xlim(-8, 8); a.set_ylim(-0.5, 8)
+aScPre.set_xlim(-4, 4); aScPre.set_ylim(-0.3, 2.5)
+aScPost.set_xlim(-4, 4); aScPost.set_ylim(-0.5, 8)
 for a in (aRawPre, aRawPost): a.set_xlim(-0.35, 0.35)
-aRawPre.set_ylim(-1.80, -1.33)     # pre-inception cavity z-range (LineCollection: set explicitly)
+aRawPre.set_ylim(-1.72, -1.28)     # pre-inception cavity z-range (LineCollection: set explicitly)
 aRawPost.set_ylim(-1.52, -1.00)    # post-inception jet z-range
 
 for label, ax in zip((r"(a)", r"(b)", r"(c)", r"(d)"),
@@ -238,9 +248,10 @@ for label, ax in zip((r"(a)", r"(b)", r"(c)", r"(d)"),
 for ax in (aRawPre, aRawPost):
     ax.xaxis.set_major_locator(FixedLocator([-0.3, 0.0, 0.3]))
 for ax in (aScPre, aScPost):
-    ax.xaxis.set_major_locator(FixedLocator([-6, 0, 6]))
-    ax.yaxis.set_major_locator(FixedLocator([0, 4, 8]))
-aRawPre.yaxis.set_major_locator(FixedLocator([-1.8, -1.6, -1.4]))
+    ax.xaxis.set_major_locator(FixedLocator([-3, 0, 3]))
+aScPre.yaxis.set_major_locator(FixedLocator([0, 1, 2]))
+aScPost.yaxis.set_major_locator(FixedLocator([0, 4, 8]))
+aRawPre.yaxis.set_major_locator(FixedLocator([-1.7, -1.5, -1.3]))
 aRawPost.yaxis.set_major_locator(FixedLocator([-1.5, -1.25, -1.0]))
 
 def signed_label(value, decimals=1):
@@ -262,7 +273,7 @@ for ax in (aRawPre, aScPre):
 
 sm = cm.ScalarMappable(cmap=cmap, norm=norm); sm.set_array([])
 cb = fig.colorbar(sm, cax=cax, orientation="horizontal", extend="both")
-cb.set_ticks([1e-4, 1e-3, 1e-2, 0.05])
+cb.set_ticks([1e-4, 1e-3, 1e-2])
 cb.ax.xaxis.set_major_formatter(FuncFormatter(
     lambda v, _: (r"$10^{\mbox{-}4}$" if abs(v-1e-4) < 1e-6 else
                   r"$10^{\mbox{-}3}$" if abs(v-1e-3) < 1e-5 else
@@ -277,5 +288,5 @@ cb.outline.set_linewidth(0.65)
 out = os.path.join(HERE, "fig3_Oh0.03_collapse")
 plt.savefig(out + ".png", dpi=600)
 plt.savefig(out + ".pdf")
-print("t0(fitted)=%.6f  alpha=%.3f  pre=%d post=%d" % (T0, ALPHA, len(pre), len(post)))
+print("t0(Letter)=%.6f  t0-=%.6f  t0+=%.6f  alpha=%.3f" % (T0, T0_PRE, T0_POST, ALPHA))
 print("wrote fig3_Oh0.03_collapse.{png,pdf}")
